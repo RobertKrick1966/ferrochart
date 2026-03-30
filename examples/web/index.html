@@ -34,11 +34,14 @@
     <script type="module">
         import init, { PowerChart } from '../../crates/wasm/pkg/powerchart_wasm.js';
 
+        // Keep chart alive at module scope so GC doesn't drop closures
+        let chart;
+
         async function run() {
             await init();
 
             const canvas = document.getElementById('chart');
-            const chart = new PowerChart(canvas);
+            chart = new PowerChart(canvas);
 
             // Generate 120 days of sample OHLCV data
             const baseTimestamp = 1700000000;
