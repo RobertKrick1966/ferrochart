@@ -5,6 +5,7 @@
 mod candle;
 mod data;
 mod geometry;
+pub mod interaction;
 mod layout;
 mod transform;
 mod zoom;

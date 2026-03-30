@@ -8,6 +8,7 @@
             margin: 0;
             background: #0e1117;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -16,26 +17,32 @@
         }
         canvas {
             border: 1px solid #333;
+            cursor: crosshair;
+        }
+        .info {
+            margin-top: 12px;
+            font-size: 12px;
+            opacity: 0.6;
         }
     </style>
 </head>
 <body>
     <canvas id="chart" width="900" height="500"></canvas>
+    <div class="info">
+        Scroll to zoom &middot; Drag to pan &middot; Move mouse for crosshair
+    </div>
     <script type="module">
-        import init, { render_chart } from '../../crates/wasm/pkg/powerchart_wasm.js';
+        import init, { PowerChart } from '../../crates/wasm/pkg/powerchart_wasm.js';
 
         async function run() {
             await init();
 
-            // Generate 30 days of sample OHLCV data
-            const baseTimestamp = 1700000000; // ~2023-11-14
-            const day = 86400;
-            const moves = [
-                2.5, -1.2, 3.8, -0.5, 1.7, -2.3, 4.1, -1.8, 0.9, -3.2,
-                2.1, 1.5, -0.8, 3.3, -2.7, 1.9, -1.1, 2.6, -0.3, 4.5,
-                -3.1, 1.4, 2.2, -1.6, 0.7, -2.0, 3.0, -0.9, 1.8, -1.4,
-            ];
+            const canvas = document.getElementById('chart');
+            const chart = new PowerChart(canvas);
 
+            // Generate 120 days of sample OHLCV data
+            const baseTimestamp = 1700000000;
+            const day = 86400;
             const timestamps = [];
             const opens = [];
             const highs = [];
@@ -44,27 +51,25 @@
             const volumes = [];
 
             let price = 100.0;
-            for (let i = 0; i < moves.length; i++) {
-                const mv = moves[i];
+            for (let i = 0; i < 120; i++) {
+                const mv = Math.sin(i * 0.3) * 3 + (Math.random() - 0.5) * 4;
                 const open = price;
                 const close = open + mv;
-                const high = Math.max(open, close) + Math.abs(mv) * 0.5;
-                const low = Math.min(open, close) - Math.abs(mv) * 0.3;
-                const volume = 5000 + Math.abs(mv) * 1000 + i * 100;
+                const high = Math.max(open, close) + Math.abs(mv) * 0.4 + Math.random() * 2;
+                const low = Math.min(open, close) - Math.abs(mv) * 0.3 - Math.random() * 2;
+                const volume = 5000 + Math.abs(mv) * 1500 + Math.random() * 3000;
 
                 timestamps.push(baseTimestamp + i * day);
                 opens.push(open);
                 highs.push(high);
-                lows.push(low);
+                lows.push(low > 0 ? low : 0.1);
                 closes.push(close);
                 volumes.push(volume);
 
                 price = close;
             }
 
-            const canvas = document.getElementById('chart');
-            render_chart(
-                canvas,
+            chart.setData(
                 new Float64Array(timestamps),
                 new Float64Array(opens),
                 new Float64Array(highs),

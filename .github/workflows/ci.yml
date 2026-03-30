@@ -18,10 +18,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Clippy (core, render, examples)
+        run: cargo clippy --workspace --exclude powerchart-wasm --all-targets -- -D warnings
+
+      - name: Clippy (wasm)
+        run: cargo clippy --package powerchart-wasm --target wasm32-unknown-unknown -- -D warnings
+
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --workspace --exclude powerchart-wasm
+
       - name: Format check
         run: cargo fmt --all -- --check
+
+      - name: WASM build
+        run: |
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+          wasm-pack build crates/wasm --target web

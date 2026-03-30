@@ -56,10 +56,10 @@
 - [ ] `RequestAnimationFrame`-Loop für 60fps
 
 ### Interaktivität
-- [ ] Mouse/Pointer-Events: Zoom (Scroll), Pan (Drag)
+- [x] Mouse/Pointer-Events: Zoom (Scroll), Pan (Drag)
 - [ ] Touch-Events für Mobile
-- [ ] Crosshair: vertikale + horizontale Linie, folgt Maus
-- [ ] WASM-Package bauen: `wasm-pack build --target bundler`
+- [x] Crosshair: vertikale + horizontale Linie, folgt Maus
+- [x] WASM-Package bauen: `wasm-pack build --target web`
 
 ---
 
