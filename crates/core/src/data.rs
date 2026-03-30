@@ -1,5 +1,6 @@
 /// A single OHLCV bar.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ohlcv {
     pub timestamp: i64,
     pub open: f64,

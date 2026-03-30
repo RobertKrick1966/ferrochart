@@ -1,0 +1,33 @@
+{
+  "name": "powerchart",
+  "version": "0.1.0",
+  "description": "High-performance financial charting library built in Rust/WASM",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RobertKrick1966/powerchart"
+  },
+  "type": "module",
+  "main": "pkg/powerchart_wasm.js",
+  "types": "pkg/powerchart_wasm.d.ts",
+  "files": [
+    "pkg/powerchart_wasm_bg.wasm",
+    "pkg/powerchart_wasm.js",
+    "pkg/powerchart_wasm.d.ts",
+    "pkg/powerchart_wasm_bg.wasm.d.ts"
+  ],
+  "scripts": {
+    "build": "wasm-pack build crates/wasm --target web",
+    "build:bundler": "wasm-pack build crates/wasm --target bundler",
+    "build:node": "wasm-pack build crates/wasm --target nodejs"
+  },
+  "keywords": [
+    "chart",
+    "candlestick",
+    "trading",
+    "finance",
+    "wasm",
+    "webassembly",
+    "rust"
+  ]
+}

@@ -4,6 +4,7 @@ description = "WebAssembly bindings for PowerChart"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository = "https://github.com/RobertKrick1966/powerchart"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -1,5 +1,6 @@
 /// Shape of a chart marker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MarkerShape {
     ArrowUp,
     ArrowDown,
@@ -9,6 +10,7 @@ pub enum MarkerShape {
 
 /// Position of the marker relative to the candle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MarkerPosition {
     /// Above the high (for sell signals, bearish patterns).
     AboveBar,
@@ -18,6 +20,7 @@ pub enum MarkerPosition {
 
 /// A single marker on the chart.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Marker {
     /// Bar index in the data array.
     pub bar_index: usize,

@@ -60,7 +60,7 @@
 ### Interaktivität
 - [x] Mouse-Events: Zoom (Scroll, zentriert auf Maus), Pan (Drag)
 - [ ] Touch-Events für Mobile (Pinch-Zoom, Drag)
-- [x] Crosshair: vertikale + horizontale Linie, folgt Maus
+- [x] Crosshair: vertikale + horizontale Linie, folgt Maus (DPR-sync)
 - [x] Responsive Canvas: skaliert mit Fenstergröße + devicePixelRatio
 - [x] WASM-Package bauen: `wasm-pack build --target web`
 
@@ -73,6 +73,8 @@
 - [x] Volume-Panel (Balken, grün/rot) mit Grid-Linien
 - [x] Separate Y-Achse pro Panel mit Labels
 - [x] Dynamische Panel-Gewichtung je nach Anzahl Sub-Panels
+- [x] Panel-Legende (farbige Linien + Namen) im Preis-Panel
+- [x] Panel-Labels in Volume/RSI/MACD
 - [ ] Panel-Splitter: Drag zum Resize
 
 ### Indikatoren
@@ -86,7 +88,7 @@
 - [x] `IndicatorOutput::slice()` für sichtbaren Bereich
 
 ### Tooltip
-- [x] Hover-Tooltip: OHLCV + alle aktiven Indikatoren
+- [x] Hover-Tooltip: panel-spezifisch (nur relevante Daten pro Panel)
 - [x] Tooltip-Positionierung (kein Clipping am Rand)
 
 ---
@@ -100,34 +102,41 @@
 - [x] `MarkerSet` mit `in_range()` und `nearest()` (9 Tests)
 - [x] Marker-Rendering: Shapes auf Price-Panel, Labels darunter/darüber
 - [x] Marker-Info im Hover-Tooltip
-- [ ] SMR-Integration: Pattern-Signale als Marker rendern
 
 ---
 
-## Phase 7 — JS-API & npm-Paket *(1 Woche)*
+## Phase 7 — SMR-Integration & JS-API *(Priorität 1)*
 
-### Public API
-- [ ] TypeScript-Typen generieren (`wasm-bindgen --typescript`)
-- [ ] ES-Module + CommonJS Builds
-- [x] Vanilla-JS Demo-Seite (`examples/web/`)
-- [ ] `package.json`, npm-publish workflow
+### 7.1 TypeScript-Typen & Build
+- [x] TypeScript-Typen generiert (automatisch via `wasm-bindgen`)
+- [x] ES-Module Build (`--target web`)
+- [x] `package.json` mit Build-Scripts (web, bundler, node)
 
-### SMR-Integration
-- [ ] Git-Dependency in SMR `Cargo.toml` eintragen
-  ```toml
-  powerchart = { git = "https://github.com/RobertKrick1966/powerchart", features = ["wasm"] }
-  ```
-- [ ] React-Wrapper-Komponente für SMR-Frontend
-- [ ] Axum-Endpoint gibt OHLCV + Indikatoren als JSON zurück
-  > Backend unverändert, nur Datenformat sicherstellen
+### 7.2 SMR-Backend-Anbindung
+- [x] `Ohlcv`, `Marker`, `MarkerShape`, `MarkerPosition` serde-fähig (opt-in Feature)
+- [x] Git-Dependency Doku: `powerchart-core = { git = "...", features = ["serde"] }`
+- [x] Axum-Endpoint Beispiel (`docs/integration/axum-endpoint.md`)
+
+### 7.3 SMR-Frontend-Integration
+- [x] React-Wrapper-Komponente dokumentiert (`docs/integration/react-wrapper.md`)
+- [ ] SMR Pattern-Signale als Marker rendern (Candlestick-Patterns → Pfeile)
+- [ ] npm-publish workflow (GitHub Actions)
 
 ---
 
-## Phase 8 — Native Desktop *(2–3 Wochen, optional)*
+## Phase 8 — Polish & Extras *(nice-to-have)*
 
-### Native Renderer
+### Mobile
+- [ ] Touch-Events: Pinch-Zoom, Drag-Pan
+
+### UI-Verfeinerungen
+- [ ] Panel-Splitter: Drag zum Resize
+- [ ] Rechts-Scroll über Daten hinaus (Future Space für Trendlinien)
+- [ ] Y-Achse Drag-Skalierung (Preis-Range manuell anpassen)
+
+### Native Desktop (optional)
 - [ ] `winit`-Fenster als Host für den Chart
-- [ ] `WgpuRenderer` oder `tiny-skia` auf CPU (Entscheidung nach Bedarf)
+- [ ] `WgpuRenderer` oder `tiny-skia` auf CPU
 - [ ] Keyboard-Shortcuts: `+`/`-` Zoom, Pfeiltasten Pan
 - [ ] `examples/desktop/` — standalone Binary
 
@@ -142,8 +151,8 @@
 | 3 | Renderer-Trait + SVG | ✅ |
 | 4 | WASM Canvas-Renderer | ✅ |
 | 5 | Multi-Panel + Indikatoren | ✅ |
-| 6 | Pattern-Marker | offen |
-| 7 | JS-API & npm-Paket | teilweise |
-| 8 | Native Desktop (optional) | offen |
+| 6 | Pattern-Marker | ✅ |
+| 7 | SMR-Integration & JS-API | ✅ |
+| 8 | Polish & Extras | offen |
 
-**143 Tests** (119 core + 24 render), Clippy-pedantic clean.
+**152 Tests** (128 core + 24 render), Clippy-pedantic clean.
