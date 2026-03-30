@@ -4,9 +4,10 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
+use powerchart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
 use powerchart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
-use powerchart_core::{Ohlcv, Point, ZoomPanState};
-use powerchart_render::chart::{render_with_volume, ChartConfig};
+use powerchart_core::{Indicator, IndicatorOutput, Ohlcv, Point, ZoomPanState};
+use powerchart_render::chart::{render_full_chart, ChartConfig};
 use powerchart_render::style::{Color, LineStyle};
 use powerchart_render::Renderer;
 
@@ -20,6 +21,7 @@ struct ChartState {
     data: Vec<Ohlcv>,
     config: ChartConfig,
     zoom_pan: ZoomPanState,
+    indicators: Vec<Box<dyn Indicator>>,
     mouse_pos: Option<Point>,
     is_dragging: bool,
     drag_start_x: f64,
@@ -62,6 +64,7 @@ impl PowerChart {
             data: Vec::new(),
             config,
             zoom_pan: ZoomPanState::new(0, 100),
+            indicators: Vec::new(),
             mouse_pos: None,
             is_dragging: false,
             drag_start_x: 0.0,
@@ -110,6 +113,46 @@ impl PowerChart {
         let total = data.len();
         st.data = data;
         st.zoom_pan = ZoomPanState::new(total, 100.min(total));
+        st.dirty = true;
+    }
+
+    /// Add an indicator by name.
+    ///
+    /// Supported: `"sma"`, `"ema"`, `"bollinger"`, `"rsi"`, `"macd"`.
+    /// `period` is the main period parameter (default depends on indicator).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the indicator name is unknown.
+    #[wasm_bindgen(js_name = addIndicator)]
+    pub fn add_indicator(&self, name: &str, period: Option<u32>) -> Result<(), JsValue> {
+        let indicator: Box<dyn Indicator> = match name {
+            "sma" => Box::new(Sma { period: period.unwrap_or(20) as usize }),
+            "ema" => Box::new(Ema { period: period.unwrap_or(20) as usize }),
+            "bollinger" => Box::new(BollingerBands {
+                period: period.unwrap_or(20) as usize,
+                std_dev: 2.0,
+            }),
+            "rsi" => Box::new(Rsi { period: period.unwrap_or(14) as usize }),
+            "macd" => Box::new(Macd {
+                fast_period: 12,
+                slow_period: period.unwrap_or(26) as usize,
+                signal_period: 9,
+            }),
+            _ => return Err(JsValue::from_str(&format!("unknown indicator: {name}"))),
+        };
+
+        let mut st = self.state.borrow_mut();
+        st.indicators.push(indicator);
+        st.dirty = true;
+        Ok(())
+    }
+
+    /// Remove all indicators.
+    #[wasm_bindgen(js_name = clearIndicators)]
+    pub fn clear_indicators(&self) {
+        let mut st = self.state.borrow_mut();
+        st.indicators.clear();
         st.dirty = true;
     }
 }
@@ -263,7 +306,13 @@ fn render_frame(st: &mut ChartState) {
         return;
     };
 
-    render_with_volume(&mut renderer, visible_data, &st.config);
+    // Compute indicators for visible data
+    let outputs: Vec<IndicatorOutput> = st.indicators
+        .iter()
+        .map(|ind| ind.compute(visible_data))
+        .collect();
+
+    render_full_chart(&mut renderer, visible_data, &outputs, &st.config);
 
     // Crosshair
     if let Some(mouse) = st.mouse_pos {

@@ -27,7 +27,7 @@
     </style>
 </head>
 <body>
-    <canvas id="chart" width="900" height="500"></canvas>
+    <canvas id="chart" width="900" height="700"></canvas>
     <div class="info">
         Scroll to zoom &middot; Drag to pan &middot; Move mouse for crosshair
     </div>
@@ -80,6 +80,13 @@
                 new Float64Array(closes),
                 new Float64Array(volumes),
             );
+
+            // Add indicators
+            chart.addIndicator('sma', 20);
+            chart.addIndicator('ema', 10);
+            chart.addIndicator('bollinger', 20);
+            chart.addIndicator('rsi', 14);
+            chart.addIndicator('macd', 26);
         }
 
         run().catch(console.error);

@@ -1,5 +1,6 @@
 use powerchart_core::{
-    CandleGeometry, Ohlcv, PanelLayout, Point, PriceRange, Rect, TimeRange, Transform, Viewport,
+    CandleGeometry, IndicatorOutput, IndicatorPlacement, Ohlcv, PanelLayout, Point, PriceRange,
+    Rect, SeriesStyle, TimeRange, Transform, Viewport,
 };
 
 use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
@@ -20,6 +21,7 @@ pub struct ChartConfig {
     pub body_ratio: f64,
     pub margin: ChartMargin,
     pub font_size: f64,
+    pub indicator_colors: Vec<Color>,
 }
 
 /// Margins around the chart area.
@@ -51,6 +53,16 @@ impl Default for ChartConfig {
                 left: 10.0,
             },
             font_size: 11.0,
+            indicator_colors: vec![
+                Color::rgb(255, 235, 59),  // yellow
+                Color::rgb(0, 188, 212),   // cyan
+                Color::rgb(233, 30, 99),   // pink
+                Color::rgb(255, 152, 0),   // orange
+                Color::rgb(103, 58, 183),  // purple
+                Color::rgb(76, 175, 80),   // light green
+                Color::rgb(33, 150, 243),  // blue
+                Color::rgb(255, 87, 34),   // deep orange
+            ],
         }
     }
 }
@@ -490,6 +502,302 @@ pub fn render_with_volume(
     draw_x_axis(renderer, data, &volume_panel.rect, &price_transform, config);
 }
 
+/// Render a full chart with candlesticks, volume, and indicators.
+///
+/// Overlay indicators are drawn on the price panel. Sub-panel indicators
+/// (RSI, MACD) get their own panels below volume.
+///
+/// # Panics
+///
+/// Panics if the internal panel layout cannot be constructed.
+#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+pub fn render_full_chart(
+    renderer: &mut dyn Renderer,
+    data: &[Ohlcv],
+    indicators: &[IndicatorOutput],
+    config: &ChartConfig,
+) {
+    if data.is_empty() {
+        return;
+    }
+
+    renderer.set_background(config.background);
+
+    let total_rect = Rect::new(
+        config.margin.left,
+        config.margin.top,
+        config.width - config.margin.left - config.margin.right,
+        config.height - config.margin.top - config.margin.bottom,
+    );
+
+    // Partition indicators
+    let overlays: Vec<&IndicatorOutput> = indicators
+        .iter()
+        .filter(|ind| ind.placement == IndicatorPlacement::Overlay)
+        .collect();
+    let sub_panels: Vec<&IndicatorOutput> = indicators
+        .iter()
+        .filter(|ind| ind.placement != IndicatorPlacement::Overlay)
+        .collect();
+
+    // Build panel weights: price=55, volume=20, each sub-panel=15
+    let mut weights = vec![55.0, 20.0];
+    weights.extend(std::iter::repeat_n(15.0, sub_panels.len()));
+    let layout = PanelLayout::new(&weights, total_rect, 4.0);
+    let price_panel = layout.get(0).unwrap();
+    let volume_panel = layout.get(1).unwrap();
+
+    let time_range = TimeRange::new(0, data.len());
+    let price_data_rect = inset_rect_horizontal(&price_panel.rect, data.len());
+
+    // --- Price panel ---
+    let price_range = PriceRange::from_ohlcv(data)
+        .unwrap_or(PriceRange::new(0.0, 100.0))
+        .with_padding(0.05);
+    let price_vp = Viewport {
+        rect: price_data_rect,
+        time_range,
+        price_range,
+    };
+    let price_transform = Transform::from_viewport(&price_vp);
+
+    draw_y_axis(renderer, &price_panel.rect, &price_range, &price_transform, config);
+    let candles = CandleGeometry::compute_all(data, 0, &price_transform, config.body_ratio);
+    draw_candles(renderer, &candles, config);
+
+    // Draw overlay indicators on price panel
+    let mut color_idx = 0;
+    for overlay in &overlays {
+        draw_indicator_overlay(renderer, overlay, &price_transform, config, &mut color_idx);
+    }
+
+    renderer.draw_rect_outline(price_panel.rect, &LineStyle { color: config.axis_color, width: 1.0 });
+
+    // --- Volume panel ---
+    let vol_data_rect = inset_rect_horizontal(&volume_panel.rect, data.len());
+    let max_vol = data.iter().map(|b| b.volume).fold(0.0_f64, f64::max);
+    let vol_range = PriceRange::new(0.0, max_vol * 1.1);
+    let vol_vp = Viewport { rect: vol_data_rect, time_range, price_range: vol_range };
+    let vol_transform = Transform::from_viewport(&vol_vp);
+
+    draw_volume_axis(renderer, &volume_panel.rect, &vol_range, &vol_transform, config);
+    for (i, bar) in data.iter().enumerate() {
+        let x = vol_transform.bar_x(i);
+        let bar_w = vol_transform.bar_width() * config.body_ratio;
+        let top_y = vol_transform.price_y(bar.volume);
+        let bottom_y = vol_transform.price_y(0.0);
+        let height = (bottom_y - top_y).max(0.0);
+        let color = if bar.close >= bar.open { config.bullish_color } else { config.bearish_color };
+        renderer.draw_rect(Rect::new(x - bar_w / 2.0, top_y, bar_w, height), &FillStyle { color });
+    }
+    renderer.draw_rect_outline(volume_panel.rect, &LineStyle { color: config.axis_color, width: 1.0 });
+
+    // --- Sub-panel indicators (RSI, MACD, etc.) ---
+    for (idx, sub_ind) in sub_panels.iter().enumerate() {
+        let panel = layout.get(2 + idx).unwrap();
+        draw_indicator_sub_panel(renderer, panel.rect, sub_ind, data.len(), config, &mut color_idx);
+    }
+
+    // X-axis labels below the bottommost panel
+    let bottom_panel = layout.get(layout.len() - 1).unwrap();
+    draw_x_axis(renderer, data, &bottom_panel.rect, &price_transform, config);
+}
+
+/// Draw overlay indicator series (lines on the price panel).
+fn draw_indicator_overlay(
+    renderer: &mut dyn Renderer,
+    output: &IndicatorOutput,
+    transform: &Transform,
+    config: &ChartConfig,
+    color_idx: &mut usize,
+) {
+    for series in &output.series {
+        if series.style_hint != SeriesStyle::Line {
+            continue;
+        }
+        let color = config.indicator_colors[*color_idx % config.indicator_colors.len()];
+        *color_idx += 1;
+
+        let style = LineStyle { color, width: 1.5 };
+        draw_series_line(renderer, &series.values, transform, &style);
+    }
+}
+
+/// Draw a sub-panel indicator (RSI, MACD).
+#[allow(clippy::cast_precision_loss)]
+fn draw_indicator_sub_panel(
+    renderer: &mut dyn Renderer,
+    panel_rect: Rect,
+    output: &IndicatorOutput,
+    num_bars: usize,
+    config: &ChartConfig,
+    color_idx: &mut usize,
+) {
+    let data_rect = inset_rect_horizontal(&panel_rect, num_bars);
+    let time_range = TimeRange::new(0, num_bars);
+
+    // Determine Y range
+    let y_range = match output.placement {
+        IndicatorPlacement::SubPanel { y_min, y_max } => PriceRange::new(y_min, y_max),
+        IndicatorPlacement::SubPanelAuto => {
+            let mut min = f64::MAX;
+            let mut max = f64::MIN;
+            for s in &output.series {
+                if s.style_hint == SeriesStyle::HorizontalLine {
+                    continue;
+                }
+                for &v in &s.values {
+                    if !v.is_nan() {
+                        if v < min { min = v; }
+                        if v > max { max = v; }
+                    }
+                }
+            }
+            if min > max { PriceRange::new(-1.0, 1.0) } else { PriceRange::new(min, max).with_padding(0.1) }
+        }
+        IndicatorPlacement::Overlay => return, // shouldn't happen
+    };
+
+    let vp = Viewport { rect: data_rect, time_range, price_range: y_range };
+    let transform = Transform::from_viewport(&vp);
+
+    // Y-axis labels
+    draw_sub_panel_y_axis(renderer, &panel_rect, &y_range, &transform, config);
+
+    // Panel name label
+    let text_style = TextStyle {
+        color: config.text_color,
+        size: config.font_size,
+        font_family: "monospace".to_string(),
+    };
+    renderer.draw_text(
+        &output.name,
+        Point { x: panel_rect.x + 5.0, y: panel_rect.y + config.font_size + 2.0 },
+        &text_style,
+        TextAnchor::Start,
+    );
+
+    // Draw each series
+    for series in &output.series {
+        let color = if series.style_hint == SeriesStyle::HorizontalLine {
+            config.grid_color
+        } else {
+            let c = config.indicator_colors[*color_idx % config.indicator_colors.len()];
+            *color_idx += 1;
+            c
+        };
+
+        match series.style_hint {
+            SeriesStyle::Line => {
+                draw_series_line(renderer, &series.values, &transform, &LineStyle { color, width: 1.5 });
+            }
+            SeriesStyle::Histogram => {
+                draw_series_histogram(renderer, &series.values, &transform, color, config.body_ratio);
+            }
+            SeriesStyle::HorizontalLine => {
+                if let Some(&val) = series.values.first() {
+                    let y = transform.price_y(val);
+                    renderer.draw_line(
+                        Point { x: panel_rect.x, y },
+                        Point { x: panel_rect.right(), y },
+                        &LineStyle { color, width: 0.5 },
+                    );
+                }
+            }
+        }
+    }
+
+    renderer.draw_rect_outline(panel_rect, &LineStyle { color: config.axis_color, width: 1.0 });
+}
+
+/// Draw Y-axis labels for a sub-panel.
+#[allow(clippy::cast_precision_loss)]
+fn draw_sub_panel_y_axis(
+    renderer: &mut dyn Renderer,
+    panel_rect: &Rect,
+    y_range: &PriceRange,
+    transform: &Transform,
+    config: &ChartConfig,
+) {
+    let text_style = TextStyle {
+        color: config.text_color,
+        size: config.font_size,
+        font_family: "monospace".to_string(),
+    };
+
+    let num_labels: i32 = 4;
+    let step = y_range.span() / f64::from(num_labels);
+
+    for i in 1..num_labels {
+        let val = y_range.min + step * f64::from(i);
+        let y = transform.price_y(val);
+
+        renderer.draw_text(
+            &format!("{val:.1}"),
+            Point { x: panel_rect.right() + 5.0, y: y + 4.0 },
+            &text_style,
+            TextAnchor::Start,
+        );
+    }
+}
+
+/// Draw a line series, splitting at NaN gaps.
+#[allow(clippy::cast_precision_loss)]
+fn draw_series_line(
+    renderer: &mut dyn Renderer,
+    values: &[f64],
+    transform: &Transform,
+    style: &LineStyle,
+) {
+    let mut segment: Vec<Point> = Vec::new();
+
+    for (i, &v) in values.iter().enumerate() {
+        if v.is_nan() {
+            if segment.len() >= 2 {
+                renderer.draw_path(&segment, style);
+            }
+            segment.clear();
+        } else {
+            segment.push(transform.to_pixel(i as f64, v));
+        }
+    }
+
+    if segment.len() >= 2 {
+        renderer.draw_path(&segment, style);
+    }
+}
+
+/// Draw a histogram series (bars above/below zero line).
+fn draw_series_histogram(
+    renderer: &mut dyn Renderer,
+    values: &[f64],
+    transform: &Transform,
+    color: Color,
+    body_ratio: f64,
+) {
+    let zero_y = transform.price_y(0.0);
+    let bar_w = transform.bar_width() * body_ratio;
+
+    for (i, &v) in values.iter().enumerate() {
+        if v.is_nan() {
+            continue;
+        }
+        let x = transform.bar_x(i);
+        let val_y = transform.price_y(v);
+        let (top, height) = if val_y < zero_y {
+            (val_y, zero_y - val_y)
+        } else {
+            (zero_y, val_y - zero_y)
+        };
+        if height > 0.5 {
+            renderer.draw_rect(
+                Rect::new(x - bar_w / 2.0, top, bar_w, height),
+                &FillStyle { color },
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -556,6 +864,49 @@ mod tests {
         assert_eq!(format_volume(500.0), "500");
         assert_eq!(format_volume(5_000.0), "5.0K");
         assert_eq!(format_volume(1_500_000.0), "1.5M");
+    }
+
+    #[test]
+    fn render_full_chart_with_indicators() {
+        use powerchart_core::indicator::{Sma, Ema, BollingerBands, Rsi, Macd};
+        use powerchart_core::Indicator;
+
+        let data = sample_data();
+        let indicators: Vec<IndicatorOutput> = vec![
+            Sma { period: 3 }.compute(&data),
+            Ema { period: 3 }.compute(&data),
+            BollingerBands { period: 3, std_dev: 2.0 }.compute(&data),
+            Rsi { period: 3 }.compute(&data),
+            Macd { fast_period: 2, slow_period: 3, signal_period: 2 }.compute(&data),
+        ];
+
+        let mut r = crate::SvgRenderer::new(900.0, 600.0);
+        let config = ChartConfig { height: 600.0, ..ChartConfig::default() };
+        render_full_chart(&mut r, &data, &indicators, &config);
+        let out = String::from_utf8(r.finish()).unwrap();
+
+        // Should have paths (indicator lines)
+        assert!(out.contains("<path"), "expected indicator line paths");
+        // Should have sub-panel labels
+        assert!(out.contains("RSI"), "expected RSI panel label");
+        assert!(out.contains("MACD"), "expected MACD panel label");
+    }
+
+    #[test]
+    fn render_full_chart_no_indicators() {
+        let mut r = crate::SvgRenderer::new(900.0, 500.0);
+        render_full_chart(&mut r, &sample_data(), &[], &ChartConfig::default());
+        let out = String::from_utf8(r.finish()).unwrap();
+        assert!(out.contains("<svg"));
+        assert!(out.contains("<rect"));
+    }
+
+    #[test]
+    fn render_full_chart_empty_data() {
+        let mut r = crate::SvgRenderer::new(900.0, 500.0);
+        render_full_chart(&mut r, &[], &[], &ChartConfig::default());
+        let out = String::from_utf8(r.finish()).unwrap();
+        assert!(out.contains("<svg"));
     }
 
     #[test]

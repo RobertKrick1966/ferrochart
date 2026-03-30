@@ -72,10 +72,10 @@
 - [ ] Panel-Splitter: Drag zum Resize
 
 ### Indikatoren
-- [ ] Overlay-Indikatoren: SMA, EMA, Bollinger Bands (Line-Series über Kerzen)
-- [ ] Sub-Panel: RSI (0–100, Overbought/Oversold-Linien)
-- [ ] Sub-Panel: MACD (Linie + Signal + Histogramm)
-- [ ] `Indicator`-Trait: berechnet aus `Series<f64>`, gibt `Series<f64>` zurück
+- [x] Overlay-Indikatoren: SMA, EMA, Bollinger Bands (Line-Series über Kerzen)
+- [x] Sub-Panel: RSI (0–100, Overbought/Oversold-Linien)
+- [x] Sub-Panel: MACD (Linie + Signal + Histogramm)
+- [x] `Indicator`-Trait: berechnet aus `&[Ohlcv]`, gibt `IndicatorOutput` zurück
 
 ### Tooltip
 - [ ] Hover-Tooltip: OHLCV + alle aktiven Indikatoren
