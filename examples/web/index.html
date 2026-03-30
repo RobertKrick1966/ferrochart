@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>PowerChart Demo</title>
+    <style>
+        body {
+            margin: 0;
+            background: #0e1117;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: monospace;
+            color: #c8c8c8;
+        }
+        canvas {
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="chart" width="900" height="500"></canvas>
+    <script type="module">
+        import init, { render_chart } from '../../crates/wasm/pkg/powerchart_wasm.js';
+
+        async function run() {
+            await init();
+
+            // Generate 30 days of sample OHLCV data
+            const baseTimestamp = 1700000000; // ~2023-11-14
+            const day = 86400;
+            const moves = [
+                2.5, -1.2, 3.8, -0.5, 1.7, -2.3, 4.1, -1.8, 0.9, -3.2,
+                2.1, 1.5, -0.8, 3.3, -2.7, 1.9, -1.1, 2.6, -0.3, 4.5,
+                -3.1, 1.4, 2.2, -1.6, 0.7, -2.0, 3.0, -0.9, 1.8, -1.4,
+            ];
+
+            const timestamps = [];
+            const opens = [];
+            const highs = [];
+            const lows = [];
+            const closes = [];
+            const volumes = [];
+
+            let price = 100.0;
+            for (let i = 0; i < moves.length; i++) {
+                const mv = moves[i];
+                const open = price;
+                const close = open + mv;
+                const high = Math.max(open, close) + Math.abs(mv) * 0.5;
+                const low = Math.min(open, close) - Math.abs(mv) * 0.3;
+                const volume = 5000 + Math.abs(mv) * 1000 + i * 100;
+
+                timestamps.push(baseTimestamp + i * day);
+                opens.push(open);
+                highs.push(high);
+                lows.push(low);
+                closes.push(close);
+                volumes.push(volume);
+
+                price = close;
+            }
+
+            const canvas = document.getElementById('chart');
+            render_chart(
+                canvas,
+                new Float64Array(timestamps),
+                new Float64Array(opens),
+                new Float64Array(highs),
+                new Float64Array(lows),
+                new Float64Array(closes),
+                new Float64Array(volumes),
+            );
+        }
+
+        run().catch(console.error);
+    </script>
+</body>
+</html>

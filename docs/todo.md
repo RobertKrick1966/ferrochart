@@ -47,14 +47,12 @@
 ## Phase 4 — WASM Canvas-Renderer *(3–4 Wochen)*
 
 ### WASM Setup
-- [ ] `wasm-pack` in Workspace integrieren
+- [x] `wasm-pack` in Workspace integrieren
 - [ ] PowerChart WASM-Bindung: `new PowerChart(canvas, config)`
 - [ ] `setData(data: OhlcvArray)`, `addIndicator(name, params)`
 
 ### Canvas Renderer
-- [ ] `CanvasRenderer` via `web-sys`: 2D Context API
-- [ ] `tiny-skia` als Rasterizer einbinden (WASM-kompatibel)
-- [ ] Font-Rendering via `fontdue` — ASCII reicht für v0.1
+- [x] `CanvasRenderer` via `web-sys`: 2D Context API
 - [ ] `RequestAnimationFrame`-Loop für 60fps
 
 ### Interaktivität
