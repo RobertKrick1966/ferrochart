@@ -7,10 +7,10 @@ use web_sys::HtmlCanvasElement;
 use powerchart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
 use powerchart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use powerchart_core::{
-    Indicator, IndicatorOutput, Marker, MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point,
-    PriceRange, Rect, SeriesStyle, TimeRange, Transform, Viewport, ZoomPanState,
+    Indicator, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape,
+    Ohlcv, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform, Viewport, ZoomPanState,
 };
-use powerchart_render::chart::{render_full_chart_with_markers, ChartConfig};
+use powerchart_render::chart::{render_full_chart_with_markers, ChartConfig, ChartLayoutInfo, PanelKind};
 use powerchart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 use powerchart_render::Renderer;
 
@@ -409,7 +409,7 @@ fn render_frame(st: &mut ChartState) {
         .collect();
     let marker_refs: Vec<&Marker> = adjusted_markers.iter().collect();
 
-    render_full_chart_with_markers(&mut renderer, visible_data, &outputs, &marker_refs, &st.config);
+    let layout_info = render_full_chart_with_markers(&mut renderer, visible_data, &outputs, &marker_refs, &st.config);
 
     // Crosshair + Tooltip
     if let Some(mouse) = st.mouse_pos {
@@ -434,29 +434,35 @@ fn render_frame(st: &mut ChartState) {
                 &crosshair_style,
             );
 
-            // Determine hovered bar index + show marker info
             draw_tooltip(
-                &mut renderer, mouse, visible_data, &outputs, &adjusted_markers, &st.config,
+                &mut renderer, mouse, visible_data, &outputs, &adjusted_markers,
+                &layout_info, &st.config,
             );
         }
     }
 }
 
-/// Draw a tooltip showing OHLCV + indicator values for the hovered bar.
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+/// Draw a panel-aware tooltip for the hovered bar.
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::too_many_lines)]
 fn draw_tooltip(
     renderer: &mut CanvasRenderer,
     mouse: Point,
     data: &[Ohlcv],
     indicators: &[IndicatorOutput],
     markers: &[Marker],
+    layout_info: &ChartLayoutInfo,
     config: &ChartConfig,
 ) {
     if data.is_empty() {
         return;
     }
 
-    // Reconstruct transform to map mouse position back to bar index
+    // Find which panel the mouse is in
+    let active_panel = layout_info.panels.iter().find(|p| {
+        mouse.y >= p.rect.y && mouse.y <= p.rect.bottom()
+    });
+
+    // Reconstruct transform to map mouse X to bar index
     let chart_rect = Rect::new(
         config.margin.left,
         config.margin.top,
@@ -483,34 +489,65 @@ fn draw_tooltip(
     let bar_idx = bar_f.round().clamp(0.0, (data.len() - 1) as f64) as usize;
     let bar = &data[bar_idx];
 
-    // Build tooltip lines
+    // Build tooltip lines based on which panel the mouse is in
     let mut lines: Vec<String> = Vec::new();
-    lines.push(format!(
-        "O:{:.2}  H:{:.2}  L:{:.2}  C:{:.2}",
-        bar.open, bar.high, bar.low, bar.close
-    ));
-    lines.push(format!("Vol: {}", format_vol(bar.volume)));
 
-    for output in indicators {
-        let mut vals: Vec<String> = Vec::new();
-        for series in &output.series {
-            if series.style_hint == SeriesStyle::HorizontalLine {
-                continue;
+    match active_panel.map(|p| &p.kind) {
+        Some(PanelKind::Price) => {
+            lines.push(format!(
+                "O:{:.2}  H:{:.2}  L:{:.2}  C:{:.2}",
+                bar.open, bar.high, bar.low, bar.close
+            ));
+            // Overlay indicators
+            for output in indicators {
+                if output.placement != IndicatorPlacement::Overlay {
+                    continue;
+                }
+                let mut vals: Vec<String> = Vec::new();
+                for series in &output.series {
+                    if series.style_hint == SeriesStyle::HorizontalLine {
+                        continue;
+                    }
+                    if bar_idx < series.values.len() && !series.values[bar_idx].is_nan() {
+                        vals.push(format!("{:.2}", series.values[bar_idx]));
+                    }
+                }
+                if !vals.is_empty() {
+                    lines.push(format!("{}: {}", output.name, vals.join(" / ")));
+                }
             }
-            if bar_idx < series.values.len() && !series.values[bar_idx].is_nan() {
-                vals.push(format!("{:.2}", series.values[bar_idx]));
+            // Markers
+            for m in markers {
+                if m.bar_index == bar_idx && !m.label.is_empty() {
+                    lines.push(format!(">>> {}", m.label));
+                }
             }
         }
-        if !vals.is_empty() {
-            lines.push(format!("{}: {}", output.name, vals.join(" / ")));
+        Some(PanelKind::Volume) => {
+            lines.push(format!("Vol: {}", format_vol(bar.volume)));
         }
+        Some(PanelKind::Indicator(name)) => {
+            if let Some(output) = indicators.iter().find(|o| &o.name == name) {
+                let mut vals: Vec<String> = Vec::new();
+                for series in &output.series {
+                    if series.style_hint == SeriesStyle::HorizontalLine {
+                        continue;
+                    }
+                    if bar_idx < series.values.len() && !series.values[bar_idx].is_nan() {
+                        vals.push(format!("{}: {:.2}", series.name, series.values[bar_idx]));
+                    }
+                }
+                if !vals.is_empty() {
+                    lines.push(output.name.clone());
+                    lines.extend(vals);
+                }
+            }
+        }
+        None => return,
     }
 
-    // Show markers at this bar
-    for m in markers {
-        if m.bar_index == bar_idx && !m.label.is_empty() {
-            lines.push(format!(">>> {}", m.label));
-        }
+    if lines.is_empty() {
+        return;
     }
 
     // Tooltip dimensions

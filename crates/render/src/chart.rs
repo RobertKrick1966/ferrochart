@@ -510,10 +510,28 @@ pub fn render_with_volume(
     draw_x_axis(renderer, data, &volume_panel.rect, &price_transform, config);
 }
 
+/// Describes what a rendered panel contains.
+#[derive(Debug, Clone)]
+pub enum PanelKind {
+    Price,
+    Volume,
+    Indicator(String),
+}
+
+/// Info about a rendered panel (for hit-testing/tooltip).
+#[derive(Debug, Clone)]
+pub struct PanelInfo {
+    pub rect: Rect,
+    pub kind: PanelKind,
+}
+
+/// Result of rendering, containing panel layout info.
+#[derive(Debug, Clone, Default)]
+pub struct ChartLayoutInfo {
+    pub panels: Vec<PanelInfo>,
+}
+
 /// Render a full chart with candlesticks, volume, and indicators.
-///
-/// Overlay indicators are drawn on the price panel. Sub-panel indicators
-/// (RSI, MACD) get their own panels below volume.
 ///
 /// # Panics
 ///
@@ -524,8 +542,8 @@ pub fn render_full_chart(
     data: &[Ohlcv],
     indicators: &[IndicatorOutput],
     config: &ChartConfig,
-) {
-    render_full_chart_with_markers(renderer, data, indicators, &[], config);
+) -> ChartLayoutInfo {
+    render_full_chart_with_markers(renderer, data, indicators, &[], config)
 }
 
 /// Render a full chart with candlesticks, volume, indicators, and markers.
@@ -540,10 +558,11 @@ pub fn render_full_chart_with_markers(
     indicators: &[IndicatorOutput],
     markers: &[&Marker],
     config: &ChartConfig,
-) {
+) -> ChartLayoutInfo {
     if data.is_empty() {
-        return;
+        return ChartLayoutInfo::default();
     }
+    let mut layout_info = ChartLayoutInfo { panels: Vec::new() };
 
     renderer.set_background(config.background);
 
@@ -615,7 +634,11 @@ pub fn render_full_chart_with_markers(
     // Draw markers on price panel
     draw_markers(renderer, markers, data, &price_transform, config);
 
+    // Price panel legend
+    draw_panel_legend(renderer, price_panel.rect, &overlays, config);
+
     renderer.draw_rect_outline(price_panel.rect, &LineStyle { color: config.axis_color, width: 1.0 });
+    layout_info.panels.push(PanelInfo { rect: price_panel.rect, kind: PanelKind::Price });
 
     // --- Volume panel ---
     let vol_data_rect = inset_rect_horizontal(&volume_panel.rect, data.len());
@@ -634,17 +657,27 @@ pub fn render_full_chart_with_markers(
         let color = if bar.close >= bar.open { config.bullish_color } else { config.bearish_color };
         renderer.draw_rect(Rect::new(x - bar_w / 2.0, top_y, bar_w, height), &FillStyle { color });
     }
+    // Volume panel legend
+    draw_label_in_panel(renderer, volume_panel.rect, "Volume", config);
+
     renderer.draw_rect_outline(volume_panel.rect, &LineStyle { color: config.axis_color, width: 1.0 });
+    layout_info.panels.push(PanelInfo { rect: volume_panel.rect, kind: PanelKind::Volume });
 
     // --- Sub-panel indicators (RSI, MACD, etc.) ---
     for (idx, sub_ind) in sub_panels.iter().enumerate() {
         let panel = layout.get(2 + idx).unwrap();
         draw_indicator_sub_panel(renderer, panel.rect, sub_ind, data.len(), config, &mut color_idx);
+        layout_info.panels.push(PanelInfo {
+            rect: panel.rect,
+            kind: PanelKind::Indicator(sub_ind.name.clone()),
+        });
     }
 
     // X-axis labels below the bottommost panel
     let bottom_panel = layout.get(layout.len() - 1).unwrap();
     draw_x_axis(renderer, data, &bottom_panel.rect, &price_transform, config);
+
+    layout_info
 }
 
 /// Draw overlay indicator series (lines on the price panel).
@@ -819,6 +852,78 @@ fn draw_series_line(
     if segment.len() >= 2 {
         renderer.draw_path(&segment, style);
     }
+}
+
+/// Draw a legend for overlay indicators in the top-left of a panel.
+#[allow(clippy::cast_precision_loss)]
+fn draw_panel_legend(
+    renderer: &mut dyn Renderer,
+    panel_rect: Rect,
+    overlays: &[&IndicatorOutput],
+    config: &ChartConfig,
+) {
+    let font_size = config.font_size - 1.0;
+    let text_style = TextStyle {
+        color: config.text_color,
+        size: font_size,
+        font_family: "monospace".to_string(),
+    };
+
+    let mut x = panel_rect.x + 6.0;
+    let y = panel_rect.y + font_size + 4.0;
+    let line_len = 14.0;
+    let gap = 8.0;
+    let mut color_idx = 0;
+
+    for overlay in overlays {
+        for series in &overlay.series {
+            if series.style_hint != SeriesStyle::Line {
+                continue;
+            }
+            let color = config.indicator_colors[color_idx % config.indicator_colors.len()];
+            color_idx += 1;
+
+            // Color swatch (short line)
+            renderer.draw_line(
+                Point { x, y: y - font_size * 0.3 },
+                Point { x: x + line_len, y: y - font_size * 0.3 },
+                &LineStyle { color, width: 2.0 },
+            );
+            x += line_len + 3.0;
+
+            // Label
+            let label = if overlay.series.len() == 1 {
+                overlay.name.clone()
+            } else {
+                format!("{} ({})", overlay.name, series.name)
+            };
+            renderer.draw_text(&label, Point { x, y }, &text_style, TextAnchor::Start);
+            x += label.len() as f64 * font_size * 0.6 + gap;
+        }
+    }
+}
+
+/// Draw a simple text label in the top-left of a panel.
+fn draw_label_in_panel(
+    renderer: &mut dyn Renderer,
+    panel_rect: Rect,
+    label: &str,
+    config: &ChartConfig,
+) {
+    let text_style = TextStyle {
+        color: config.text_color,
+        size: config.font_size - 1.0,
+        font_family: "monospace".to_string(),
+    };
+    renderer.draw_text(
+        label,
+        Point {
+            x: panel_rect.x + 6.0,
+            y: panel_rect.y + config.font_size + 3.0,
+        },
+        &text_style,
+        TextAnchor::Start,
+    );
 }
 
 /// Draw markers on the price panel.
