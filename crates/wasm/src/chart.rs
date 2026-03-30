@@ -202,6 +202,20 @@ impl PowerChart {
         Ok(())
     }
 
+    /// Remove an indicator by name (e.g. `"sma"`, `"rsi"`).
+    /// Removes all indicators matching that name.
+    #[wasm_bindgen(js_name = removeIndicator)]
+    pub fn remove_indicator(&self, name: &str) {
+        let mut st = self.state.borrow_mut();
+        let target = name.to_ascii_lowercase();
+        st.indicators.retain(|ind| {
+            let ind_name = ind.name().to_ascii_lowercase();
+            ind_name != target
+        });
+        st.recompute_indicators();
+        st.dirty = true;
+    }
+
     /// Remove all indicators.
     #[wasm_bindgen(js_name = clearIndicators)]
     pub fn clear_indicators(&self) {

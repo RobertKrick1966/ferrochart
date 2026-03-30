@@ -92,6 +92,7 @@ let json = serde_json::to_string(&data)?;
 | `new PowerChart(canvas)` | Create interactive chart on canvas element |
 | `setData(ts, o, h, l, c, v)` | Set OHLCV data from parallel `Float64Array`s |
 | `addIndicator(name, period?)` | Add indicator: `"sma"`, `"ema"`, `"bollinger"`, `"rsi"`, `"macd"` |
+| `removeIndicator(name)` | Remove indicator by name (e.g. `"sma"`) |
 | `clearIndicators()` | Remove all indicators |
 | `addMarker(idx, shape, pos, r, g, b, label)` | Add marker: shapes `"arrow_up"`, `"arrow_down"`, `"circle"`, `"diamond"` |
 | `clearMarkers()` | Remove all markers |
