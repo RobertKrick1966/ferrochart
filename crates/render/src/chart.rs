@@ -651,8 +651,14 @@ pub fn render_full_chart_with_markers(
     };
     let price_transform = Transform::from_viewport(&price_vp);
 
-    // Clip to price panel so Y-scaling doesn't bleed into other panels
-    renderer.clip(price_panel.rect);
+    // Clip to price panel + right margin for Y-axis labels
+    let clip_rect = Rect::new(
+        price_panel.rect.x,
+        price_panel.rect.y,
+        price_panel.rect.width + config.margin.right,
+        price_panel.rect.height,
+    );
+    renderer.clip(clip_rect);
 
     draw_y_axis(renderer, &price_panel.rect, &price_range, &price_transform, config);
     let candles = CandleGeometry::compute_all(data, 0, &price_transform, config.body_ratio);
@@ -675,7 +681,13 @@ pub fn render_full_chart_with_markers(
     layout_info.panels.push(PanelInfo { rect: price_panel.rect, kind: PanelKind::Price });
 
     // --- Volume panel ---
-    renderer.clip(volume_panel.rect);
+    let vol_clip = Rect::new(
+        volume_panel.rect.x,
+        volume_panel.rect.y,
+        volume_panel.rect.width + config.margin.right,
+        volume_panel.rect.height,
+    );
+    renderer.clip(vol_clip);
     let vol_data_rect = inset_rect_horizontal(&volume_panel.rect, bar_slots);
     let max_vol = data.iter().map(|b| b.volume).fold(0.0_f64, f64::max);
     let vol_range = PriceRange::new(0.0, max_vol * 1.1);
@@ -746,6 +758,15 @@ fn draw_indicator_sub_panel(
     config: &ChartConfig,
     color_idx: &mut usize,
 ) {
+    // Clip to panel + right margin for Y-axis labels
+    let clip_rect = Rect::new(
+        panel_rect.x,
+        panel_rect.y,
+        panel_rect.width + config.margin.right,
+        panel_rect.height,
+    );
+    renderer.clip(clip_rect);
+
     let data_rect = inset_rect_horizontal(&panel_rect, num_bars);
     let time_range = TimeRange::new(0, num_bars);
 
@@ -820,6 +841,7 @@ fn draw_indicator_sub_panel(
         }
     }
 
+    renderer.restore_clip();
     renderer.draw_rect_outline(panel_rect, &LineStyle { color: config.axis_color, width: 1.0 });
 }
 
