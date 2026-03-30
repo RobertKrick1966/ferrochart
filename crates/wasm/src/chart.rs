@@ -32,6 +32,9 @@ struct ChartState {
     is_dragging: bool,
     drag_start_x: f64,
     drag_start_offset: usize,
+    /// For pinch-zoom: distance between two touches at start.
+    pinch_start_dist: f64,
+    pinch_start_visible: usize,
     dirty: bool,
 }
 
@@ -51,6 +54,7 @@ impl ChartState {
 pub struct PowerChart {
     state: Rc<RefCell<ChartState>>,
     _closures: Vec<Closure<dyn FnMut(web_sys::MouseEvent)>>,
+    _touch_closures: Vec<Closure<dyn FnMut(web_sys::TouchEvent)>>,
     _wheel_closure: Option<Closure<dyn FnMut(web_sys::WheelEvent)>>,
     _raf_closure: RafClosure,
 }
@@ -88,17 +92,22 @@ impl PowerChart {
             is_dragging: false,
             drag_start_x: 0.0,
             drag_start_offset: 0,
+            pinch_start_dist: 0.0,
+            pinch_start_visible: 100,
             dirty: true,
         }));
 
         let mut closures: Vec<Closure<dyn FnMut(web_sys::MouseEvent)>> = Vec::new();
         attach_mouse_events(canvas, &state, &mut closures)?;
         let on_wheel = attach_wheel_event(canvas, &state)?;
+        let mut touch_closures = Vec::new();
+        attach_touch_events(canvas, &state, &mut touch_closures)?;
         let raf_handle = start_render_loop(&state);
 
         Ok(PowerChart {
             state,
             _closures: closures,
+            _touch_closures: touch_closures,
             _wheel_closure: Some(on_wheel),
             _raf_closure: raf_handle,
         })
@@ -131,7 +140,8 @@ impl PowerChart {
         let mut st = self.state.borrow_mut();
         let total = data.len();
         st.data = data;
-        st.zoom_pan = ZoomPanState::new(total, 100.min(total));
+        let future = total / 3; // allow scrolling 33% past data
+        st.zoom_pan = ZoomPanState::new(total, 100.min(total)).with_future_bars(future);
         st.recompute_indicators();
         st.dirty = true;
     }
@@ -342,6 +352,124 @@ fn attach_wheel_event(
     )?;
 
     Ok(on_wheel)
+}
+
+/// Get touch position in canvas-pixel coordinates.
+fn touch_pos(touch: &web_sys::Touch, canvas: &HtmlCanvasElement) -> Point {
+    let rect = canvas.get_bounding_client_rect();
+    let scale_x = f64::from(canvas.width()) / rect.width();
+    let scale_y = f64::from(canvas.height()) / rect.height();
+    Point {
+        x: (f64::from(touch.client_x()) - rect.left()) * scale_x,
+        y: (f64::from(touch.client_y()) - rect.top()) * scale_y,
+    }
+}
+
+/// Distance between two touch points.
+fn touch_distance(a: &web_sys::Touch, b: &web_sys::Touch) -> f64 {
+    let dx = f64::from(a.client_x() - b.client_x());
+    let dy = f64::from(a.client_y() - b.client_y());
+    dx.hypot(dy)
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn attach_touch_events(
+    canvas: &HtmlCanvasElement,
+    state: &Rc<RefCell<ChartState>>,
+    closures: &mut Vec<Closure<dyn FnMut(web_sys::TouchEvent)>>,
+) -> Result<(), JsValue> {
+    let opts = web_sys::AddEventListenerOptions::new();
+    opts.set_passive(false);
+
+    // touchstart
+    let s = Rc::clone(state);
+    let on_touchstart = Closure::wrap(Box::new(move |e: web_sys::TouchEvent| {
+        e.prevent_default();
+        let mut st = s.borrow_mut();
+        let touches = e.touches();
+        if touches.length() == 1 {
+            // Single touch: start drag
+            if let Some(t) = touches.get(0) {
+                let pos = touch_pos(&t, &st.canvas);
+                st.is_dragging = true;
+                st.drag_start_x = pos.x;
+                st.drag_start_offset = st.zoom_pan.offset;
+                st.mouse_pos = Some(pos);
+                st.dirty = true;
+            }
+        } else if touches.length() == 2 {
+            // Two touches: start pinch-zoom
+            if let (Some(a), Some(b)) = (touches.get(0), touches.get(1)) {
+                st.is_dragging = false;
+                st.pinch_start_dist = touch_distance(&a, &b);
+                st.pinch_start_visible = st.zoom_pan.visible_bars;
+            }
+        }
+    }) as Box<dyn FnMut(web_sys::TouchEvent)>);
+    canvas.add_event_listener_with_callback_and_add_event_listener_options(
+        "touchstart", on_touchstart.as_ref().unchecked_ref(), &opts,
+    )?;
+    closures.push(on_touchstart);
+
+    // touchmove
+    let s = Rc::clone(state);
+    let on_touchmove = Closure::wrap(Box::new(move |e: web_sys::TouchEvent| {
+        e.prevent_default();
+        let mut st = s.borrow_mut();
+        let touches = e.touches();
+        if touches.length() == 1 && st.is_dragging {
+            // Single touch drag = pan
+            if let Some(t) = touches.get(0) {
+                let pos = touch_pos(&t, &st.canvas);
+                let dx = pos.x - st.drag_start_x;
+                let chart_width = st.config.width - st.config.margin.left - st.config.margin.right;
+                st.zoom_pan = compute_pan(st.zoom_pan, dx, chart_width, st.drag_start_offset);
+                st.mouse_pos = Some(pos);
+                st.dirty = true;
+            }
+        } else if touches.length() == 2 {
+            // Pinch-zoom
+            if let (Some(a), Some(b)) = (touches.get(0), touches.get(1)) {
+                let dist = touch_distance(&a, &b);
+                if st.pinch_start_dist > 1.0 {
+                    let scale = dist / st.pinch_start_dist;
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    let new_visible = (st.pinch_start_visible as f64 / scale)
+                        .round()
+                        .clamp(5.0, st.zoom_pan.total_bars as f64) as usize;
+                    // Keep centered
+                    let mid = st.zoom_pan.offset + st.zoom_pan.visible_bars / 2;
+                    let new_offset = mid.saturating_sub(new_visible / 2);
+                    st.zoom_pan = ZoomPanState {
+                        visible_bars: new_visible,
+                        offset: new_offset,
+                        total_bars: st.zoom_pan.total_bars, future_bars: 0,
+                    };
+                    // Clamp
+                    st.zoom_pan = st.zoom_pan.pan(0);
+                    st.dirty = true;
+                }
+            }
+        }
+    }) as Box<dyn FnMut(web_sys::TouchEvent)>);
+    canvas.add_event_listener_with_callback_and_add_event_listener_options(
+        "touchmove", on_touchmove.as_ref().unchecked_ref(), &opts,
+    )?;
+    closures.push(on_touchmove);
+
+    // touchend / touchcancel
+    let s = Rc::clone(state);
+    let on_touchend = Closure::wrap(Box::new(move |_e: web_sys::TouchEvent| {
+        let mut st = s.borrow_mut();
+        st.is_dragging = false;
+        st.mouse_pos = None;
+        st.dirty = true;
+    }) as Box<dyn FnMut(web_sys::TouchEvent)>);
+    canvas.add_event_listener_with_callback("touchend", on_touchend.as_ref().unchecked_ref())?;
+    canvas.add_event_listener_with_callback("touchcancel", on_touchend.as_ref().unchecked_ref())?;
+    closures.push(on_touchend);
+
+    Ok(())
 }
 
 fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {

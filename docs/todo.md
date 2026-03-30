@@ -127,11 +127,11 @@
 ## Phase 8 — Polish & Extras *(nice-to-have)*
 
 ### Mobile
-- [ ] Touch-Events: Pinch-Zoom, Drag-Pan
+- [x] Touch-Events: Pinch-Zoom, Drag-Pan
 
 ### UI-Verfeinerungen
 - [ ] Panel-Splitter: Drag zum Resize
-- [ ] Rechts-Scroll über Daten hinaus (Future Space für Trendlinien)
+- [x] Rechts-Scroll über Daten hinaus (Future Space, 33% vom Datenbereich)
 - [ ] Y-Achse Drag-Skalierung (Preis-Range manuell anpassen)
 
 ### Native Desktop (optional)
@@ -153,6 +153,6 @@
 | 5 | Multi-Panel + Indikatoren | ✅ |
 | 6 | Pattern-Marker | ✅ |
 | 7 | SMR-Integration & JS-API | ✅ |
-| 8 | Polish & Extras | offen |
+| 8 | Polish & Extras | teilweise |
 
 **152 Tests** (128 core + 24 render), Clippy-pedantic clean.

@@ -75,7 +75,7 @@ mod tests {
         ZoomPanState {
             visible_bars: 50,
             offset: 25,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         }
     }
 
@@ -119,7 +119,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 5,
             offset: 0,
-            total_bars: 0,
+            total_bars: 0, future_bars: 0,
         };
         let zoomed = compute_zoom(state, 400.0, 0.0, 800.0, -1.0);
         assert_eq!(zoomed, state);
@@ -137,7 +137,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 5,
             offset: 0,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         // Zoom in aggressively — should not go below 5
         let zoomed = compute_zoom(state, 400.0, 0.0, 800.0, -1.0);
@@ -149,7 +149,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 95,
             offset: 0,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         // Keep zooming out
         let mut s = state;
@@ -183,7 +183,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 50,
             offset: 2,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         let panned = compute_pan(state, 500.0, 800.0, state.offset);
         assert_eq!(panned.offset, 0);
@@ -194,7 +194,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 50,
             offset: 48,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         let panned = compute_pan(state, -500.0, 800.0, state.offset);
         assert_eq!(panned.offset, 50); // max = 100 - 50
@@ -213,7 +213,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 5,
             offset: 0,
-            total_bars: 0,
+            total_bars: 0, future_bars: 0,
         };
         let panned = compute_pan(state, 100.0, 800.0, 0);
         assert_eq!(panned, state);
@@ -224,7 +224,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 50,
             offset: 30,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         // Simulate drag that started at offset 10
         let panned = compute_pan(state, -80.0, 800.0, 10);

@@ -12,6 +12,9 @@ pub struct ZoomPanState {
     pub offset: usize,
     /// Total number of bars in the dataset.
     pub total_bars: usize,
+    /// Extra empty bars beyond the data (for trendline visibility).
+    /// Defaults to 0. Set to e.g. `visible_bars / 3` to allow right-scrolling.
+    pub future_bars: usize,
 }
 
 impl ZoomPanState {
@@ -24,7 +27,15 @@ impl ZoomPanState {
             visible_bars: visible,
             offset,
             total_bars,
+            future_bars: 0,
         }
+    }
+
+    /// Create a state that allows scrolling past the last bar.
+    #[must_use]
+    pub fn with_future_bars(mut self, future_bars: usize) -> Self {
+        self.future_bars = future_bars;
+        self
     }
 
     /// The currently visible time range.
@@ -60,6 +71,7 @@ impl ZoomPanState {
             visible_bars: new_visible,
             offset: new_offset,
             total_bars: self.total_bars,
+            future_bars: self.future_bars,
         }
         .clamped()
     }
@@ -93,7 +105,7 @@ impl ZoomPanState {
         self.visible_bars = self
             .visible_bars
             .clamp(MIN_VISIBLE_BARS, self.total_bars.max(MIN_VISIBLE_BARS));
-        let max_offset = self.total_bars.saturating_sub(self.visible_bars);
+        let max_offset = (self.total_bars + self.future_bars).saturating_sub(self.visible_bars);
         self.offset = self.offset.min(max_offset);
         self
     }
@@ -138,7 +150,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 20,
             offset: 50,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         let panned = state.pan(10);
         assert_eq!(panned.offset, 60);
@@ -150,7 +162,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 20,
             offset: 75,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         let panned = state.pan(20);
         assert_eq!(panned.offset, 80); // max = 100 - 20
@@ -161,7 +173,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 20,
             offset: 50,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         let panned = state.pan(-10);
         assert_eq!(panned.offset, 40);
@@ -172,7 +184,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 20,
             offset: 5,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         let panned = state.pan(-20);
         assert_eq!(panned.offset, 0);
@@ -183,7 +195,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 100,
             offset: 0,
-            total_bars: 200,
+            total_bars: 200, future_bars: 0,
         };
         let zoomed = state.zoom(2.0, 50);
         assert_eq!(zoomed.visible_bars, 50);
@@ -194,7 +206,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 50,
             offset: 50,
-            total_bars: 200,
+            total_bars: 200, future_bars: 0,
         };
         let zoomed = state.zoom(0.5, 75);
         assert_eq!(zoomed.visible_bars, 100);
@@ -205,7 +217,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 6,
             offset: 0,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         let zoomed = state.zoom(100.0, 3);
         assert_eq!(zoomed.visible_bars, MIN_VISIBLE_BARS);
@@ -216,7 +228,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 90,
             offset: 0,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         let zoomed = state.zoom(0.01, 50);
         assert_eq!(zoomed.visible_bars, 100);
@@ -227,7 +239,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 20,
             offset: 10,
-            total_bars: 100,
+            total_bars: 100, future_bars: 0,
         };
         let end = state.scroll_to_end();
         assert_eq!(end.offset, 80);
@@ -239,7 +251,7 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 100,
             offset: 0,
-            total_bars: 200,
+            total_bars: 200, future_bars: 0,
         };
         // Anchor is bar 50, which is at 50% of the visible range
         let zoomed = state.zoom(2.0, 50);
