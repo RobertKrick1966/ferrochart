@@ -13,6 +13,7 @@ pub struct SvgRenderer {
     height: f64,
     elements: Vec<String>,
     background: Option<Color>,
+    clip_id: usize,
 }
 
 impl SvgRenderer {
@@ -23,6 +24,7 @@ impl SvgRenderer {
             height,
             elements: Vec::new(),
             background: None,
+            clip_id: 0,
         }
     }
 }
@@ -98,6 +100,20 @@ impl Renderer for SvgRenderer {
 
     fn set_background(&mut self, color: Color) {
         self.background = Some(color);
+    }
+
+    fn clip(&mut self, rect: Rect) {
+        self.clip_id += 1;
+        let id = format!("clip{}", self.clip_id);
+        self.elements.push(format!(
+            r#"<defs><clipPath id="{id}"><rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" /></clipPath></defs>"#,
+            rect.x, rect.y, rect.width, rect.height
+        ));
+        self.elements.push(format!(r#"<g clip-path="url(#{id})">"#));
+    }
+
+    fn restore_clip(&mut self) {
+        self.elements.push("</g>".to_string());
     }
 
     fn finish(&self) -> Vec<u8> {

@@ -26,6 +26,9 @@ pub struct ChartConfig {
     pub price_scale: f64,
     /// Custom panel weights. If `None`, defaults are computed dynamically.
     pub panel_weights: Option<Vec<f64>>,
+    /// If set, use this many bar slots for X-axis spacing instead of `data.len()`.
+    /// Enables future space: data occupies the left portion, right is empty.
+    pub visible_bar_slots: Option<usize>,
 }
 
 /// Margins around the chart area.
@@ -59,6 +62,7 @@ impl Default for ChartConfig {
             font_size: 11.0,
             price_scale: 1.0,
             panel_weights: None,
+            visible_bar_slots: None,
             indicator_colors: vec![
                 Color::rgb(255, 235, 59),  // yellow
                 Color::rgb(0, 188, 212),   // cyan
@@ -606,8 +610,10 @@ pub fn render_full_chart_with_markers(
     let price_panel = layout.get(0).unwrap();
     let volume_panel = layout.get(1).unwrap();
 
-    let time_range = TimeRange::new(0, data.len());
-    let price_data_rect = inset_rect_horizontal(&price_panel.rect, data.len());
+    // Use visible_bar_slots for X spacing (enables future space)
+    let bar_slots = config.visible_bar_slots.unwrap_or(data.len());
+    let time_range = TimeRange::new(0, bar_slots);
+    let price_data_rect = inset_rect_horizontal(&price_panel.rect, bar_slots);
 
     // --- Price panel ---
     // Extend price range to include overlay indicator values (BB bands, etc.)
@@ -645,6 +651,9 @@ pub fn render_full_chart_with_markers(
     };
     let price_transform = Transform::from_viewport(&price_vp);
 
+    // Clip to price panel so Y-scaling doesn't bleed into other panels
+    renderer.clip(price_panel.rect);
+
     draw_y_axis(renderer, &price_panel.rect, &price_range, &price_transform, config);
     let candles = CandleGeometry::compute_all(data, 0, &price_transform, config.body_ratio);
     draw_candles(renderer, &candles, config);
@@ -661,11 +670,13 @@ pub fn render_full_chart_with_markers(
     // Price panel legend
     draw_panel_legend(renderer, price_panel.rect, &overlays, config);
 
+    renderer.restore_clip();
     renderer.draw_rect_outline(price_panel.rect, &LineStyle { color: config.axis_color, width: 1.0 });
     layout_info.panels.push(PanelInfo { rect: price_panel.rect, kind: PanelKind::Price });
 
     // --- Volume panel ---
-    let vol_data_rect = inset_rect_horizontal(&volume_panel.rect, data.len());
+    renderer.clip(volume_panel.rect);
+    let vol_data_rect = inset_rect_horizontal(&volume_panel.rect, bar_slots);
     let max_vol = data.iter().map(|b| b.volume).fold(0.0_f64, f64::max);
     let vol_range = PriceRange::new(0.0, max_vol * 1.1);
     let vol_vp = Viewport { rect: vol_data_rect, time_range, price_range: vol_range };
@@ -684,6 +695,7 @@ pub fn render_full_chart_with_markers(
     // Volume panel legend
     draw_label_in_panel(renderer, volume_panel.rect, "Volume", config);
 
+    renderer.restore_clip();
     renderer.draw_rect_outline(volume_panel.rect, &LineStyle { color: config.axis_color, width: 1.0 });
     layout_info.panels.push(PanelInfo { rect: volume_panel.rect, kind: PanelKind::Volume });
 

@@ -95,6 +95,17 @@ impl Renderer for CanvasRenderer {
         self.ctx.fill_rect(0.0, 0.0, self.width, self.height);
     }
 
+    fn clip(&mut self, rect: Rect) {
+        self.ctx.save();
+        self.ctx.begin_path();
+        self.ctx.rect(rect.x, rect.y, rect.width, rect.height);
+        self.ctx.clip();
+    }
+
+    fn restore_clip(&mut self) {
+        self.ctx.restore();
+    }
+
     fn finish(&self) -> Vec<u8> {
         // Canvas rendering is immediate-mode — all drawing already happened.
         Vec::new()

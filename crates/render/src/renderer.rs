@@ -25,6 +25,13 @@ pub trait Renderer {
     /// Set the background color.
     fn set_background(&mut self, color: Color);
 
+    /// Save state and clip to the given rectangle.
+    /// All subsequent drawing is clipped until `restore_clip()` is called.
+    fn clip(&mut self, rect: Rect);
+
+    /// Restore state before the last `clip()` call.
+    fn restore_clip(&mut self);
+
     /// Finalize and return the rendered output as bytes.
     fn finish(&self) -> Vec<u8>;
 }

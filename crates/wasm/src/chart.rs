@@ -664,9 +664,15 @@ fn render_frame(st: &mut ChartState) {
         .collect();
     let marker_refs: Vec<&Marker> = adjusted_markers.iter().collect();
 
-    // Apply Y-axis scale factor and panel weights
+    // Apply Y-axis scale factor, panel weights, and bar slot count
     st.config.price_scale = st.price_scale;
     st.config.panel_weights = st.panel_weights.clone();
+    // If scrolled into future space, there are fewer data bars than visible slots
+    st.config.visible_bar_slots = if visible_data.len() < st.zoom_pan.visible_bars {
+        Some(st.zoom_pan.visible_bars)
+    } else {
+        None
+    };
 
     let layout_info = render_full_chart_with_markers(&mut renderer, visible_data, &outputs, &marker_refs, &st.config);
 
