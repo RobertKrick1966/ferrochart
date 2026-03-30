@@ -240,12 +240,18 @@ impl PowerChart {
     }
 }
 
-/// Helper: get mouse position relative to canvas.
+/// Helper: get mouse position relative to canvas in canvas-pixel coordinates.
+/// Accounts for `devicePixelRatio` when CSS size differs from canvas resolution.
 fn mouse_pos(e: &web_sys::MouseEvent, canvas: &HtmlCanvasElement) -> Point {
     let rect = canvas.get_bounding_client_rect();
+    let css_x = f64::from(e.client_x()) - rect.left();
+    let css_y = f64::from(e.client_y()) - rect.top();
+    // Scale from CSS pixels to canvas pixels
+    let scale_x = f64::from(canvas.width()) / rect.width();
+    let scale_y = f64::from(canvas.height()) / rect.height();
     Point {
-        x: f64::from(e.client_x()) - rect.left(),
-        y: f64::from(e.client_y()) - rect.top(),
+        x: css_x * scale_x,
+        y: css_y * scale_y,
     }
 }
 
@@ -318,7 +324,8 @@ fn attach_wheel_event(
             return;
         }
         let rect = st.canvas.get_bounding_client_rect();
-        let mouse_x = f64::from(e.client_x()) - rect.left();
+        let scale_x = f64::from(st.canvas.width()) / rect.width();
+        let mouse_x = (f64::from(e.client_x()) - rect.left()) * scale_x;
         let chart_left = st.config.margin.left;
         let chart_width = st.config.width - chart_left - st.config.margin.right;
 
