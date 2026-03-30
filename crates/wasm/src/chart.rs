@@ -7,8 +7,9 @@ use web_sys::HtmlCanvasElement;
 use powerchart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
 use powerchart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use powerchart_core::{
-    Indicator, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape,
-    Ohlcv, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform, Viewport, ZoomPanState,
+    Annotations, FibonacciRetracement, Indicator, IndicatorOutput, IndicatorPlacement, Marker,
+    MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
+    TimeRange, Transform, TrendLine, Viewport, ZoomPanState,
 };
 use powerchart_render::chart::{render_full_chart_with_markers, ChartConfig, ChartLayoutInfo, PanelKind};
 use powerchart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
@@ -37,6 +38,7 @@ struct ChartState {
     /// Cached indicator outputs computed on the full dataset.
     cached_outputs: Vec<IndicatorOutput>,
     markers: MarkerSet,
+    annotations: Annotations,
     mouse_pos: Option<Point>,
     is_dragging: bool,
     drag_start_x: f64,
@@ -105,6 +107,7 @@ impl PowerChart {
             indicators: Vec::new(),
             cached_outputs: Vec::new(),
             markers: MarkerSet::new(),
+            annotations: Annotations::new(),
             mouse_pos: None,
             is_dragging: false,
             drag_start_x: 0.0,
@@ -276,6 +279,84 @@ impl PowerChart {
         let mut st = self.state.borrow_mut();
         st.markers.clear();
         st.dirty = true;
+    }
+
+    /// Add a trendline between two bar/price points.
+    #[wasm_bindgen(js_name = addTrendLine)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_trend_line(
+        &self,
+        start_bar: f64, start_price: f64,
+        end_bar: f64, end_price: f64,
+        r: u8, g: u8, b: u8,
+        extend_right: bool,
+    ) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_trend_line(TrendLine {
+            start_bar, start_price,
+            end_bar, end_price,
+            color: (r, g, b),
+            width: 1.5,
+            extend_right,
+        });
+        st.dirty = true;
+    }
+
+    /// Add a Fibonacci retracement between a high and low point.
+    #[wasm_bindgen(js_name = addFibonacci)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_fibonacci(
+        &self,
+        high_bar: u32, high_price: f64,
+        low_bar: u32, low_price: f64,
+        r: u8, g: u8, b: u8,
+    ) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_fibonacci(FibonacciRetracement {
+            high_bar: high_bar as usize,
+            high_price,
+            low_bar: low_bar as usize,
+            low_price,
+            color: (r, g, b),
+        });
+        st.dirty = true;
+    }
+
+    /// Remove all annotations (trendlines, Fibonacci).
+    #[wasm_bindgen(js_name = clearAnnotations)]
+    pub fn clear_annotations(&self) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.clear();
+        st.dirty = true;
+    }
+
+    /// Set the color theme: `"dark"` (default) or `"light"`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the theme name is unknown.
+    #[wasm_bindgen(js_name = setTheme)]
+    pub fn set_theme(&self, theme: &str) -> Result<(), JsValue> {
+        let mut st = self.state.borrow_mut();
+        let w = st.config.width;
+        let h = st.config.height;
+        let scale = st.config.price_scale;
+        let weights = st.config.panel_weights.clone();
+        let slots = st.config.visible_bar_slots;
+
+        st.config = match theme {
+            "dark" => ChartConfig::dark(),
+            "light" => ChartConfig::light(),
+            _ => return Err(JsValue::from_str(&format!("unknown theme: {theme}"))),
+        };
+        // Preserve runtime state
+        st.config.width = w;
+        st.config.height = h;
+        st.config.price_scale = scale;
+        st.config.panel_weights = weights;
+        st.config.visible_bar_slots = slots;
+        st.dirty = true;
+        Ok(())
     }
 
     /// Update the chart dimensions (call after canvas resize).
@@ -688,7 +769,7 @@ fn render_frame(st: &mut ChartState) {
         None
     };
 
-    let layout_info = render_full_chart_with_markers(&mut renderer, visible_data, &outputs, &marker_refs, &st.config);
+    let layout_info = render_full_chart_with_markers(&mut renderer, visible_data, &outputs, &marker_refs, &st.annotations, &st.config);
 
     // Crosshair + Tooltip
     if let Some(mouse) = st.mouse_pos {

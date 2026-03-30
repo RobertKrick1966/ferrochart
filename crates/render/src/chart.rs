@@ -1,6 +1,7 @@
 use powerchart_core::{
-    CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerShape,
-    Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform, Viewport,
+    Annotations, CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition,
+    MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform,
+    Viewport,
 };
 
 use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
@@ -73,6 +74,39 @@ impl Default for ChartConfig {
                 Color::rgb(33, 150, 243),  // blue
                 Color::rgb(255, 87, 34),   // deep orange
             ],
+        }
+    }
+}
+
+impl ChartConfig {
+    /// Dark theme (default).
+    #[must_use]
+    pub fn dark() -> Self {
+        Self::default()
+    }
+
+    /// Light theme with white background.
+    #[must_use]
+    pub fn light() -> Self {
+        Self {
+            background: Color::rgb(255, 255, 255),
+            bullish_color: Color::rgb(38, 166, 91),
+            bearish_color: Color::rgb(214, 48, 49),
+            wick_color: Color::rgb(80, 80, 80),
+            axis_color: Color::rgb(180, 180, 180),
+            grid_color: Color::rgba(0, 0, 0, 20),
+            text_color: Color::rgb(60, 60, 60),
+            indicator_colors: vec![
+                Color::rgb(41, 128, 185),   // blue
+                Color::rgb(231, 76, 60),    // red
+                Color::rgb(39, 174, 96),    // green
+                Color::rgb(243, 156, 18),   // orange
+                Color::rgb(142, 68, 173),   // purple
+                Color::rgb(22, 160, 133),   // teal
+                Color::rgb(211, 84, 0),     // dark orange
+                Color::rgb(44, 62, 80),     // dark blue
+            ],
+            ..Self::default()
         }
     }
 }
@@ -240,11 +274,13 @@ fn draw_x_axis(
     }
     let step = total / label_count;
 
-    // Day labels
+    let interval = detect_interval(data);
+
+    // Time labels
     for i in (0..total).step_by(step.max(1)) {
         let x = transform.bar_x(i);
         let timestamp = data[i].timestamp;
-        let label = format_timestamp(timestamp);
+        let label = format_timestamp(timestamp, interval);
 
         renderer.draw_text(
             &label,
@@ -257,8 +293,54 @@ fn draw_x_axis(
         );
     }
 
-    // Month/year labels — one per month, centered in that month's bar range
-    draw_month_labels(renderer, data, chart_rect, transform, config);
+    // Second-row labels: month/year for daily, date for intraday
+    if interval < 86_400 {
+        draw_date_labels(renderer, data, chart_rect, transform, config);
+    } else {
+        draw_month_labels(renderer, data, chart_rect, transform, config);
+    }
+}
+
+/// Draw date labels for intraday data (one per day, centered).
+#[allow(clippy::cast_precision_loss)]
+fn draw_date_labels(
+    renderer: &mut dyn Renderer,
+    data: &[Ohlcv],
+    chart_rect: &Rect,
+    transform: &Transform,
+    config: &ChartConfig,
+) {
+    let text_style = TextStyle {
+        color: config.text_color,
+        size: config.font_size,
+        font_family: "monospace".to_string(),
+    };
+
+    let mut day_spans: Vec<(i64, u32, u32, usize, usize)> = Vec::new();
+
+    for (i, bar) in data.iter().enumerate() {
+        let days = bar.timestamp / 86_400;
+        let (year, month, day) = days_to_ymd(days);
+        if let Some(last) = day_spans.last_mut()
+            && last.0 == year && last.1 == month && last.2 == day
+        {
+            last.4 = i;
+            continue;
+        }
+        day_spans.push((year, month, day, i, i));
+    }
+
+    for &(year, month, day, first, last) in &day_spans {
+        let x_center = f64::midpoint(transform.bar_x(first), transform.bar_x(last));
+        let label = format!("{day:02} {m} {year}", m = month_abbrev(month));
+
+        renderer.draw_text(
+            &label,
+            Point { x: x_center, y: chart_rect.bottom() + 30.0 },
+            &text_style,
+            TextAnchor::Middle,
+        );
+    }
 }
 
 /// Draw month/year labels centered below each month's range of bars.
@@ -398,11 +480,33 @@ fn inset_rect_horizontal(rect: &Rect, num_bars: usize) -> Rect {
     Rect::new(rect.x + inset, rect.y, rect.width - 2.0 * inset, rect.height)
 }
 
-/// Format a unix timestamp as just the day number.
-fn format_timestamp(ts: i64) -> String {
-    let days = ts / 86_400;
-    let (_year, _month, day) = days_to_ymd(days);
-    format!("{day}")
+/// Detect the average interval between bars in seconds.
+#[allow(clippy::cast_possible_wrap)]
+fn detect_interval(data: &[Ohlcv]) -> i64 {
+    if data.len() < 2 {
+        return 86_400;
+    }
+    let total = data.last().unwrap().timestamp - data.first().unwrap().timestamp;
+    total / (data.len() as i64 - 1).max(1)
+}
+
+/// Format a unix timestamp based on the data interval.
+fn format_timestamp(ts: i64, interval: i64) -> String {
+    if interval < 3600 {
+        // Sub-hourly: show HH:MM
+        let h = (ts % 86_400) / 3600;
+        let m = (ts % 3600) / 60;
+        format!("{h:02}:{m:02}")
+    } else if interval < 86_400 {
+        // Hourly: show HH:00
+        let h = (ts % 86_400) / 3600;
+        format!("{h:02}:00")
+    } else {
+        // Daily+: show day number
+        let days = ts / 86_400;
+        let (_year, _month, day) = days_to_ymd(days);
+        format!("{day}")
+    }
 }
 
 /// Convert days since epoch to (year, month, day).
@@ -559,10 +663,10 @@ pub fn render_full_chart(
     indicators: &[IndicatorOutput],
     config: &ChartConfig,
 ) -> ChartLayoutInfo {
-    render_full_chart_with_markers(renderer, data, indicators, &[], config)
+    render_full_chart_with_markers(renderer, data, indicators, &[], &Annotations::default(), config)
 }
 
-/// Render a full chart with candlesticks, volume, indicators, and markers.
+/// Render a full chart with candlesticks, volume, indicators, markers, and annotations.
 ///
 /// # Panics
 ///
@@ -573,6 +677,7 @@ pub fn render_full_chart_with_markers(
     data: &[Ohlcv],
     indicators: &[IndicatorOutput],
     markers: &[&Marker],
+    annotations: &Annotations,
     config: &ChartConfig,
 ) -> ChartLayoutInfo {
     if data.is_empty() {
@@ -672,6 +777,9 @@ pub fn render_full_chart_with_markers(
 
     // Draw markers on price panel
     draw_markers(renderer, markers, data, &price_transform, config);
+
+    // Draw annotations (trendlines, fibonacci) on price panel
+    draw_annotations(renderer, annotations, &price_transform, &price_panel.rect, bar_slots, config);
 
     // Price panel legend
     draw_panel_legend(renderer, price_panel.rect, &overlays, config);
@@ -984,6 +1092,71 @@ fn draw_label_in_panel(
     );
 }
 
+/// Draw trendlines and Fibonacci retracements on the price panel.
+#[allow(clippy::cast_precision_loss)]
+fn draw_annotations(
+    renderer: &mut dyn Renderer,
+    annotations: &Annotations,
+    transform: &Transform,
+    panel_rect: &Rect,
+    bar_slots: usize,
+    config: &ChartConfig,
+) {
+    // Trend lines
+    for line in &annotations.trend_lines {
+        let color = Color::rgb(line.color.0, line.color.1, line.color.2);
+        let style = LineStyle { color, width: line.width };
+
+        let start = transform.to_pixel(line.start_bar, line.start_price);
+        let mut end = transform.to_pixel(line.end_bar, line.end_price);
+
+        if line.extend_right && (line.end_bar - line.start_bar).abs() > f64::EPSILON {
+            let slope = (line.end_price - line.start_price) / (line.end_bar - line.start_bar);
+            let extended_bar = bar_slots as f64;
+            let extended_price = line.end_price + slope * (extended_bar - line.end_bar);
+            end = transform.to_pixel(extended_bar, extended_price);
+        }
+
+        renderer.draw_line(start, end, &style);
+    }
+
+    // Fibonacci retracements
+    for fib in &annotations.fibonaccis {
+        let color = Color::rgb(fib.color.0, fib.color.1, fib.color.2);
+        let text_style = TextStyle {
+            color,
+            size: config.font_size - 1.0,
+            font_family: "monospace".to_string(),
+        };
+
+        let left_x = panel_rect.x;
+        let right_x = panel_rect.right();
+
+        for (level, price) in fib.level_prices() {
+            let y = transform.price_y(price);
+            let alpha = if (level - 0.0).abs() < f64::EPSILON || (level - 1.0).abs() < f64::EPSILON {
+                180
+            } else {
+                80
+            };
+            let line_color = Color::rgba(fib.color.0, fib.color.1, fib.color.2, alpha);
+
+            renderer.draw_line(
+                Point { x: left_x, y },
+                Point { x: right_x, y },
+                &LineStyle { color: line_color, width: 0.5 },
+            );
+
+            renderer.draw_text(
+                &format!("{:.1}% ({:.2})", level * 100.0, price),
+                Point { x: left_x + 5.0, y: y - 3.0 },
+                &text_style,
+                TextAnchor::Start,
+            );
+        }
+    }
+}
+
 /// Draw markers on the price panel.
 #[allow(clippy::cast_precision_loss)]
 fn draw_markers(
@@ -1155,10 +1328,30 @@ mod tests {
     }
 
     #[test]
-    fn format_timestamp_produces_day_only() {
-        let label = format_timestamp(1_700_000_000);
+    fn format_timestamp_daily() {
+        let label = format_timestamp(1_700_000_000, 86_400);
         // 2023-11-14 → just "14"
         assert_eq!(label, "14");
+    }
+
+    #[test]
+    fn format_timestamp_hourly() {
+        // 1700000000 + 3600*10 = 10:00 UTC
+        let label = format_timestamp(1_700_000_000 + 3600 * 10, 3600);
+        assert!(label.contains(":00"));
+    }
+
+    #[test]
+    fn format_timestamp_minute() {
+        let label = format_timestamp(1_700_000_000 + 3600 * 14 + 60 * 30, 60);
+        assert!(label.contains(':'));
+    }
+
+    #[test]
+    fn detect_interval_daily() {
+        let data = sample_data();
+        let interval = detect_interval(&data);
+        assert_eq!(interval, 86_400);
     }
 
     #[test]

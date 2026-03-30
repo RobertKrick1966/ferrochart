@@ -157,12 +157,12 @@
 - [ ] `examples/desktop/` — standalone Binary
 
 ### Weitere Verbesserungen
-- [ ] npm-publish workflow (GitHub Actions)
+- [x] npm-publish workflow (GitHub Actions, auf Release)
 - [ ] SMR Pattern-Signale als Marker durchschleifen
-- [ ] Trendlinien-Zeichnung (Linie zwischen zwei Punkten)
-- [ ] Fibonacci-Retracement
-- [ ] Zeitachse: Stunden/Minuten-Ticks für Intraday-Daten
-- [ ] Dark/Light Theme Presets
+- [x] Trendlinien-Zeichnung (Linie zwischen zwei Punkten, extend_right)
+- [x] Fibonacci-Retracement (7 Standard-Levels, Labels + Linien)
+- [x] Zeitachse: Stunden/Minuten-Ticks für Intraday-Daten (auto-detect)
+- [x] Dark/Light Theme Presets (`setTheme("dark"/"light")`)
 
 ---
 
@@ -179,4 +179,4 @@
 | 7 | SMR-Integration & JS-API | ✅ |
 | 8 | Polish & Extras | ✅ |
 
-**152 Tests** (128 core + 24 render), Clippy-pedantic clean.
+**160 Tests** (133 core + 27 render), Clippy-pedantic clean.

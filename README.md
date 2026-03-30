@@ -96,6 +96,10 @@ let json = serde_json::to_string(&data)?;
 | `clearIndicators()` | Remove all indicators |
 | `addMarker(idx, shape, pos, r, g, b, label)` | Add marker: shapes `"arrow_up"`, `"arrow_down"`, `"circle"`, `"diamond"` |
 | `clearMarkers()` | Remove all markers |
+| `addTrendLine(startBar, startPrice, endBar, endPrice, r, g, b, extendRight)` | Draw a trendline |
+| `addFibonacci(highBar, highPrice, lowBar, lowPrice, r, g, b)` | Draw Fibonacci retracement levels |
+| `clearAnnotations()` | Remove all trendlines and Fibonacci |
+| `setTheme(name)` | Switch theme: `"dark"` (default) or `"light"` |
 | `resize(width, height)` | Update chart dimensions after canvas resize |
 
 ### Interactions

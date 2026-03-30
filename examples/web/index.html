@@ -40,6 +40,9 @@
     </div>
     <div class="info">
         Scroll to zoom &middot; Drag to pan &middot; Move mouse for crosshair
+        &middot; Drag right margin to scale Y &middot; Double-click to reset
+        <br>
+        <button id="theme-toggle" style="margin-top:8px;padding:4px 12px;cursor:pointer;font-family:monospace">Toggle Light/Dark</button>
     </div>
     <script type="module">
         import init, { PowerChart } from '../../crates/wasm/pkg/powerchart_wasm.js';
@@ -116,6 +119,20 @@
             chart.addMarker(75, 'diamond', 'above', 255, 165, 0, 'Doji');
             chart.addMarker(95, 'circle', 'below', 0, 150, 255, 'Support');
             chart.addMarker(120, 'arrow_down', 'above', 200, 0, 0, 'Evening Star');
+
+            // Trendline example
+            chart.addTrendLine(20, opens[20], 80, closes[80], 255, 255, 0, true);
+
+            // Fibonacci retracement example
+            chart.addFibonacci(40, Math.max(...highs.slice(35, 50)), 60, Math.min(...lows.slice(55, 65)), 255, 165, 0);
+
+            // Theme toggle
+            let isDark = true;
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                isDark = !isDark;
+                chart.setTheme(isDark ? 'dark' : 'light');
+                document.body.style.background = isDark ? '#0e1117' : '#f0f0f0';
+            });
 
             // Handle window resize
             window.addEventListener('resize', () => {

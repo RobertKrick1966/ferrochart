@@ -2,6 +2,7 @@
 //!
 //! This crate contains no I/O and no external dependencies.
 
+pub mod annotation;
 mod candle;
 mod data;
 mod geometry;
@@ -12,6 +13,7 @@ pub mod marker;
 mod transform;
 mod zoom;
 
+pub use annotation::{Annotations, FibonacciRetracement, TrendLine};
 pub use candle::CandleGeometry;
 pub use data::{Ohlcv, PriceRange, Series, TimeRange};
 pub use geometry::{Point, Rect};
