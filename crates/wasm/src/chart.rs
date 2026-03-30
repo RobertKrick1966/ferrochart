@@ -22,11 +22,24 @@ struct ChartState {
     config: ChartConfig,
     zoom_pan: ZoomPanState,
     indicators: Vec<Box<dyn Indicator>>,
+    /// Cached indicator outputs computed on the full dataset.
+    cached_outputs: Vec<IndicatorOutput>,
     mouse_pos: Option<Point>,
     is_dragging: bool,
     drag_start_x: f64,
     drag_start_offset: usize,
     dirty: bool,
+}
+
+impl ChartState {
+    /// Recompute all indicator outputs from the full dataset.
+    fn recompute_indicators(&mut self) {
+        self.cached_outputs = self
+            .indicators
+            .iter()
+            .map(|ind| ind.compute(&self.data))
+            .collect();
+    }
 }
 
 /// Interactive candlestick chart rendered on an HTML canvas.
@@ -65,6 +78,7 @@ impl PowerChart {
             config,
             zoom_pan: ZoomPanState::new(0, 100),
             indicators: Vec::new(),
+            cached_outputs: Vec::new(),
             mouse_pos: None,
             is_dragging: false,
             drag_start_x: 0.0,
@@ -113,6 +127,7 @@ impl PowerChart {
         let total = data.len();
         st.data = data;
         st.zoom_pan = ZoomPanState::new(total, 100.min(total));
+        st.recompute_indicators();
         st.dirty = true;
     }
 
@@ -144,6 +159,7 @@ impl PowerChart {
 
         let mut st = self.state.borrow_mut();
         st.indicators.push(indicator);
+        st.recompute_indicators();
         st.dirty = true;
         Ok(())
     }
@@ -153,6 +169,7 @@ impl PowerChart {
     pub fn clear_indicators(&self) {
         let mut st = self.state.borrow_mut();
         st.indicators.clear();
+        st.cached_outputs.clear();
         st.dirty = true;
     }
 }
@@ -306,10 +323,10 @@ fn render_frame(st: &mut ChartState) {
         return;
     };
 
-    // Compute indicators for visible data
-    let outputs: Vec<IndicatorOutput> = st.indicators
+    // Slice cached indicator outputs for visible range
+    let outputs: Vec<IndicatorOutput> = st.cached_outputs
         .iter()
-        .map(|ind| ind.compute(visible_data))
+        .map(|out| out.slice(start..end))
         .collect();
 
     render_full_chart(&mut renderer, visible_data, &outputs, &st.config);
