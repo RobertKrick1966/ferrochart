@@ -62,6 +62,8 @@ struct ChartState {
     annotations: Annotations,
     draw_mode: DrawMode,
     drawing: Option<DrawingInProgress>,
+    /// Cached layout info from last render (for coordinate mapping).
+    last_layout: ChartLayoutInfo,
     mouse_pos: Option<Point>,
     is_dragging: bool,
     drag_start_x: f64,
@@ -134,6 +136,7 @@ impl PowerChart {
             annotations: Annotations::new(),
             draw_mode: DrawMode::None,
             drawing: None,
+            last_layout: ChartLayoutInfo::default(),
             mouse_pos: None,
             is_dragging: false,
             drag_start_x: 0.0,
@@ -882,53 +885,12 @@ fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {
 }
 
 /// Convert a pixel position to data coordinates (bar index in full dataset, price).
-/// Returns None if the mouse is not in the chart data area.
+/// Uses the cached transform from the last render for exact coordinate match.
 #[allow(clippy::cast_precision_loss)]
 fn pixel_to_data(st: &ChartState, pos: Point) -> Option<(f64, f64)> {
-    let chart_width = st.config.width - st.config.margin.left - st.config.margin.right;
-    let chart_height = st.config.height - st.config.margin.top - st.config.margin.bottom;
-    if chart_width <= 0.0 || chart_height <= 0.0 || st.data.is_empty() {
-        return None;
-    }
-
+    let transform = st.last_layout.price_transform?;
     let range = st.zoom_pan.visible_range();
-    let end = range.end.min(st.data.len());
-    let start = range.start.min(end);
-    let num_visible = end - start;
-    if num_visible == 0 {
-        return None;
-    }
-
-    let bar_slots = if num_visible < st.zoom_pan.visible_bars {
-        st.zoom_pan.visible_bars
-    } else {
-        num_visible
-    };
-
-    let chart_rect = Rect::new(
-        st.config.margin.left,
-        st.config.margin.top,
-        chart_width,
-        chart_height,
-    );
-
-    let inset = if bar_slots > 1 {
-        chart_rect.width / (bar_slots - 1) as f64 * 0.5
-    } else {
-        0.0
-    };
-    let data_rect = Rect::new(
-        chart_rect.x + inset, chart_rect.y,
-        chart_rect.width - 2.0 * inset, chart_rect.height,
-    );
-
-    let price_range = PriceRange::from_ohlcv(&st.data[start..end])
-        .unwrap_or(PriceRange::new(0.0, 100.0))
-        .with_padding(0.03);
-
-    let time_range = TimeRange::new(0, bar_slots);
-    let vp = Viewport { rect: data_rect, time_range, price_range };
-    let transform = Transform::from_viewport(&vp);
+    let start = range.start.min(st.data.len());
 
     let (bar_f, price) = transform.to_data(pos);
     // Convert from visible-relative bar index to absolute dataset index
@@ -1027,6 +989,7 @@ fn render_frame(st: &mut ChartState) {
     };
 
     let layout_info = render_full_chart_with_markers(&mut renderer, visible_data, &outputs, &marker_refs, &st.annotations, &st.config);
+    st.last_layout = layout_info.clone();
 
     // Crosshair + Tooltip
     if let Some(mouse) = st.mouse_pos {
@@ -1073,18 +1036,8 @@ fn draw_preview(
     st: &ChartState,
     visible_start: usize,
 ) {
-    // Convert the start point from absolute data coords to visible-relative pixel coords
-    let range = st.zoom_pan.visible_range();
-    let end = range.end.min(st.data.len());
-    let num_visible = end.saturating_sub(visible_start);
-    if num_visible == 0 {
+    let Some(transform) = st.last_layout.price_transform else {
         return;
-    }
-
-    let bar_slots = if num_visible < st.zoom_pan.visible_bars {
-        st.zoom_pan.visible_bars
-    } else {
-        num_visible
     };
 
     let chart_rect = Rect::new(
@@ -1093,21 +1046,6 @@ fn draw_preview(
         st.config.width - st.config.margin.left - st.config.margin.right,
         st.config.height - st.config.margin.top - st.config.margin.bottom,
     );
-    let inset = if bar_slots > 1 {
-        chart_rect.width / (bar_slots - 1) as f64 * 0.5
-    } else {
-        0.0
-    };
-    let data_rect = Rect::new(
-        chart_rect.x + inset, chart_rect.y,
-        chart_rect.width - 2.0 * inset, chart_rect.height,
-    );
-    let price_range = PriceRange::from_ohlcv(&st.data[visible_start..end])
-        .unwrap_or(PriceRange::new(0.0, 100.0))
-        .with_padding(0.03);
-    let time_range = TimeRange::new(0, bar_slots);
-    let vp = Viewport { rect: data_rect, time_range, price_range };
-    let transform = Transform::from_viewport(&vp);
 
     // Start point in visible-relative coordinates
     let rel_start_bar = drawing.start_bar - visible_start as f64;

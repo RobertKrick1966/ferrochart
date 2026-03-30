@@ -648,10 +648,14 @@ pub struct PanelInfo {
     pub kind: PanelKind,
 }
 
-/// Result of rendering, containing panel layout info.
+/// Result of rendering, containing panel layout info and transforms.
 #[derive(Debug, Clone, Default)]
 pub struct ChartLayoutInfo {
     pub panels: Vec<PanelInfo>,
+    /// The price transform used for the main chart panel (for coordinate mapping).
+    pub price_transform: Option<Transform>,
+    /// Number of bar slots used for X-axis spacing.
+    pub bar_slots: usize,
 }
 
 /// Render a full chart with candlesticks, volume, and indicators.
@@ -686,7 +690,7 @@ pub fn render_full_chart_with_markers(
     if data.is_empty() {
         return ChartLayoutInfo::default();
     }
-    let mut layout_info = ChartLayoutInfo { panels: Vec::new() };
+    let mut layout_info = ChartLayoutInfo::default();
 
     renderer.set_background(config.background);
 
@@ -825,7 +829,7 @@ pub fn render_full_chart_with_markers(
     // --- Sub-panel indicators (RSI, MACD, etc.) ---
     for (idx, sub_ind) in sub_panels.iter().enumerate() {
         let panel = layout.get(2 + idx).unwrap();
-        draw_indicator_sub_panel(renderer, panel.rect, sub_ind, data.len(), config, &mut color_idx);
+        draw_indicator_sub_panel(renderer, panel.rect, sub_ind, bar_slots, config, &mut color_idx);
         layout_info.panels.push(PanelInfo {
             rect: panel.rect,
             kind: PanelKind::Indicator(sub_ind.name.clone()),
@@ -836,6 +840,8 @@ pub fn render_full_chart_with_markers(
     let bottom_panel = layout.get(layout.len() - 1).unwrap();
     draw_x_axis(renderer, data, &bottom_panel.rect, &price_transform, config);
 
+    layout_info.price_transform = Some(price_transform);
+    layout_info.bar_slots = bar_slots;
     layout_info
 }
 
