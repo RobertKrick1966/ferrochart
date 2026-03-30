@@ -6,9 +6,12 @@ use web_sys::HtmlCanvasElement;
 
 use powerchart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
 use powerchart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
-use powerchart_core::{Indicator, IndicatorOutput, Ohlcv, Point, ZoomPanState};
+use powerchart_core::{
+    Indicator, IndicatorOutput, Ohlcv, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform,
+    Viewport, ZoomPanState,
+};
 use powerchart_render::chart::{render_full_chart, ChartConfig};
-use powerchart_render::style::{Color, LineStyle};
+use powerchart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 use powerchart_render::Renderer;
 
 use crate::CanvasRenderer;
@@ -339,7 +342,7 @@ fn render_frame(st: &mut ChartState) {
 
     render_full_chart(&mut renderer, visible_data, &outputs, &st.config);
 
-    // Crosshair
+    // Crosshair + Tooltip
     if let Some(mouse) = st.mouse_pos {
         let chart_left = st.config.margin.left;
         let chart_right = st.config.width - st.config.margin.right;
@@ -347,20 +350,146 @@ fn render_frame(st: &mut ChartState) {
         let chart_bottom = st.config.height - st.config.margin.bottom;
 
         if is_in_chart_area(mouse, chart_left, chart_right, chart_top, chart_bottom) {
-            let style = LineStyle {
+            let crosshair_style = LineStyle {
                 color: Color::rgba(200, 200, 200, 100),
                 width: 0.5,
             };
             renderer.draw_line(
                 Point { x: mouse.x, y: chart_top },
                 Point { x: mouse.x, y: chart_bottom },
-                &style,
+                &crosshair_style,
             );
             renderer.draw_line(
                 Point { x: chart_left, y: mouse.y },
                 Point { x: chart_right, y: mouse.y },
-                &style,
+                &crosshair_style,
+            );
+
+            // Determine hovered bar index
+            draw_tooltip(
+                &mut renderer, mouse, visible_data, &outputs, &st.config,
             );
         }
+    }
+}
+
+/// Draw a tooltip showing OHLCV + indicator values for the hovered bar.
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn draw_tooltip(
+    renderer: &mut CanvasRenderer,
+    mouse: Point,
+    data: &[Ohlcv],
+    indicators: &[IndicatorOutput],
+    config: &ChartConfig,
+) {
+    if data.is_empty() {
+        return;
+    }
+
+    // Reconstruct transform to map mouse position back to bar index
+    let chart_rect = Rect::new(
+        config.margin.left,
+        config.margin.top,
+        config.width - config.margin.left - config.margin.right,
+        config.height - config.margin.top - config.margin.bottom,
+    );
+    let inset = if data.len() > 1 {
+        chart_rect.width / (data.len() - 1) as f64 * 0.5
+    } else {
+        0.0
+    };
+    let data_rect = Rect::new(
+        chart_rect.x + inset,
+        chart_rect.y,
+        chart_rect.width - 2.0 * inset,
+        chart_rect.height,
+    );
+    let price_range = PriceRange::from_ohlcv(data).unwrap_or(PriceRange::new(0.0, 100.0));
+    let time_range = TimeRange::new(0, data.len());
+    let vp = Viewport { rect: data_rect, time_range, price_range };
+    let transform = Transform::from_viewport(&vp);
+
+    let (bar_f, _) = transform.to_data(mouse);
+    let bar_idx = bar_f.round().clamp(0.0, (data.len() - 1) as f64) as usize;
+    let bar = &data[bar_idx];
+
+    // Build tooltip lines
+    let mut lines: Vec<String> = Vec::new();
+    lines.push(format!(
+        "O:{:.2}  H:{:.2}  L:{:.2}  C:{:.2}",
+        bar.open, bar.high, bar.low, bar.close
+    ));
+    lines.push(format!("Vol: {}", format_vol(bar.volume)));
+
+    for output in indicators {
+        let mut vals: Vec<String> = Vec::new();
+        for series in &output.series {
+            if series.style_hint == SeriesStyle::HorizontalLine {
+                continue;
+            }
+            if bar_idx < series.values.len() && !series.values[bar_idx].is_nan() {
+                vals.push(format!("{:.2}", series.values[bar_idx]));
+            }
+        }
+        if !vals.is_empty() {
+            lines.push(format!("{}: {}", output.name, vals.join(" / ")));
+        }
+    }
+
+    // Tooltip dimensions
+    let font_size = config.font_size;
+    let line_height = font_size + 4.0;
+    let padding = 8.0;
+    let tooltip_width = 260.0;
+    let tooltip_height = lines.len() as f64 * line_height + padding * 2.0;
+
+    // Position: avoid edges
+    let tx = if mouse.x > config.width / 2.0 {
+        mouse.x - tooltip_width - 15.0
+    } else {
+        mouse.x + 15.0
+    };
+    let ty = if mouse.y > config.height / 2.0 {
+        mouse.y - tooltip_height - 10.0
+    } else {
+        mouse.y + 10.0
+    };
+
+    // Background
+    renderer.draw_rect(
+        Rect::new(tx, ty, tooltip_width, tooltip_height),
+        &FillStyle { color: Color::rgba(22, 26, 37, 220) },
+    );
+    renderer.draw_rect_outline(
+        Rect::new(tx, ty, tooltip_width, tooltip_height),
+        &LineStyle { color: Color::GRAY, width: 0.5 },
+    );
+
+    // Text
+    let text_style = TextStyle {
+        color: Color::LIGHT_GRAY,
+        size: font_size,
+        font_family: "monospace".to_string(),
+    };
+    for (i, line) in lines.iter().enumerate() {
+        renderer.draw_text(
+            line,
+            Point {
+                x: tx + padding,
+                y: ty + padding + (i as f64 + 1.0) * line_height - 2.0,
+            },
+            &text_style,
+            TextAnchor::Start,
+        );
+    }
+}
+
+fn format_vol(vol: f64) -> String {
+    if vol >= 1_000_000.0 {
+        format!("{:.1}M", vol / 1_000_000.0)
+    } else if vol >= 1_000.0 {
+        format!("{:.1}K", vol / 1_000.0)
+    } else {
+        format!("{vol:.0}")
     }
 }

@@ -1,6 +1,6 @@
 # PowerChart — Roadmap & Todo
 
-## Phase 1 — Repo & Workspace *(1–2 Tage)*
+## Phase 1 — Repo & Workspace ✅
 
 ### GitHub Setup
 - [x] GitHub-Repo erstellen: `powerchart`
@@ -10,11 +10,11 @@
 
 ### Cargo Workspace
 - [x] Cargo-Workspace anlegen mit Crates: `core`, `render`, `wasm`, `examples`
-- [x] CI via GitHub Actions (`cargo test` + `clippy`)
+- [x] CI via GitHub Actions (`cargo test` + `clippy` + WASM build)
 
 ---
 
-## Phase 2 — Core-Datenstrukturen *(1 Woche)*
+## Phase 2 — Core-Datenstrukturen ✅
 
 ### powerchart-core
 > Keine I/O, keine externen Dependencies
@@ -24,62 +24,70 @@
 - [x] `PanelLayout` — Multi-Panel mit Gewichtung (z.B. 60/20/10/10)
 - [x] `ZoomPanState` — Zoom-Level, sichtbarer Index-Range, Offset
 - [x] `CandleGeometry` — Pixel-Koordinaten pro Kerze (x, open, close, high, low)
-- [x] Unit-Tests für alle Layout-Berechnungen (66 Tests)
+- [x] `interaction` — testbare Zoom/Pan/Hit-Test Logik
+- [x] Unit-Tests für alle Layout-Berechnungen
 
 ---
 
-## Phase 3 — Renderer-Trait + SVG-Backend *(1 Woche)*
+## Phase 3 — Renderer-Trait + SVG-Backend ✅
 
 ### Renderer Abstraction
 - [x] `Renderer`-Trait definieren: `draw_line`, `draw_rect`, `draw_text`, `draw_path`, `finish`
 - [x] Style-Typen: `Color`, `LineStyle`, `FillStyle`, `TextStyle`, `TextAnchor`
 
 ### SVG Renderer (Test-Backend)
-> Für TDD — kein WASM nötig, SVG einfach im Browser öffnen
-
 - [x] `SvgRenderer` implementiert `Renderer`-Trait
 - [x] Candlestick-Rendering via SVG ausgeben (inkl. Volume-Panel)
-- [x] Unit-Tests für SVG-Output (19 Tests)
-- [x] Achsen-Labels: X-Achse (Datum), Y-Achse (Preis)
+- [x] Unit-Tests für SVG-Output
+- [x] Achsen-Labels: X-Achse (Tag + Monat/Jahr), Y-Achse (Preis)
 
 ---
 
-## Phase 4 — WASM Canvas-Renderer *(3–4 Wochen)*
+## Phase 4 — WASM Canvas-Renderer ✅
 
 ### WASM Setup
 - [x] `wasm-pack` in Workspace integrieren
-- [ ] PowerChart WASM-Bindung: `new PowerChart(canvas, config)`
-- [ ] `setData(data: OhlcvArray)`, `addIndicator(name, params)`
+- [x] `PowerChart` WASM-Klasse: `new PowerChart(canvas)`
+- [x] `setData(timestamps, opens, highs, lows, closes, volumes)`
+- [x] `addIndicator(name, period)`, `clearIndicators()`
+- [x] `resize(width, height)` für dynamische Größenanpassung
 
 ### Canvas Renderer
 - [x] `CanvasRenderer` via `web-sys`: 2D Context API
-- [ ] `RequestAnimationFrame`-Loop für 60fps
+- [x] `RequestAnimationFrame`-Loop (dirty-flag, nur bei Änderung rendern)
+- [x] Console-Error-Panic-Hook für WASM-Debugging
 
 ### Interaktivität
-- [x] Mouse/Pointer-Events: Zoom (Scroll), Pan (Drag)
-- [ ] Touch-Events für Mobile
+- [x] Mouse-Events: Zoom (Scroll, zentriert auf Maus), Pan (Drag)
+- [ ] Touch-Events für Mobile (Pinch-Zoom, Drag)
 - [x] Crosshair: vertikale + horizontale Linie, folgt Maus
+- [x] Responsive Canvas: skaliert mit Fenstergröße + devicePixelRatio
 - [x] WASM-Package bauen: `wasm-pack build --target web`
 
 ---
 
-## Phase 5 — Multi-Panel + Indikatoren *(2–3 Wochen)*
+## Phase 5 — Multi-Panel + Indikatoren ✅
 
 ### Multi-Panel Layout
-- [ ] Synchronisierter X-Zoom über alle Panels
-- [ ] Volume-Panel (Balken, grün/rot)
-- [ ] Separate Y-Achse pro Panel
+- [x] Synchronisierter X-Zoom über alle Panels
+- [x] Volume-Panel (Balken, grün/rot) mit Grid-Linien
+- [x] Separate Y-Achse pro Panel mit Labels
+- [x] Dynamische Panel-Gewichtung je nach Anzahl Sub-Panels
 - [ ] Panel-Splitter: Drag zum Resize
 
 ### Indikatoren
-- [x] Overlay-Indikatoren: SMA, EMA, Bollinger Bands (Line-Series über Kerzen)
-- [x] Sub-Panel: RSI (0–100, Overbought/Oversold-Linien)
-- [x] Sub-Panel: MACD (Linie + Signal + Histogramm)
 - [x] `Indicator`-Trait: berechnet aus `&[Ohlcv]`, gibt `IndicatorOutput` zurück
+- [x] Overlay-Indikatoren: SMA, EMA, Bollinger Bands (auf Preis-Panel)
+- [x] Sub-Panel: RSI (0–100, Overbought/Oversold-Linien, Grid)
+- [x] Sub-Panel: MACD (Linie + Signal + Histogramm, Grid)
+- [x] Preis-Panel Y-Range berücksichtigt Overlay-Indikator-Werte
+- [x] Indikator-Berechnung einmal auf Gesamtdaten (Warmup), Cache + Slice
+- [x] 8-Farben-Palette für Indikatoren
+- [x] `IndicatorOutput::slice()` für sichtbaren Bereich
 
 ### Tooltip
-- [ ] Hover-Tooltip: OHLCV + alle aktiven Indikatoren
-- [ ] Tooltip-Positionierung (kein Clipping am Rand)
+- [x] Hover-Tooltip: OHLCV + alle aktiven Indikatoren
+- [x] Tooltip-Positionierung (kein Clipping am Rand)
 
 ---
 
@@ -99,13 +107,13 @@
 ### Public API
 - [ ] TypeScript-Typen generieren (`wasm-bindgen --typescript`)
 - [ ] ES-Module + CommonJS Builds
-- [ ] Vanilla-JS Demo-Seite (`examples/web/`)
+- [x] Vanilla-JS Demo-Seite (`examples/web/`)
 - [ ] `package.json`, npm-publish workflow
 
 ### SMR-Integration
 - [ ] Git-Dependency in SMR `Cargo.toml` eintragen
   ```toml
-  powerchart = { git = "https://github.com/deinname/powerchart", features = ["wasm"] }
+  powerchart = { git = "https://github.com/RobertKrick1966/powerchart", features = ["wasm"] }
   ```
 - [ ] React-Wrapper-Komponente für SMR-Frontend
 - [ ] Axum-Endpoint gibt OHLCV + Indikatoren als JSON zurück
@@ -125,15 +133,15 @@
 
 ## Zusammenfassung
 
-| Phase | Inhalt | Aufwand |
+| Phase | Inhalt | Status |
 |---|---|---|
-| 1 | Repo & Workspace | 1–2 Tage |
-| 2 | Core-Datenstrukturen | 1 Woche |
-| 3 | Renderer-Trait + SVG | 1 Woche |
-| 4 | WASM Canvas-Renderer | 3–4 Wochen |
-| 5 | Multi-Panel + Indikatoren | 2–3 Wochen |
-| 6 | Pattern-Marker | 1 Woche |
-| 7 | JS-API & npm-Paket | 1 Woche |
-| 8 | Native Desktop (optional) | 2–3 Wochen |
+| 1 | Repo & Workspace | ✅ |
+| 2 | Core-Datenstrukturen | ✅ |
+| 3 | Renderer-Trait + SVG | ✅ |
+| 4 | WASM Canvas-Renderer | ✅ |
+| 5 | Multi-Panel + Indikatoren | ✅ |
+| 6 | Pattern-Marker | offen |
+| 7 | JS-API & npm-Paket | teilweise |
+| 8 | Native Desktop (optional) | offen |
 
-**Gesamt bis v0.1 (ohne Phase 8): ~3 Monate**
+**143 Tests** (119 core + 24 render), Clippy-pedantic clean.
