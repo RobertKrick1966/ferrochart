@@ -1,0 +1,13 @@
+[package]
+name = "powerchart-examples"
+description = "Example applications for PowerChart"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+powerchart-core = { path = "../crates/core" }
+powerchart-render = { path = "../crates/render" }
+
+[lints]
+workspace = true

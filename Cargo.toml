@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/render",
+    "crates/wasm",
+    "examples",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/robert-krick/powerchart"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

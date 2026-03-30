@@ -1,0 +1,16 @@
+[package]
+name = "powerchart-wasm"
+description = "WebAssembly bindings for PowerChart"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+powerchart-core = { path = "../core" }
+powerchart-render = { path = "../render" }
+
+[lints]
+workspace = true
