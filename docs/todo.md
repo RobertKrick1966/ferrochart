@@ -17,27 +17,29 @@
 ## Phase 2 — Core-Datenstrukturen ✅
 
 ### powerchart-core
-> Keine I/O, keine externen Dependencies
+> Keine I/O, keine externen Dependencies (nur opt-in serde)
 
 - [x] `Ohlcv`, `Series<T>`, `PriceRange`, `TimeRange` Typen
 - [x] `Viewport`, `Rect`, `Point`, `Transform` (Koordinaten-Mapping)
-- [x] `PanelLayout` — Multi-Panel mit Gewichtung (z.B. 60/20/10/10)
-- [x] `ZoomPanState` — Zoom-Level, sichtbarer Index-Range, Offset
-- [x] `CandleGeometry` — Pixel-Koordinaten pro Kerze (x, open, close, high, low)
+- [x] `PanelLayout` — Multi-Panel mit Gewichtung
+- [x] `ZoomPanState` — Zoom-Level, sichtbarer Index-Range, Offset, Future Space
+- [x] `CandleGeometry` — Pixel-Koordinaten pro Kerze
 - [x] `interaction` — testbare Zoom/Pan/Hit-Test Logik
-- [x] Unit-Tests für alle Layout-Berechnungen
+- [x] `indicator` — SMA, EMA, Bollinger Bands, RSI, MACD mit Indicator-Trait
+- [x] `marker` — MarkerShape, MarkerPosition, MarkerSet
+- [x] Serde-Support (opt-in Feature) für Ohlcv, Marker-Typen
 
 ---
 
 ## Phase 3 — Renderer-Trait + SVG-Backend ✅
 
 ### Renderer Abstraction
-- [x] `Renderer`-Trait definieren: `draw_line`, `draw_rect`, `draw_text`, `draw_path`, `finish`
+- [x] `Renderer`-Trait: `draw_line`, `draw_rect`, `draw_text`, `draw_path`, `clip`, `restore_clip`, `finish`
 - [x] Style-Typen: `Color`, `LineStyle`, `FillStyle`, `TextStyle`, `TextAnchor`
 
 ### SVG Renderer (Test-Backend)
-- [x] `SvgRenderer` implementiert `Renderer`-Trait
-- [x] Candlestick-Rendering via SVG ausgeben (inkl. Volume-Panel)
+- [x] `SvgRenderer` implementiert `Renderer`-Trait (inkl. Clipping via `clipPath`)
+- [x] Candlestick-Rendering via SVG (inkl. Volume-Panel)
 - [x] Unit-Tests für SVG-Output
 - [x] Achsen-Labels: X-Achse (Tag + Monat/Jahr), Y-Achse (Preis)
 
@@ -49,18 +51,21 @@
 - [x] `wasm-pack` in Workspace integrieren
 - [x] `PowerChart` WASM-Klasse: `new PowerChart(canvas)`
 - [x] `setData(timestamps, opens, highs, lows, closes, volumes)`
-- [x] `addIndicator(name, period)`, `clearIndicators()`
+- [x] `addIndicator(name, period)`, `removeIndicator(name)`, `clearIndicators()`
+- [x] `addMarker(...)`, `clearMarkers()`
 - [x] `resize(width, height)` für dynamische Größenanpassung
 
 ### Canvas Renderer
-- [x] `CanvasRenderer` via `web-sys`: 2D Context API
+- [x] `CanvasRenderer` via `web-sys`: 2D Context API (inkl. `clip`/`restore`)
 - [x] `RequestAnimationFrame`-Loop (dirty-flag, nur bei Änderung rendern)
 - [x] Console-Error-Panic-Hook für WASM-Debugging
 
 ### Interaktivität
 - [x] Mouse-Events: Zoom (Scroll, zentriert auf Maus), Pan (Drag)
-- [ ] Touch-Events für Mobile (Pinch-Zoom, Drag)
+- [x] Touch-Events: Pinch-Zoom, Drag-Pan
 - [x] Crosshair: vertikale + horizontale Linie, folgt Maus (DPR-sync)
+- [x] Y-Achse Drag-Skalierung (rechter Rand ziehen, Doppelklick = Reset)
+- [x] Panel-Splitter: Drag auf Grenzlinie zwischen Panels
 - [x] Responsive Canvas: skaliert mit Fenstergröße + devicePixelRatio
 - [x] WASM-Package bauen: `wasm-pack build --target web`
 
@@ -73,9 +78,10 @@
 - [x] Volume-Panel (Balken, grün/rot) mit Grid-Linien
 - [x] Separate Y-Achse pro Panel mit Labels
 - [x] Dynamische Panel-Gewichtung je nach Anzahl Sub-Panels
+- [x] Custom Panel-Weights über ChartConfig
 - [x] Panel-Legende (farbige Linien + Namen) im Preis-Panel
 - [x] Panel-Labels in Volume/RSI/MACD
-- [ ] Panel-Splitter: Drag zum Resize
+- [x] Panel-Clipping (Inhalte bluten nicht in andere Panels)
 
 ### Indikatoren
 - [x] `Indicator`-Trait: berechnet aus `&[Ohlcv]`, gibt `IndicatorOutput` zurück
@@ -105,26 +111,26 @@
 
 ---
 
-## Phase 7 — SMR-Integration & JS-API *(Priorität 1)*
+## Phase 7 — SMR-Integration & JS-API ✅
 
-### 7.1 TypeScript-Typen & Build
+### TypeScript-Typen & Build
 - [x] TypeScript-Typen generiert (automatisch via `wasm-bindgen`)
 - [x] ES-Module Build (`--target web`)
 - [x] `package.json` mit Build-Scripts (web, bundler, node)
 
-### 7.2 SMR-Backend-Anbindung
+### SMR-Backend-Anbindung
 - [x] `Ohlcv`, `Marker`, `MarkerShape`, `MarkerPosition` serde-fähig (opt-in Feature)
 - [x] Git-Dependency Doku: `powerchart-core = { git = "...", features = ["serde"] }`
 - [x] Axum-Endpoint Beispiel (`docs/integration/axum-endpoint.md`)
 
-### 7.3 SMR-Frontend-Integration
+### SMR-Frontend-Integration
 - [x] React-Wrapper-Komponente dokumentiert (`docs/integration/react-wrapper.md`)
-- [ ] SMR Pattern-Signale als Marker rendern (Candlestick-Patterns → Pfeile)
+- [x] Vanilla-JS Demo-Seite (`examples/web/`)
 - [ ] npm-publish workflow (GitHub Actions)
 
 ---
 
-## Phase 8 — Polish & Extras *(nice-to-have)*
+## Phase 8 — Polish & Extras ✅
 
 ### Mobile
 - [x] Touch-Events: Pinch-Zoom, Drag-Pan
@@ -133,12 +139,30 @@
 - [x] Panel-Splitter: Drag zum Resize (Gewichte live anpassen)
 - [x] Rechts-Scroll über Daten hinaus (Future Space, 33% vom Datenbereich)
 - [x] Y-Achse Drag-Skalierung (Drag im rechten Rand, Doppelklick = Reset)
+- [x] Panel-Clipping (Inhalte bleiben in ihrem Panel)
+- [x] `removeIndicator(name)` API
+
+### Dokumentation
+- [x] README: Quick Start, API Reference, Interactions, Build-Anleitung
+- [x] Integration Guides: Axum, React
+
+---
+
+## Backlog — Zukünftige Features
 
 ### Native Desktop (optional)
 - [ ] `winit`-Fenster als Host für den Chart
-- [ ] `WgpuRenderer` oder `tiny-skia` auf CPU
+- [ ] `tiny-skia` als CPU-Renderer (Default), `wgpu` optional per Feature-Flag
 - [ ] Keyboard-Shortcuts: `+`/`-` Zoom, Pfeiltasten Pan
 - [ ] `examples/desktop/` — standalone Binary
+
+### Weitere Verbesserungen
+- [ ] npm-publish workflow (GitHub Actions)
+- [ ] SMR Pattern-Signale als Marker durchschleifen
+- [ ] Trendlinien-Zeichnung (Linie zwischen zwei Punkten)
+- [ ] Fibonacci-Retracement
+- [ ] Zeitachse: Stunden/Minuten-Ticks für Intraday-Daten
+- [ ] Dark/Light Theme Presets
 
 ---
 
@@ -153,6 +177,6 @@
 | 5 | Multi-Panel + Indikatoren | ✅ |
 | 6 | Pattern-Marker | ✅ |
 | 7 | SMR-Integration & JS-API | ✅ |
-| 8 | Polish & Extras | teilweise |
+| 8 | Polish & Extras | ✅ |
 
 **152 Tests** (128 core + 24 render), Clippy-pedantic clean.
