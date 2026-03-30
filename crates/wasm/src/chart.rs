@@ -18,6 +18,15 @@ use crate::CanvasRenderer;
 
 type RafClosure = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
+/// State for an active panel splitter drag.
+#[derive(Debug, Clone)]
+struct SplitterDrag {
+    /// Index of the panel above the splitter.
+    panel_above: usize,
+    start_y: f64,
+    start_weights: Vec<f64>,
+}
+
 /// Internal mutable state shared between the chart and event closures.
 struct ChartState {
     canvas: HtmlCanvasElement,
@@ -32,6 +41,14 @@ struct ChartState {
     is_dragging: bool,
     drag_start_x: f64,
     drag_start_offset: usize,
+    /// Y-axis drag scaling: multiplier for price range (1.0 = auto).
+    price_scale: f64,
+    y_drag_active: bool,
+    y_drag_start_y: f64,
+    y_drag_start_scale: f64,
+    /// Panel splitter: custom weights (None = default).
+    panel_weights: Option<Vec<f64>>,
+    splitter_drag: Option<SplitterDrag>,
     /// For pinch-zoom: distance between two touches at start.
     pinch_start_dist: f64,
     pinch_start_visible: usize,
@@ -92,6 +109,12 @@ impl PowerChart {
             is_dragging: false,
             drag_start_x: 0.0,
             drag_start_offset: 0,
+            price_scale: 1.0,
+            y_drag_active: false,
+            y_drag_start_y: 0.0,
+            y_drag_start_scale: 1.0,
+            panel_weights: None,
+            splitter_drag: None,
             pinch_start_dist: 0.0,
             pinch_start_visible: 100,
             dirty: true,
@@ -270,14 +293,31 @@ fn attach_mouse_events(
     state: &Rc<RefCell<ChartState>>,
     closures: &mut Vec<Closure<dyn FnMut(web_sys::MouseEvent)>>,
 ) -> Result<(), JsValue> {
-    // Mouse move (crosshair + drag)
+    // Mouse move (crosshair + drag + Y-axis scale + splitter)
     let s = Rc::clone(state);
     let on_mousemove = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
         let mut st = s.borrow_mut();
         let pos = mouse_pos(&e, &st.canvas);
         st.mouse_pos = Some(pos);
 
-        if st.is_dragging {
+        if let Some(ref drag) = st.splitter_drag.clone() {
+            // Splitter drag: redistribute weights between adjacent panels
+            let dy = pos.y - drag.start_y;
+            let total_h = st.config.height - st.config.margin.top - st.config.margin.bottom;
+            let weight_delta = dy / total_h * drag.start_weights.iter().sum::<f64>();
+            let mut w = drag.start_weights.clone();
+            let above = drag.panel_above;
+            let below = above + 1;
+            if below < w.len() {
+                w[above] = (w[above] + weight_delta).max(5.0);
+                w[below] = (w[below] - weight_delta).max(5.0);
+                st.panel_weights = Some(w);
+            }
+        } else if st.y_drag_active {
+            let dy = st.y_drag_start_y - pos.y;
+            let sensitivity = 0.005;
+            st.price_scale = (st.y_drag_start_scale + dy * sensitivity).clamp(0.1, 10.0);
+        } else if st.is_dragging {
             let dx = pos.x - st.drag_start_x;
             let chart_width = st.config.width - st.config.margin.left - st.config.margin.right;
             st.zoom_pan = compute_pan(st.zoom_pan, dx, chart_width, st.drag_start_offset);
@@ -287,14 +327,40 @@ fn attach_mouse_events(
     canvas.add_event_listener_with_callback("mousemove", on_mousemove.as_ref().unchecked_ref())?;
     closures.push(on_mousemove);
 
-    // Mouse down (start drag)
+    // Mouse down (start drag, Y-axis scale, or splitter)
     let s = Rc::clone(state);
     let on_mousedown = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
         let mut st = s.borrow_mut();
         let pos = mouse_pos(&e, &st.canvas);
-        st.is_dragging = true;
-        st.drag_start_x = pos.x;
-        st.drag_start_offset = st.zoom_pan.offset;
+        let y_axis_left = st.config.width - st.config.margin.right;
+
+        if pos.x >= y_axis_left {
+            // Click in Y-axis area → start Y-scale drag
+            st.y_drag_active = true;
+            st.y_drag_start_y = pos.y;
+            st.y_drag_start_scale = st.price_scale;
+        } else if let Some(panel_idx) = find_splitter_at_y(&st, pos.y) {
+            // Click on a splitter gap → start splitter drag
+            let num_sub = st.cached_outputs.iter()
+                .filter(|o| o.placement != IndicatorPlacement::Overlay)
+                .count();
+            let weights = st.panel_weights.clone()
+                .unwrap_or_else(|| {
+                    let mut w = vec![55.0, 20.0];
+                    w.extend(std::iter::repeat_n(15.0, num_sub));
+                    w
+                });
+            st.splitter_drag = Some(SplitterDrag {
+                panel_above: panel_idx,
+                start_y: pos.y,
+                start_weights: weights,
+            });
+        } else {
+            // Normal chart drag → pan
+            st.is_dragging = true;
+            st.drag_start_x = pos.x;
+            st.drag_start_offset = st.zoom_pan.offset;
+        }
     }) as Box<dyn FnMut(web_sys::MouseEvent)>);
     canvas.add_event_listener_with_callback("mousedown", on_mousedown.as_ref().unchecked_ref())?;
     closures.push(on_mousedown);
@@ -302,10 +368,27 @@ fn attach_mouse_events(
     // Mouse up (stop drag)
     let s = Rc::clone(state);
     let on_mouseup = Closure::wrap(Box::new(move |_e: web_sys::MouseEvent| {
-        s.borrow_mut().is_dragging = false;
+        let mut st = s.borrow_mut();
+        st.is_dragging = false;
+        st.y_drag_active = false;
+        st.splitter_drag = None;
     }) as Box<dyn FnMut(web_sys::MouseEvent)>);
     canvas.add_event_listener_with_callback("mouseup", on_mouseup.as_ref().unchecked_ref())?;
     closures.push(on_mouseup);
+
+    // Double-click on Y-axis resets scale
+    let s = Rc::clone(state);
+    let on_dblclick = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
+        let mut st = s.borrow_mut();
+        let pos = mouse_pos(&e, &st.canvas);
+        let y_axis_left = st.config.width - st.config.margin.right;
+        if pos.x >= y_axis_left {
+            st.price_scale = 1.0;
+            st.dirty = true;
+        }
+    }) as Box<dyn FnMut(web_sys::MouseEvent)>);
+    canvas.add_event_listener_with_callback("dblclick", on_dblclick.as_ref().unchecked_ref())?;
+    closures.push(on_dblclick);
 
     // Mouse leave (hide crosshair)
     let s = Rc::clone(state);
@@ -313,6 +396,7 @@ fn attach_mouse_events(
         let mut st = s.borrow_mut();
         st.mouse_pos = None;
         st.is_dragging = false;
+        st.y_drag_active = false;
         st.dirty = true;
     }) as Box<dyn FnMut(web_sys::MouseEvent)>);
     canvas.add_event_listener_with_callback("mouseleave", on_mouseleave.as_ref().unchecked_ref())?;
@@ -501,6 +585,42 @@ fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {
     raf_closure
 }
 
+/// Check if a Y coordinate is in a gap between panels (splitter hit zone).
+/// Returns the index of the panel above the gap, or None.
+fn find_splitter_at_y(st: &ChartState, y: f64) -> Option<usize> {
+    // We need to reconstruct the panel layout to find gaps.
+    let num_sub = st.cached_outputs.iter()
+        .filter(|o| o.placement != IndicatorPlacement::Overlay)
+        .count();
+    let expected = 2 + num_sub;
+    let weights = st.panel_weights.clone().unwrap_or_else(|| {
+        let mut w = vec![55.0, 20.0];
+        w.extend(std::iter::repeat_n(15.0, num_sub));
+        w
+    });
+    if weights.len() != expected {
+        return None;
+    }
+    let total_rect = Rect::new(
+        st.config.margin.left,
+        st.config.margin.top,
+        st.config.width - st.config.margin.left - st.config.margin.right,
+        st.config.height - st.config.margin.top - st.config.margin.bottom,
+    );
+    let layout = powerchart_core::PanelLayout::new(&weights, total_rect, 4.0);
+    let hit_zone = 6.0; // pixels tolerance
+
+    for i in 0..layout.len().saturating_sub(1) {
+        let bottom = layout.get(i).unwrap().rect.bottom();
+        let top_next = layout.get(i + 1).unwrap().rect.y;
+        let gap_center = f64::midpoint(bottom, top_next);
+        if (y - gap_center).abs() < hit_zone {
+            return Some(i);
+        }
+    }
+    None
+}
+
 /// Render one frame: chart + crosshair overlay.
 fn render_frame(st: &mut ChartState) {
     if st.data.is_empty() {
@@ -543,6 +663,10 @@ fn render_frame(st: &mut ChartState) {
         })
         .collect();
     let marker_refs: Vec<&Marker> = adjusted_markers.iter().collect();
+
+    // Apply Y-axis scale factor and panel weights
+    st.config.price_scale = st.price_scale;
+    st.config.panel_weights = st.panel_weights.clone();
 
     let layout_info = render_full_chart_with_markers(&mut renderer, visible_data, &outputs, &marker_refs, &st.config);
 

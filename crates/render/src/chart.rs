@@ -22,6 +22,10 @@ pub struct ChartConfig {
     pub margin: ChartMargin,
     pub font_size: f64,
     pub indicator_colors: Vec<Color>,
+    /// Y-axis scale factor (1.0 = auto-fit, <1.0 = zoom in, >1.0 = zoom out).
+    pub price_scale: f64,
+    /// Custom panel weights. If `None`, defaults are computed dynamically.
+    pub panel_weights: Option<Vec<f64>>,
 }
 
 /// Margins around the chart area.
@@ -53,6 +57,8 @@ impl Default for ChartConfig {
                 left: 10.0,
             },
             font_size: 11.0,
+            price_scale: 1.0,
+            panel_weights: None,
             indicator_colors: vec![
                 Color::rgb(255, 235, 59),  // yellow
                 Color::rgb(0, 188, 212),   // cyan
@@ -510,6 +516,12 @@ pub fn render_with_volume(
     draw_x_axis(renderer, data, &volume_panel.rect, &price_transform, config);
 }
 
+fn default_panel_weights(num_sub_panels: usize) -> Vec<f64> {
+    let mut weights = vec![55.0, 20.0];
+    weights.extend(std::iter::repeat_n(15.0, num_sub_panels));
+    weights
+}
+
 /// Describes what a rendered panel contains.
 #[derive(Debug, Clone)]
 pub enum PanelKind {
@@ -583,9 +595,13 @@ pub fn render_full_chart_with_markers(
         .filter(|ind| ind.placement != IndicatorPlacement::Overlay)
         .collect();
 
-    // Build panel weights: price=55, volume=20, each sub-panel=15
-    let mut weights = vec![55.0, 20.0];
-    weights.extend(std::iter::repeat_n(15.0, sub_panels.len()));
+    // Panel weights: use custom if provided, otherwise default
+    let expected_panels = 2 + sub_panels.len();
+    let weights = if let Some(ref w) = config.panel_weights {
+        if w.len() == expected_panels { w.clone() } else { default_panel_weights(sub_panels.len()) }
+    } else {
+        default_panel_weights(sub_panels.len())
+    };
     let layout = PanelLayout::new(&weights, total_rect, 4.0);
     let price_panel = layout.get(0).unwrap();
     let volume_panel = layout.get(1).unwrap();
@@ -614,6 +630,14 @@ pub fn render_full_chart_with_markers(
         }
     }
     let price_range = price_range.with_padding(0.03);
+    // Apply manual Y-axis scaling
+    let price_range = if (config.price_scale - 1.0).abs() > f64::EPSILON {
+        let mid = f64::midpoint(price_range.min, price_range.max);
+        let half_span = price_range.span() / 2.0 * config.price_scale;
+        PriceRange::new(mid - half_span, mid + half_span)
+    } else {
+        price_range
+    };
     let price_vp = Viewport {
         rect: price_data_rect,
         time_range,

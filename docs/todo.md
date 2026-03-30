@@ -130,9 +130,9 @@
 - [x] Touch-Events: Pinch-Zoom, Drag-Pan
 
 ### UI-Verfeinerungen
-- [ ] Panel-Splitter: Drag zum Resize
+- [x] Panel-Splitter: Drag zum Resize (Gewichte live anpassen)
 - [x] Rechts-Scroll über Daten hinaus (Future Space, 33% vom Datenbereich)
-- [ ] Y-Achse Drag-Skalierung (Preis-Range manuell anpassen)
+- [x] Y-Achse Drag-Skalierung (Drag im rechten Rand, Doppelklick = Reset)
 
 ### Native Desktop (optional)
 - [ ] `winit`-Fenster als Host für den Chart
