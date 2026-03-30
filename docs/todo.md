@@ -3,14 +3,14 @@
 ## Phase 1 — Repo & Workspace *(1–2 Tage)*
 
 ### GitHub Setup
-- [ ] GitHub-Repo erstellen: `powerchart`
-- [ ] README.md mit Vision + API-Preview
-- [ ] MIT-Lizenz hinzufügen
-- [ ] `.gitignore` für Rust/Node
+- [x] GitHub-Repo erstellen: `powerchart`
+- [x] README.md mit Vision + API-Preview
+- [x] MIT-Lizenz hinzufügen
+- [x] `.gitignore` für Rust/Node
 
 ### Cargo Workspace
-- [ ] Cargo-Workspace anlegen mit Crates: `core`, `render`, `wasm`, `examples`
-- [ ] CI via GitHub Actions (`cargo test` + `clippy`)
+- [x] Cargo-Workspace anlegen mit Crates: `core`, `render`, `wasm`, `examples`
+- [x] CI via GitHub Actions (`cargo test` + `clippy`)
 
 ---
 
@@ -19,12 +19,12 @@
 ### powerchart-core
 > Keine I/O, keine externen Dependencies
 
-- [ ] `Ohlcv`, `Series<T>`, `PriceRange`, `TimeRange` Typen
-- [ ] `Viewport`, `Rect`, `Point`, `Transform` (Koordinaten-Mapping)
-- [ ] `PanelLayout` — Multi-Panel mit Gewichtung (z.B. 60/20/10/10)
-- [ ] `ZoomPanState` — Zoom-Level, sichtbarer Index-Range, Offset
-- [ ] `CandleGeometry` — Pixel-Koordinaten pro Kerze (x, open, close, high, low)
-- [ ] Unit-Tests für alle Layout-Berechnungen
+- [x] `Ohlcv`, `Series<T>`, `PriceRange`, `TimeRange` Typen
+- [x] `Viewport`, `Rect`, `Point`, `Transform` (Koordinaten-Mapping)
+- [x] `PanelLayout` — Multi-Panel mit Gewichtung (z.B. 60/20/10/10)
+- [x] `ZoomPanState` — Zoom-Level, sichtbarer Index-Range, Offset
+- [x] `CandleGeometry` — Pixel-Koordinaten pro Kerze (x, open, close, high, low)
+- [x] Unit-Tests für alle Layout-Berechnungen (66 Tests)
 
 ---
 
