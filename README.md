@@ -99,6 +99,7 @@ let json = serde_json::to_string(&data)?;
 | `addTrendLine(startBar, startPrice, endBar, endPrice, r, g, b, extendRight)` | Draw a trendline |
 | `addFibonacci(highBar, highPrice, lowBar, lowPrice, r, g, b)` | Draw Fibonacci retracement levels |
 | `clearAnnotations()` | Remove all trendlines and Fibonacci |
+| `setDrawMode(mode)` | Interactive drawing: `"trendline"`, `"fibonacci"`, `"none"` |
 | `setTheme(name)` | Switch theme: `"dark"` (default) or `"light"` |
 | `resize(width, height)` | Update chart dimensions after canvas resize |
 

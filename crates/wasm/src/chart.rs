@@ -19,6 +19,22 @@ use crate::CanvasRenderer;
 
 type RafClosure = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
+/// Active drawing mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DrawMode {
+    None,
+    TrendLine,
+    Fibonacci,
+}
+
+/// In-progress drawing (first point set, waiting for second).
+#[derive(Debug, Clone, Copy)]
+struct DrawingInProgress {
+    /// Start in data coordinates (bar index, price).
+    start_bar: f64,
+    start_price: f64,
+}
+
 /// State for an active panel splitter drag.
 #[derive(Debug, Clone)]
 struct SplitterDrag {
@@ -39,6 +55,8 @@ struct ChartState {
     cached_outputs: Vec<IndicatorOutput>,
     markers: MarkerSet,
     annotations: Annotations,
+    draw_mode: DrawMode,
+    drawing: Option<DrawingInProgress>,
     mouse_pos: Option<Point>,
     is_dragging: bool,
     drag_start_x: f64,
@@ -108,6 +126,8 @@ impl PowerChart {
             cached_outputs: Vec::new(),
             markers: MarkerSet::new(),
             annotations: Annotations::new(),
+            draw_mode: DrawMode::None,
+            drawing: None,
             mouse_pos: None,
             is_dragging: false,
             drag_start_x: 0.0,
@@ -322,6 +342,29 @@ impl PowerChart {
         st.dirty = true;
     }
 
+    /// Set the interactive drawing mode.
+    ///
+    /// `"trendline"` — click two points to draw a trendline.
+    /// `"fibonacci"` — click two points (high/low) for Fibonacci retracement.
+    /// `"none"` — normal mode (pan/zoom).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the mode is unknown.
+    #[wasm_bindgen(js_name = setDrawMode)]
+    pub fn set_draw_mode(&self, mode: &str) -> Result<(), JsValue> {
+        let mut st = self.state.borrow_mut();
+        st.draw_mode = match mode {
+            "none" => DrawMode::None,
+            "trendline" => DrawMode::TrendLine,
+            "fibonacci" => DrawMode::Fibonacci,
+            _ => return Err(JsValue::from_str(&format!("unknown draw mode: {mode}"))),
+        };
+        st.drawing = None;
+        st.dirty = true;
+        Ok(())
+    }
+
     /// Remove all annotations (trendlines, Fibonacci).
     #[wasm_bindgen(js_name = clearAnnotations)]
     pub fn clear_annotations(&self) {
@@ -383,6 +426,7 @@ fn mouse_pos(e: &web_sys::MouseEvent, canvas: &HtmlCanvasElement) -> Point {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn attach_mouse_events(
     canvas: &HtmlCanvasElement,
     state: &Rc<RefCell<ChartState>>,
@@ -422,12 +466,57 @@ fn attach_mouse_events(
     canvas.add_event_listener_with_callback("mousemove", on_mousemove.as_ref().unchecked_ref())?;
     closures.push(on_mousemove);
 
-    // Mouse down (start drag, Y-axis scale, or splitter)
+    // Mouse down (drawing, drag, Y-axis scale, or splitter)
     let s = Rc::clone(state);
     let on_mousedown = Closure::wrap(Box::new(move |e: web_sys::MouseEvent| {
         let mut st = s.borrow_mut();
         let pos = mouse_pos(&e, &st.canvas);
         let y_axis_left = st.config.width - st.config.margin.right;
+
+        // Drawing mode takes priority
+        if st.draw_mode != DrawMode::None && pos.x < y_axis_left
+            && let Some(data_pos) = pixel_to_data(&st, pos)
+        {
+                if let Some(start) = st.drawing.take() {
+                    // Second click → finalize drawing
+                    match st.draw_mode {
+                        DrawMode::TrendLine => {
+                            st.annotations.add_trend_line(TrendLine {
+                                start_bar: start.start_bar,
+                                start_price: start.start_price,
+                                end_bar: data_pos.0,
+                                end_price: data_pos.1,
+                                color: (255, 255, 0),
+                                width: 1.5,
+                                extend_right: true,
+                            });
+                        }
+                        DrawMode::Fibonacci => {
+                            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                            let (high_bar, high_price, low_bar, low_price) =
+                                if start.start_price >= data_pos.1 {
+                                    (start.start_bar as usize, start.start_price, data_pos.0 as usize, data_pos.1)
+                                } else {
+                                    (data_pos.0 as usize, data_pos.1, start.start_bar as usize, start.start_price)
+                                };
+                            st.annotations.add_fibonacci(FibonacciRetracement {
+                                high_bar, high_price, low_bar, low_price,
+                                color: (255, 165, 0),
+                            });
+                        }
+                        DrawMode::None => {}
+                    }
+                    st.draw_mode = DrawMode::None;
+                } else {
+                    // First click → start drawing
+                    st.drawing = Some(DrawingInProgress {
+                        start_bar: data_pos.0,
+                        start_price: data_pos.1,
+                    });
+                }
+            st.dirty = true;
+            return;
+        }
 
         if pos.x >= y_axis_left {
             // Click in Y-axis area → start Y-scale drag
@@ -680,6 +769,61 @@ fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {
     raf_closure
 }
 
+/// Convert a pixel position to data coordinates (bar index in full dataset, price).
+/// Returns None if the mouse is not in the chart data area.
+#[allow(clippy::cast_precision_loss)]
+fn pixel_to_data(st: &ChartState, pos: Point) -> Option<(f64, f64)> {
+    let chart_width = st.config.width - st.config.margin.left - st.config.margin.right;
+    let chart_height = st.config.height - st.config.margin.top - st.config.margin.bottom;
+    if chart_width <= 0.0 || chart_height <= 0.0 || st.data.is_empty() {
+        return None;
+    }
+
+    let range = st.zoom_pan.visible_range();
+    let end = range.end.min(st.data.len());
+    let start = range.start.min(end);
+    let num_visible = end - start;
+    if num_visible == 0 {
+        return None;
+    }
+
+    let bar_slots = if num_visible < st.zoom_pan.visible_bars {
+        st.zoom_pan.visible_bars
+    } else {
+        num_visible
+    };
+
+    let chart_rect = Rect::new(
+        st.config.margin.left,
+        st.config.margin.top,
+        chart_width,
+        chart_height,
+    );
+
+    let inset = if bar_slots > 1 {
+        chart_rect.width / (bar_slots - 1) as f64 * 0.5
+    } else {
+        0.0
+    };
+    let data_rect = Rect::new(
+        chart_rect.x + inset, chart_rect.y,
+        chart_rect.width - 2.0 * inset, chart_rect.height,
+    );
+
+    let price_range = PriceRange::from_ohlcv(&st.data[start..end])
+        .unwrap_or(PriceRange::new(0.0, 100.0))
+        .with_padding(0.03);
+
+    let time_range = TimeRange::new(0, bar_slots);
+    let vp = Viewport { rect: data_rect, time_range, price_range };
+    let transform = Transform::from_viewport(&vp);
+
+    let (bar_f, price) = transform.to_data(pos);
+    // Convert from visible-relative bar index to absolute dataset index
+    let abs_bar = bar_f + start as f64;
+    Some((abs_bar, price))
+}
+
 /// Check if a Y coordinate is in a gap between panels (splitter hit zone).
 /// Returns the index of the panel above the gap, or None.
 fn find_splitter_at_y(st: &ChartState, y: f64) -> Option<usize> {
@@ -798,7 +942,103 @@ fn render_frame(st: &mut ChartState) {
                 &mut renderer, mouse, visible_data, &outputs, &adjusted_markers,
                 &layout_info, &st.config,
             );
+
+            // Drawing preview
+            if let Some(ref drawing) = st.drawing {
+                draw_preview(&mut renderer, drawing, mouse, st, start);
+            }
         }
+    }
+}
+
+/// Draw a preview line/fibonacci while the user is placing the second point.
+#[allow(clippy::cast_precision_loss)]
+fn draw_preview(
+    renderer: &mut CanvasRenderer,
+    drawing: &DrawingInProgress,
+    mouse: Point,
+    st: &ChartState,
+    visible_start: usize,
+) {
+    // Convert the start point from absolute data coords to visible-relative pixel coords
+    let range = st.zoom_pan.visible_range();
+    let end = range.end.min(st.data.len());
+    let num_visible = end.saturating_sub(visible_start);
+    if num_visible == 0 {
+        return;
+    }
+
+    let bar_slots = if num_visible < st.zoom_pan.visible_bars {
+        st.zoom_pan.visible_bars
+    } else {
+        num_visible
+    };
+
+    let chart_rect = Rect::new(
+        st.config.margin.left,
+        st.config.margin.top,
+        st.config.width - st.config.margin.left - st.config.margin.right,
+        st.config.height - st.config.margin.top - st.config.margin.bottom,
+    );
+    let inset = if bar_slots > 1 {
+        chart_rect.width / (bar_slots - 1) as f64 * 0.5
+    } else {
+        0.0
+    };
+    let data_rect = Rect::new(
+        chart_rect.x + inset, chart_rect.y,
+        chart_rect.width - 2.0 * inset, chart_rect.height,
+    );
+    let price_range = PriceRange::from_ohlcv(&st.data[visible_start..end])
+        .unwrap_or(PriceRange::new(0.0, 100.0))
+        .with_padding(0.03);
+    let time_range = TimeRange::new(0, bar_slots);
+    let vp = Viewport { rect: data_rect, time_range, price_range };
+    let transform = Transform::from_viewport(&vp);
+
+    // Start point in visible-relative coordinates
+    let rel_start_bar = drawing.start_bar - visible_start as f64;
+    let start_pixel = transform.to_pixel(rel_start_bar, drawing.start_price);
+
+    match st.draw_mode {
+        DrawMode::TrendLine => {
+            let style = LineStyle {
+                color: Color::rgba(255, 255, 0, 180),
+                width: 1.5,
+            };
+            renderer.draw_line(start_pixel, mouse, &style);
+        }
+        DrawMode::Fibonacci => {
+            // Show horizontal lines at Fibonacci levels between start price and current mouse price
+            let (_, mouse_price) = transform.to_data(mouse);
+            let (high, low) = if drawing.start_price >= mouse_price {
+                (drawing.start_price, mouse_price)
+            } else {
+                (mouse_price, drawing.start_price)
+            };
+            let range_val = high - low;
+            let levels = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
+
+            for &level in &levels {
+                let price = high - range_val * level;
+                let y = transform.price_y(price);
+                let alpha = if level < f64::EPSILON || (level - 1.0).abs() < f64::EPSILON { 180 } else { 80 };
+                renderer.draw_line(
+                    Point { x: chart_rect.x, y },
+                    Point { x: chart_rect.right(), y },
+                    &LineStyle {
+                        color: Color::rgba(255, 165, 0, alpha),
+                        width: 0.5,
+                    },
+                );
+            }
+            // Also draw vertical connection line
+            renderer.draw_line(start_pixel, mouse, &LineStyle {
+                color: Color::rgba(255, 165, 0, 100),
+                width: 0.5,
+            });
+        }
+        DrawMode::None => {}
     }
 }
 

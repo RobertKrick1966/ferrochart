@@ -42,6 +42,9 @@
         Scroll to zoom &middot; Drag to pan &middot; Move mouse for crosshair
         &middot; Drag right margin to scale Y &middot; Double-click to reset
         <br>
+        <button id="btn-trendline" style="margin-top:8px;padding:4px 12px;cursor:pointer;font-family:monospace">Draw Trendline</button>
+        <button id="btn-fibonacci" style="margin-top:8px;padding:4px 12px;cursor:pointer;font-family:monospace">Draw Fibonacci</button>
+        <button id="btn-clear" style="margin-top:8px;padding:4px 12px;cursor:pointer;font-family:monospace">Clear Drawings</button>
         <button id="theme-toggle" style="margin-top:8px;padding:4px 12px;cursor:pointer;font-family:monospace">Toggle Light/Dark</button>
     </div>
     <script type="module">
@@ -125,6 +128,19 @@
 
             // Fibonacci retracement example
             chart.addFibonacci(40, Math.max(...highs.slice(35, 50)), 60, Math.min(...lows.slice(55, 65)), 255, 165, 0);
+
+            // Drawing tools
+            document.getElementById('btn-trendline').addEventListener('click', () => {
+                chart.setDrawMode('trendline');
+                document.getElementById('chart').style.cursor = 'crosshair';
+            });
+            document.getElementById('btn-fibonacci').addEventListener('click', () => {
+                chart.setDrawMode('fibonacci');
+                document.getElementById('chart').style.cursor = 'crosshair';
+            });
+            document.getElementById('btn-clear').addEventListener('click', () => {
+                chart.clearAnnotations();
+            });
 
             // Theme toggle
             let isDark = true;
