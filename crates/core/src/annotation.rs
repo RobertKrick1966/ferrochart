@@ -49,10 +49,21 @@ impl FibonacciRetracement {
     }
 }
 
+/// A corridor: two parallel trendlines.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Corridor {
+    /// The primary trendline.
+    pub line: TrendLine,
+    /// Price offset for the parallel line (positive = above, negative = below).
+    pub offset: f64,
+}
+
 /// Collection of annotations on a chart.
 #[derive(Debug, Clone, Default)]
 pub struct Annotations {
     pub trend_lines: Vec<TrendLine>,
+    pub corridors: Vec<Corridor>,
     pub fibonaccis: Vec<FibonacciRetracement>,
 }
 
@@ -66,18 +77,23 @@ impl Annotations {
         self.trend_lines.push(line);
     }
 
+    pub fn add_corridor(&mut self, corridor: Corridor) {
+        self.corridors.push(corridor);
+    }
+
     pub fn add_fibonacci(&mut self, fib: FibonacciRetracement) {
         self.fibonaccis.push(fib);
     }
 
     pub fn clear(&mut self) {
         self.trend_lines.clear();
+        self.corridors.clear();
         self.fibonaccis.clear();
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.trend_lines.is_empty() && self.fibonaccis.is_empty()
+        self.trend_lines.is_empty() && self.corridors.is_empty() && self.fibonaccis.is_empty()
     }
 }
 

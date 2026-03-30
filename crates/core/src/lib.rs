@@ -13,7 +13,7 @@ pub mod marker;
 mod transform;
 mod zoom;
 
-pub use annotation::{Annotations, FibonacciRetracement, TrendLine};
+pub use annotation::{Annotations, Corridor, FibonacciRetracement, TrendLine};
 pub use candle::CandleGeometry;
 pub use data::{Ohlcv, PriceRange, Series, TimeRange};
 pub use geometry::{Point, Rect};

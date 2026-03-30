@@ -7,7 +7,7 @@ use web_sys::HtmlCanvasElement;
 use powerchart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
 use powerchart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use powerchart_core::{
-    Annotations, FibonacciRetracement, Indicator, IndicatorOutput, IndicatorPlacement, Marker,
+    Annotations, Corridor, FibonacciRetracement, Indicator, IndicatorOutput, IndicatorPlacement, Marker,
     MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
     TimeRange, Transform, TrendLine, Viewport, ZoomPanState,
 };
@@ -25,14 +25,19 @@ enum DrawMode {
     None,
     TrendLine,
     Fibonacci,
+    /// Corridor: first two clicks = trendline, third click = parallel offset.
+    Corridor,
 }
 
-/// In-progress drawing (first point set, waiting for second).
+/// In-progress drawing.
 #[derive(Debug, Clone, Copy)]
 struct DrawingInProgress {
     /// Start in data coordinates (bar index, price).
     start_bar: f64,
     start_price: f64,
+    /// For corridor: second point (set after first two clicks).
+    end_bar: Option<f64>,
+    end_price: Option<f64>,
 }
 
 /// State for an active panel splitter drag.
@@ -93,6 +98,7 @@ pub struct PowerChart {
     _closures: Vec<Closure<dyn FnMut(web_sys::MouseEvent)>>,
     _touch_closures: Vec<Closure<dyn FnMut(web_sys::TouchEvent)>>,
     _wheel_closure: Option<Closure<dyn FnMut(web_sys::WheelEvent)>>,
+    _key_closure: Option<Closure<dyn FnMut(web_sys::KeyboardEvent)>>,
     _raf_closure: RafClosure,
 }
 
@@ -148,6 +154,7 @@ impl PowerChart {
         let on_wheel = attach_wheel_event(canvas, &state)?;
         let mut touch_closures = Vec::new();
         attach_touch_events(canvas, &state, &mut touch_closures)?;
+        let on_key = attach_keyboard_events(canvas, &state)?;
         let raf_handle = start_render_loop(&state);
 
         Ok(PowerChart {
@@ -155,6 +162,7 @@ impl PowerChart {
             _closures: closures,
             _touch_closures: touch_closures,
             _wheel_closure: Some(on_wheel),
+            _key_closure: Some(on_key),
             _raf_closure: raf_handle,
         })
     }
@@ -358,6 +366,7 @@ impl PowerChart {
             "none" => DrawMode::None,
             "trendline" => DrawMode::TrendLine,
             "fibonacci" => DrawMode::Fibonacci,
+            "corridor" => DrawMode::Corridor,
             _ => return Err(JsValue::from_str(&format!("unknown draw mode: {mode}"))),
         };
         st.drawing = None;
@@ -477,8 +486,7 @@ fn attach_mouse_events(
         if st.draw_mode != DrawMode::None && pos.x < y_axis_left
             && let Some(data_pos) = pixel_to_data(&st, pos)
         {
-                if let Some(start) = st.drawing.take() {
-                    // Second click → finalize drawing
+                if let Some(start) = st.drawing {
                     match st.draw_mode {
                         DrawMode::TrendLine => {
                             st.annotations.add_trend_line(TrendLine {
@@ -490,6 +498,8 @@ fn attach_mouse_events(
                                 width: 1.5,
                                 extend_right: true,
                             });
+                            st.drawing = None;
+                            st.draw_mode = DrawMode::None;
                         }
                         DrawMode::Fibonacci => {
                             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -503,15 +513,46 @@ fn attach_mouse_events(
                                 high_bar, high_price, low_bar, low_price,
                                 color: (255, 165, 0),
                             });
+                            st.drawing = None;
+                            st.draw_mode = DrawMode::None;
+                        }
+                        DrawMode::Corridor => {
+                            if let (Some(end_bar), Some(end_price)) = (start.end_bar, start.end_price) {
+                                // Third click → set corridor offset
+                                let price_offset = data_pos.1 - start.start_price;
+                                st.annotations.add_corridor(Corridor {
+                                    line: TrendLine {
+                                        start_bar: start.start_bar,
+                                        start_price: start.start_price,
+                                        end_bar,
+                                        end_price,
+                                        color: (0, 150, 255),
+                                        width: 1.0,
+                                        extend_right: true,
+                                    },
+                                    offset: price_offset,
+                                });
+                                st.drawing = None;
+                                st.draw_mode = DrawMode::None;
+                            } else {
+                                // Second click → set end of trendline, wait for third
+                                st.drawing = Some(DrawingInProgress {
+                                    start_bar: start.start_bar,
+                                    start_price: start.start_price,
+                                    end_bar: Some(data_pos.0),
+                                    end_price: Some(data_pos.1),
+                                });
+                            }
                         }
                         DrawMode::None => {}
                     }
-                    st.draw_mode = DrawMode::None;
                 } else {
                     // First click → start drawing
                     st.drawing = Some(DrawingInProgress {
                         start_bar: data_pos.0,
                         start_price: data_pos.1,
+                        end_bar: None,
+                        end_price: None,
                     });
                 }
             st.dirty = true;
@@ -740,6 +781,77 @@ fn attach_touch_events(
     Ok(())
 }
 
+fn attach_keyboard_events(
+    canvas: &HtmlCanvasElement,
+    state: &Rc<RefCell<ChartState>>,
+) -> Result<Closure<dyn FnMut(web_sys::KeyboardEvent)>, JsValue> {
+    // Make canvas focusable
+    canvas.set_tab_index(0);
+
+    let s = Rc::clone(state);
+    let on_keydown = Closure::wrap(Box::new(move |e: web_sys::KeyboardEvent| {
+        let mut st = s.borrow_mut();
+        let key = e.key();
+        match key.as_str() {
+            "ArrowLeft" => {
+                e.prevent_default();
+                st.zoom_pan = st.zoom_pan.pan(-3);
+                st.dirty = true;
+            }
+            "ArrowRight" => {
+                e.prevent_default();
+                st.zoom_pan = st.zoom_pan.pan(3);
+                st.dirty = true;
+            }
+            "ArrowUp" => {
+                e.prevent_default();
+                st.price_scale = (st.price_scale - 0.1).clamp(0.1, 10.0);
+                st.dirty = true;
+            }
+            "ArrowDown" => {
+                e.prevent_default();
+                st.price_scale = (st.price_scale + 0.1).clamp(0.1, 10.0);
+                st.dirty = true;
+            }
+            "+" | "=" => {
+                e.prevent_default();
+                let mid = st.zoom_pan.offset + st.zoom_pan.visible_bars / 2;
+                st.zoom_pan = st.zoom_pan.zoom(1.25, mid);
+                st.dirty = true;
+            }
+            "-" => {
+                e.prevent_default();
+                let mid = st.zoom_pan.offset + st.zoom_pan.visible_bars / 2;
+                st.zoom_pan = st.zoom_pan.zoom(0.8, mid);
+                st.dirty = true;
+            }
+            "Escape" => {
+                // Cancel drawing
+                st.draw_mode = DrawMode::None;
+                st.drawing = None;
+                st.dirty = true;
+            }
+            "Home" => {
+                e.prevent_default();
+                st.zoom_pan = ZoomPanState {
+                    offset: 0,
+                    ..st.zoom_pan
+                };
+                st.dirty = true;
+            }
+            "End" => {
+                e.prevent_default();
+                st.zoom_pan = st.zoom_pan.scroll_to_end();
+                st.dirty = true;
+            }
+            _ => {}
+        }
+    }) as Box<dyn FnMut(web_sys::KeyboardEvent)>);
+
+    canvas.add_event_listener_with_callback("keydown", on_keydown.as_ref().unchecked_ref())?;
+    Ok(on_keydown)
+}
+
 fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {
     let s = Rc::clone(state);
     let raf_closure: RafClosure = Rc::new(RefCell::new(None));
@@ -906,6 +1018,7 @@ fn render_frame(st: &mut ChartState) {
     // Apply Y-axis scale factor, panel weights, and bar slot count
     st.config.price_scale = st.price_scale;
     st.config.panel_weights = st.panel_weights.clone();
+    st.config.visible_offset = start;
     // If scrolled into future space, there are fewer data bars than visible slots
     st.config.visible_bar_slots = if visible_data.len() < st.zoom_pan.visible_bars {
         Some(st.zoom_pan.visible_bars)
@@ -1037,6 +1150,31 @@ fn draw_preview(
                 color: Color::rgba(255, 165, 0, 100),
                 width: 0.5,
             });
+        }
+        DrawMode::Corridor => {
+            let style = LineStyle {
+                color: Color::rgba(0, 150, 255, 180),
+                width: 1.0,
+            };
+            if let (Some(end_bar), Some(end_price)) = (drawing.end_bar, drawing.end_price) {
+                // After second click: show main line + parallel preview at mouse position
+                let rel_end = end_bar - visible_start as f64;
+                let end_pixel = transform.to_pixel(rel_end, end_price);
+                renderer.draw_line(start_pixel, end_pixel, &style);
+
+                // Parallel line at mouse Y offset
+                let (_, mouse_price) = transform.to_data(mouse);
+                let offset = mouse_price - drawing.start_price;
+                let p1 = transform.to_pixel(rel_start_bar, drawing.start_price + offset);
+                let p2 = transform.to_pixel(rel_end, end_price + offset);
+                renderer.draw_line(p1, p2, &LineStyle {
+                    color: Color::rgba(0, 150, 255, 100),
+                    width: 1.0,
+                });
+            } else {
+                // Before second click: show line from start to mouse
+                renderer.draw_line(start_pixel, mouse, &style);
+            }
         }
         DrawMode::None => {}
     }

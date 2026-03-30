@@ -24,6 +24,7 @@ features = [
     "DomRect",
     "Element",
     "HtmlCanvasElement",
+    "KeyboardEvent",
     "MouseEvent",
     "Touch",
     "TouchEvent",

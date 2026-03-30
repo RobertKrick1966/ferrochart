@@ -21,11 +21,33 @@
             max-width: 1200px;
             position: relative;
         }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            background: #1a1e2e;
+            border: 1px solid #333;
+            border-bottom: none;
+            font-size: 12px;
+        }
+        .toolbar select, .toolbar button {
+            font-family: monospace;
+            font-size: 12px;
+            padding: 3px 8px;
+            cursor: pointer;
+            background: #2a2e3e;
+            color: #c8c8c8;
+            border: 1px solid #444;
+        }
+        .toolbar .separator { color: #555; }
+        .toolbar .status { color: #ffd700; margin-left: auto; }
         canvas {
             display: block;
             width: 100%;
             border: 1px solid #333;
             cursor: crosshair;
+            outline: none;
         }
         .info {
             margin-top: 12px;
@@ -36,16 +58,23 @@
 </head>
 <body>
     <div class="chart-container">
+        <div class="toolbar">
+            <select id="draw-tool">
+                <option value="none">Select Tool...</option>
+                <option value="trendline">Trendline</option>
+                <option value="corridor">Corridor (parallel)</option>
+                <option value="fibonacci">Fibonacci Retracement</option>
+            </select>
+            <button id="btn-clear">Clear Drawings</button>
+            <span class="separator">|</span>
+            <button id="theme-toggle">Light/Dark</button>
+            <span class="status" id="draw-status"></span>
+        </div>
         <canvas id="chart"></canvas>
     </div>
     <div class="info">
-        Scroll to zoom &middot; Drag to pan &middot; Move mouse for crosshair
-        &middot; Drag right margin to scale Y &middot; Double-click to reset
-        <br>
-        <button id="btn-trendline" style="margin-top:8px;padding:4px 12px;cursor:pointer;font-family:monospace">Draw Trendline</button>
-        <button id="btn-fibonacci" style="margin-top:8px;padding:4px 12px;cursor:pointer;font-family:monospace">Draw Fibonacci</button>
-        <button id="btn-clear" style="margin-top:8px;padding:4px 12px;cursor:pointer;font-family:monospace">Clear Drawings</button>
-        <button id="theme-toggle" style="margin-top:8px;padding:4px 12px;cursor:pointer;font-family:monospace">Toggle Light/Dark</button>
+        Scroll/+/- to zoom &middot; Drag/Arrows to pan &middot; Up/Down to scale Y
+        &middot; Esc to cancel &middot; Home/End to jump &middot; Click canvas to focus keyboard
     </div>
     <script type="module">
         import init, { PowerChart } from '../../crates/wasm/pkg/powerchart_wasm.js';
@@ -129,18 +158,26 @@
             // Fibonacci retracement example
             chart.addFibonacci(40, Math.max(...highs.slice(35, 50)), 60, Math.min(...lows.slice(55, 65)), 255, 165, 0);
 
-            // Drawing tools
-            document.getElementById('btn-trendline').addEventListener('click', () => {
-                chart.setDrawMode('trendline');
-                document.getElementById('chart').style.cursor = 'crosshair';
+            // Drawing tool dropdown
+            const drawSelect = document.getElementById('draw-tool');
+            const status = document.getElementById('draw-status');
+            drawSelect.addEventListener('change', () => {
+                const mode = drawSelect.value;
+                chart.setDrawMode(mode);
+                status.textContent = mode === 'none' ? '' :
+                    mode === 'corridor' ? 'Click 3 points: start, end, offset' :
+                    'Click 2 points';
+                if (mode === 'none') drawSelect.selectedIndex = 0;
+                canvas.focus();
             });
-            document.getElementById('btn-fibonacci').addEventListener('click', () => {
-                chart.setDrawMode('fibonacci');
-                document.getElementById('chart').style.cursor = 'crosshair';
-            });
+
             document.getElementById('btn-clear').addEventListener('click', () => {
                 chart.clearAnnotations();
+                canvas.focus();
             });
+
+            // Focus canvas on click for keyboard events
+            canvas.addEventListener('click', () => canvas.focus());
 
             // Theme toggle
             let isDark = true;

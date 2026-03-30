@@ -30,6 +30,8 @@ pub struct ChartConfig {
     /// If set, use this many bar slots for X-axis spacing instead of `data.len()`.
     /// Enables future space: data occupies the left portion, right is empty.
     pub visible_bar_slots: Option<usize>,
+    /// Offset of the visible data in the full dataset (for annotation coordinate mapping).
+    pub visible_offset: usize,
 }
 
 /// Margins around the chart area.
@@ -64,6 +66,7 @@ impl Default for ChartConfig {
             price_scale: 1.0,
             panel_weights: None,
             visible_bar_slots: None,
+            visible_offset: 0,
             indicator_colors: vec![
                 Color::rgb(255, 235, 59),  // yellow
                 Color::rgb(0, 188, 212),   // cyan
@@ -1102,22 +1105,77 @@ fn draw_annotations(
     bar_slots: usize,
     config: &ChartConfig,
 ) {
+    let offset = config.visible_offset as f64;
+
     // Trend lines
     for line in &annotations.trend_lines {
         let color = Color::rgb(line.color.0, line.color.1, line.color.2);
         let style = LineStyle { color, width: line.width };
 
-        let start = transform.to_pixel(line.start_bar, line.start_price);
-        let mut end = transform.to_pixel(line.end_bar, line.end_price);
+        // Convert absolute bar indices to visible-relative
+        let rel_start = line.start_bar - offset;
+        let rel_end = line.end_bar - offset;
+
+        let start = transform.to_pixel(rel_start, line.start_price);
+        let mut end = transform.to_pixel(rel_end, line.end_price);
 
         if line.extend_right && (line.end_bar - line.start_bar).abs() > f64::EPSILON {
             let slope = (line.end_price - line.start_price) / (line.end_bar - line.start_bar);
             let extended_bar = bar_slots as f64;
-            let extended_price = line.end_price + slope * (extended_bar - line.end_bar);
+            let extended_price = line.end_price + slope * (extended_bar + offset - line.end_bar);
             end = transform.to_pixel(extended_bar, extended_price);
         }
 
         renderer.draw_line(start, end, &style);
+    }
+
+    // Corridors (parallel trendlines)
+    for corridor in &annotations.corridors {
+        let line = &corridor.line;
+        let color = Color::rgba(line.color.0, line.color.1, line.color.2, 150);
+        let fill_color = Color::rgba(line.color.0, line.color.1, line.color.2, 25);
+        let style = LineStyle { color, width: line.width };
+
+        let rel_start = line.start_bar - offset;
+        let rel_end = if line.extend_right {
+            bar_slots as f64
+        } else {
+            line.end_bar - offset
+        };
+
+        let slope = if (line.end_bar - line.start_bar).abs() > f64::EPSILON {
+            (line.end_price - line.start_price) / (line.end_bar - line.start_bar)
+        } else {
+            0.0
+        };
+
+        let p1_upper = line.start_price + corridor.offset;
+        let p2_upper = line.start_price + slope * (rel_end + offset - line.start_bar) + corridor.offset;
+        let p1_lower = line.start_price;
+        let p2_lower = line.start_price + slope * (rel_end + offset - line.start_bar);
+
+        // Upper line
+        renderer.draw_line(
+            transform.to_pixel(rel_start, p1_upper),
+            transform.to_pixel(rel_end, p2_upper),
+            &style,
+        );
+        // Lower line
+        renderer.draw_line(
+            transform.to_pixel(rel_start, p1_lower),
+            transform.to_pixel(rel_end, p2_lower),
+            &style,
+        );
+        // Fill between
+        renderer.draw_rect(
+            Rect::new(
+                transform.to_pixel(rel_start, 0.0).x,
+                transform.price_y(p1_upper.max(p1_lower)),
+                transform.to_pixel(rel_end, 0.0).x - transform.to_pixel(rel_start, 0.0).x,
+                (transform.price_y(p1_upper.min(p1_lower)) - transform.price_y(p1_upper.max(p1_lower))).abs(),
+            ),
+            &FillStyle { color: fill_color },
+        );
     }
 
     // Fibonacci retracements
@@ -1134,7 +1192,7 @@ fn draw_annotations(
 
         for (level, price) in fib.level_prices() {
             let y = transform.price_y(price);
-            let alpha = if (level - 0.0).abs() < f64::EPSILON || (level - 1.0).abs() < f64::EPSILON {
+            let alpha = if level < f64::EPSILON || (level - 1.0).abs() < f64::EPSILON {
                 180
             } else {
                 80
