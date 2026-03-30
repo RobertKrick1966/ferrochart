@@ -551,9 +551,26 @@ pub fn render_full_chart(
     let price_data_rect = inset_rect_horizontal(&price_panel.rect, data.len());
 
     // --- Price panel ---
-    let price_range = PriceRange::from_ohlcv(data)
-        .unwrap_or(PriceRange::new(0.0, 100.0))
-        .with_padding(0.05);
+    // Extend price range to include overlay indicator values (BB bands, etc.)
+    let mut price_range = PriceRange::from_ohlcv(data)
+        .unwrap_or(PriceRange::new(0.0, 100.0));
+    for overlay in &overlays {
+        for series in &overlay.series {
+            if series.style_hint == SeriesStyle::Line {
+                for &v in &series.values {
+                    if !v.is_nan() {
+                        if v < price_range.min {
+                            price_range.min = v;
+                        }
+                        if v > price_range.max {
+                            price_range.max = v;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let price_range = price_range.with_padding(0.03);
     let price_vp = Viewport {
         rect: price_data_rect,
         time_range,

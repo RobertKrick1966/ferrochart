@@ -172,6 +172,14 @@ impl PowerChart {
         st.cached_outputs.clear();
         st.dirty = true;
     }
+
+    /// Update the chart dimensions (call after canvas resize).
+    pub fn resize(&self, width: u32, height: u32) {
+        let mut st = self.state.borrow_mut();
+        st.config.width = f64::from(width);
+        st.config.height = f64::from(height);
+        st.dirty = true;
+    }
 }
 
 /// Helper: get mouse position relative to canvas.

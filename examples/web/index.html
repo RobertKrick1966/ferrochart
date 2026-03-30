@@ -4,18 +4,26 @@
     <meta charset="utf-8" />
     <title>PowerChart Demo</title>
     <style>
+        * { box-sizing: border-box; }
         body {
             margin: 0;
             background: #0e1117;
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
             min-height: 100vh;
             font-family: monospace;
             color: #c8c8c8;
+            padding: 16px;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 1200px;
+            position: relative;
         }
         canvas {
+            display: block;
+            width: 100%;
             border: 1px solid #333;
             cursor: crosshair;
         }
@@ -27,23 +35,37 @@
     </style>
 </head>
 <body>
-    <canvas id="chart" width="900" height="700"></canvas>
+    <div class="chart-container">
+        <canvas id="chart"></canvas>
+    </div>
     <div class="info">
         Scroll to zoom &middot; Drag to pan &middot; Move mouse for crosshair
     </div>
     <script type="module">
         import init, { PowerChart } from '../../crates/wasm/pkg/powerchart_wasm.js';
 
-        // Keep chart alive at module scope so GC doesn't drop closures
         let chart;
+
+        function resizeCanvas(canvas) {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = Math.round(rect.width * dpr);
+            canvas.height = Math.round(rect.height * dpr);
+        }
 
         async function run() {
             await init();
 
             const canvas = document.getElementById('chart');
+
+            // Set CSS height based on aspect ratio
+            const container = canvas.parentElement;
+            canvas.style.height = (container.clientWidth * 0.65) + 'px';
+            resizeCanvas(canvas);
+
             chart = new PowerChart(canvas);
 
-            // Generate 120 days of sample OHLCV data
+            // Generate 200 days of sample OHLCV data
             const baseTimestamp = 1700000000;
             const day = 86400;
             const timestamps = [];
@@ -54,7 +76,7 @@
             const volumes = [];
 
             let price = 100.0;
-            for (let i = 0; i < 120; i++) {
+            for (let i = 0; i < 200; i++) {
                 const mv = Math.sin(i * 0.3) * 3 + (Math.random() - 0.5) * 4;
                 const open = price;
                 const close = open + mv;
@@ -81,12 +103,18 @@
                 new Float64Array(volumes),
             );
 
-            // Add indicators
             chart.addIndicator('sma', 20);
             chart.addIndicator('ema', 10);
             chart.addIndicator('bollinger', 20);
             chart.addIndicator('rsi', 14);
             chart.addIndicator('macd', 26);
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                canvas.style.height = (container.clientWidth * 0.65) + 'px';
+                resizeCanvas(canvas);
+                chart.resize(canvas.width, canvas.height);
+            });
         }
 
         run().catch(console.error);
