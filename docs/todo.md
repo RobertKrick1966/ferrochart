@@ -91,14 +91,16 @@
 
 ---
 
-## Phase 6 — Pattern-Marker & Annotations *(1 Woche)*
+## Phase 6 — Pattern-Marker & Annotations ✅
 
 ### Marker-System
-- [ ] `MarkerShape`: Pfeil oben/unten, Kreis, Raute
-- [ ] `addMarker(timestamp, shape, color, label)`
-- [ ] Marker-Tooltip bei Hover
+- [x] `MarkerShape`: ArrowUp, ArrowDown, Circle, Diamond
+- [x] `addMarker(barIndex, shape, position, r, g, b, label)`
+- [x] `clearMarkers()`
+- [x] `MarkerSet` mit `in_range()` und `nearest()` (9 Tests)
+- [x] Marker-Rendering: Shapes auf Price-Panel, Labels darunter/darüber
+- [x] Marker-Info im Hover-Tooltip
 - [ ] SMR-Integration: Pattern-Signale als Marker rendern
-  > Pfeile für erkannte Candlestick-Patterns
 
 ---
 

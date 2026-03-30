@@ -1,6 +1,6 @@
 use powerchart_core::{
-    CandleGeometry, IndicatorOutput, IndicatorPlacement, Ohlcv, PanelLayout, Point, PriceRange,
-    Rect, SeriesStyle, TimeRange, Transform, Viewport,
+    CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerShape,
+    Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform, Viewport,
 };
 
 use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
@@ -525,6 +525,22 @@ pub fn render_full_chart(
     indicators: &[IndicatorOutput],
     config: &ChartConfig,
 ) {
+    render_full_chart_with_markers(renderer, data, indicators, &[], config);
+}
+
+/// Render a full chart with candlesticks, volume, indicators, and markers.
+///
+/// # Panics
+///
+/// Panics if the internal panel layout cannot be constructed.
+#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+pub fn render_full_chart_with_markers(
+    renderer: &mut dyn Renderer,
+    data: &[Ohlcv],
+    indicators: &[IndicatorOutput],
+    markers: &[&Marker],
+    config: &ChartConfig,
+) {
     if data.is_empty() {
         return;
     }
@@ -595,6 +611,9 @@ pub fn render_full_chart(
     for overlay in &overlays {
         draw_indicator_overlay(renderer, overlay, &price_transform, config, &mut color_idx);
     }
+
+    // Draw markers on price panel
+    draw_markers(renderer, markers, data, &price_transform, config);
 
     renderer.draw_rect_outline(price_panel.rect, &LineStyle { color: config.axis_color, width: 1.0 });
 
@@ -799,6 +818,91 @@ fn draw_series_line(
 
     if segment.len() >= 2 {
         renderer.draw_path(&segment, style);
+    }
+}
+
+/// Draw markers on the price panel.
+#[allow(clippy::cast_precision_loss)]
+fn draw_markers(
+    renderer: &mut dyn Renderer,
+    markers: &[&Marker],
+    data: &[Ohlcv],
+    transform: &Transform,
+    config: &ChartConfig,
+) {
+    let marker_size = 8.0;
+    let offset = 6.0; // distance from high/low
+
+    let text_style = TextStyle {
+        color: Color::LIGHT_GRAY,
+        size: config.font_size - 1.0,
+        font_family: "monospace".to_string(),
+    };
+
+    for marker in markers {
+        if marker.bar_index >= data.len() {
+            continue;
+        }
+        let bar = &data[marker.bar_index];
+        let x = transform.bar_x(marker.bar_index);
+
+        let (cy, label_y, label_anchor) = match marker.position {
+            MarkerPosition::BelowBar => {
+                let y = transform.price_y(bar.low) + offset + marker_size;
+                (y, y + marker_size + 2.0, TextAnchor::Middle)
+            }
+            MarkerPosition::AboveBar => {
+                let y = transform.price_y(bar.high) - offset - marker_size;
+                (y, y - marker_size + 2.0, TextAnchor::Middle)
+            }
+        };
+
+        let color = Color::rgba(marker.color.0, marker.color.1, marker.color.2, marker.color.3);
+
+        match marker.shape {
+            MarkerShape::ArrowUp => {
+                // Triangle pointing up: 3 points
+                let top = Point { x, y: cy - marker_size };
+                let bl = Point { x: x - marker_size * 0.6, y: cy };
+                let br = Point { x: x + marker_size * 0.6, y: cy };
+                renderer.draw_path(&[top, br, bl, top], &LineStyle { color, width: 2.0 });
+            }
+            MarkerShape::ArrowDown => {
+                let bottom = Point { x, y: cy + marker_size };
+                let tl = Point { x: x - marker_size * 0.6, y: cy };
+                let tr = Point { x: x + marker_size * 0.6, y: cy };
+                renderer.draw_path(&[bottom, tl, tr, bottom], &LineStyle { color, width: 2.0 });
+            }
+            MarkerShape::Circle => {
+                // Approximate circle with 8-sided polygon
+                let steps = 8;
+                let mut pts = Vec::with_capacity(steps + 1);
+                for s in 0..=steps {
+                    let angle = std::f64::consts::TAU * s as f64 / steps as f64;
+                    pts.push(Point {
+                        x: x + angle.cos() * marker_size * 0.5,
+                        y: cy + angle.sin() * marker_size * 0.5,
+                    });
+                }
+                renderer.draw_path(&pts, &LineStyle { color, width: 2.0 });
+            }
+            MarkerShape::Diamond => {
+                let s = marker_size * 0.6;
+                let pts = [
+                    Point { x, y: cy - s },
+                    Point { x: x + s, y: cy },
+                    Point { x, y: cy + s },
+                    Point { x: x - s, y: cy },
+                    Point { x, y: cy - s },
+                ];
+                renderer.draw_path(&pts, &LineStyle { color, width: 2.0 });
+            }
+        }
+
+        // Label
+        if !marker.label.is_empty() {
+            renderer.draw_text(&marker.label, Point { x, y: label_y }, &text_style, label_anchor);
+        }
     }
 }
 

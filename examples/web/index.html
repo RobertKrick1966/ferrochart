@@ -109,6 +109,14 @@
             chart.addIndicator('rsi', 14);
             chart.addIndicator('macd', 26);
 
+            // Add sample pattern markers
+            chart.addMarker(15, 'arrow_up', 'below', 0, 200, 0, 'Hammer');
+            chart.addMarker(32, 'arrow_down', 'above', 200, 0, 0, 'Shooting Star');
+            chart.addMarker(58, 'arrow_up', 'below', 0, 200, 0, 'Engulfing');
+            chart.addMarker(75, 'diamond', 'above', 255, 165, 0, 'Doji');
+            chart.addMarker(95, 'circle', 'below', 0, 150, 255, 'Support');
+            chart.addMarker(120, 'arrow_down', 'above', 200, 0, 0, 'Evening Star');
+
             // Handle window resize
             window.addEventListener('resize', () => {
                 canvas.style.height = (container.clientWidth * 0.65) + 'px';

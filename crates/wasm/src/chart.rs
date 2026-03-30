@@ -7,10 +7,10 @@ use web_sys::HtmlCanvasElement;
 use powerchart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
 use powerchart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use powerchart_core::{
-    Indicator, IndicatorOutput, Ohlcv, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform,
-    Viewport, ZoomPanState,
+    Indicator, IndicatorOutput, Marker, MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point,
+    PriceRange, Rect, SeriesStyle, TimeRange, Transform, Viewport, ZoomPanState,
 };
-use powerchart_render::chart::{render_full_chart, ChartConfig};
+use powerchart_render::chart::{render_full_chart_with_markers, ChartConfig};
 use powerchart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 use powerchart_render::Renderer;
 
@@ -27,6 +27,7 @@ struct ChartState {
     indicators: Vec<Box<dyn Indicator>>,
     /// Cached indicator outputs computed on the full dataset.
     cached_outputs: Vec<IndicatorOutput>,
+    markers: MarkerSet,
     mouse_pos: Option<Point>,
     is_dragging: bool,
     drag_start_x: f64,
@@ -82,6 +83,7 @@ impl PowerChart {
             zoom_pan: ZoomPanState::new(0, 100),
             indicators: Vec::new(),
             cached_outputs: Vec::new(),
+            markers: MarkerSet::new(),
             mouse_pos: None,
             is_dragging: false,
             drag_start_x: 0.0,
@@ -173,6 +175,59 @@ impl PowerChart {
         let mut st = self.state.borrow_mut();
         st.indicators.clear();
         st.cached_outputs.clear();
+        st.dirty = true;
+    }
+
+    /// Add a marker at a specific bar index.
+    ///
+    /// `shape`: `"arrow_up"`, `"arrow_down"`, `"circle"`, `"diamond"`.
+    /// `position`: `"above"` or `"below"`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the shape or position is unknown.
+    #[wasm_bindgen(js_name = addMarker)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_marker(
+        &self,
+        bar_index: u32,
+        shape: &str,
+        position: &str,
+        r: u8,
+        g: u8,
+        b: u8,
+        label: &str,
+    ) -> Result<(), JsValue> {
+        let shape = match shape {
+            "arrow_up" => MarkerShape::ArrowUp,
+            "arrow_down" => MarkerShape::ArrowDown,
+            "circle" => MarkerShape::Circle,
+            "diamond" => MarkerShape::Diamond,
+            _ => return Err(JsValue::from_str(&format!("unknown shape: {shape}"))),
+        };
+        let position = match position {
+            "above" => MarkerPosition::AboveBar,
+            "below" => MarkerPosition::BelowBar,
+            _ => return Err(JsValue::from_str(&format!("unknown position: {position}"))),
+        };
+
+        let mut st = self.state.borrow_mut();
+        st.markers.add(Marker {
+            bar_index: bar_index as usize,
+            shape,
+            position,
+            color: (r, g, b, 255),
+            label: label.to_string(),
+        });
+        st.dirty = true;
+        Ok(())
+    }
+
+    /// Remove all markers.
+    #[wasm_bindgen(js_name = clearMarkers)]
+    pub fn clear_markers(&self) {
+        let mut st = self.state.borrow_mut();
+        st.markers.clear();
         st.dirty = true;
     }
 
@@ -340,7 +395,21 @@ fn render_frame(st: &mut ChartState) {
         .map(|out| out.slice(start..end))
         .collect();
 
-    render_full_chart(&mut renderer, visible_data, &outputs, &st.config);
+    // Get markers in visible range (adjust indices to be relative to visible slice)
+    let visible_markers = st.markers.in_range(start, end);
+    let adjusted_markers: Vec<Marker> = visible_markers
+        .iter()
+        .map(|m| Marker {
+            bar_index: m.bar_index - start,
+            shape: m.shape,
+            position: m.position,
+            color: m.color,
+            label: m.label.clone(),
+        })
+        .collect();
+    let marker_refs: Vec<&Marker> = adjusted_markers.iter().collect();
+
+    render_full_chart_with_markers(&mut renderer, visible_data, &outputs, &marker_refs, &st.config);
 
     // Crosshair + Tooltip
     if let Some(mouse) = st.mouse_pos {
@@ -365,9 +434,9 @@ fn render_frame(st: &mut ChartState) {
                 &crosshair_style,
             );
 
-            // Determine hovered bar index
+            // Determine hovered bar index + show marker info
             draw_tooltip(
-                &mut renderer, mouse, visible_data, &outputs, &st.config,
+                &mut renderer, mouse, visible_data, &outputs, &adjusted_markers, &st.config,
             );
         }
     }
@@ -380,6 +449,7 @@ fn draw_tooltip(
     mouse: Point,
     data: &[Ohlcv],
     indicators: &[IndicatorOutput],
+    markers: &[Marker],
     config: &ChartConfig,
 ) {
     if data.is_empty() {
@@ -433,6 +503,13 @@ fn draw_tooltip(
         }
         if !vals.is_empty() {
             lines.push(format!("{}: {}", output.name, vals.join(" / ")));
+        }
+    }
+
+    // Show markers at this bar
+    for m in markers {
+        if m.bar_index == bar_idx && !m.label.is_empty() {
+            lines.push(format!(">>> {}", m.label));
         }
     }
 
