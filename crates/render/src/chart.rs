@@ -318,7 +318,7 @@ const fn month_abbrev(month: u32) -> &'static str {
     }
 }
 
-/// Draw volume Y-axis labels on the right side.
+/// Draw volume Y-axis labels and grid lines on the right side.
 #[allow(clippy::cast_precision_loss)]
 fn draw_volume_axis(
     renderer: &mut dyn Renderer,
@@ -332,6 +332,10 @@ fn draw_volume_axis(
         size: config.font_size,
         font_family: "monospace".to_string(),
     };
+    let grid_style = LineStyle {
+        color: config.grid_color,
+        width: 1.0,
+    };
 
     let num_labels: i32 = 4;
     let step = vol_range.span() / f64::from(num_labels);
@@ -341,9 +345,13 @@ fn draw_volume_axis(
         let vol = vol_range.min + step * f64::from(i);
         let y = transform.price_y(vol);
 
-        // Format volume with K/M suffix
-        let label = format_volume(vol);
+        renderer.draw_line(
+            Point { x: panel_rect.x, y },
+            Point { x: panel_rect.right(), y },
+            &grid_style,
+        );
 
+        let label = format_volume(vol);
         renderer.draw_text(
             &label,
             Point {
@@ -727,7 +735,7 @@ fn draw_indicator_sub_panel(
     renderer.draw_rect_outline(panel_rect, &LineStyle { color: config.axis_color, width: 1.0 });
 }
 
-/// Draw Y-axis labels for a sub-panel.
+/// Draw Y-axis labels and grid lines for a sub-panel.
 #[allow(clippy::cast_precision_loss)]
 fn draw_sub_panel_y_axis(
     renderer: &mut dyn Renderer,
@@ -741,6 +749,10 @@ fn draw_sub_panel_y_axis(
         size: config.font_size,
         font_family: "monospace".to_string(),
     };
+    let grid_style = LineStyle {
+        color: config.grid_color,
+        width: 1.0,
+    };
 
     let num_labels: i32 = 4;
     let step = y_range.span() / f64::from(num_labels);
@@ -748,6 +760,12 @@ fn draw_sub_panel_y_axis(
     for i in 1..num_labels {
         let val = y_range.min + step * f64::from(i);
         let y = transform.price_y(val);
+
+        renderer.draw_line(
+            Point { x: panel_rect.x, y },
+            Point { x: panel_rect.right(), y },
+            &grid_style,
+        );
 
         renderer.draw_text(
             &format!("{val:.1}"),
