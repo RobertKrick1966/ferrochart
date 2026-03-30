@@ -15,6 +15,9 @@ dist/
 *.swp
 *.swo
 
+# Generated artifacts
+*.svg
+
 # OS
 .DS_Store
 Thumbs.db

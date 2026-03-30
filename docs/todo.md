@@ -31,16 +31,16 @@
 ## Phase 3 — Renderer-Trait + SVG-Backend *(1 Woche)*
 
 ### Renderer Abstraction
-- [ ] `Renderer`-Trait definieren: `draw_line`, `draw_rect`, `draw_text`, `draw_path`, `flush`
-- [ ] Style-Typen: `LineStyle`, `FillStyle`, `TextStyle`
+- [x] `Renderer`-Trait definieren: `draw_line`, `draw_rect`, `draw_text`, `draw_path`, `finish`
+- [x] Style-Typen: `Color`, `LineStyle`, `FillStyle`, `TextStyle`, `TextAnchor`
 
 ### SVG Renderer (Test-Backend)
 > Für TDD — kein WASM nötig, SVG einfach im Browser öffnen
 
-- [ ] `SvgRenderer` implementiert `Renderer`-Trait
-- [ ] Candlestick-Rendering via SVG ausgeben
-- [ ] Snapshot-Tests: SVG-Output gegen Referenz-Dateien
-- [ ] Achsen-Labels: X-Achse (Zeit), Y-Achse (Preis)
+- [x] `SvgRenderer` implementiert `Renderer`-Trait
+- [x] Candlestick-Rendering via SVG ausgeben (inkl. Volume-Panel)
+- [x] Unit-Tests für SVG-Output (19 Tests)
+- [x] Achsen-Labels: X-Achse (Datum), Y-Achse (Preis)
 
 ---
 
