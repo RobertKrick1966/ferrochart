@@ -22,13 +22,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Clippy (core, render, examples)
-        run: cargo clippy --workspace --exclude powerchart-wasm --all-targets -- -D warnings
+        run: cargo clippy --workspace --exclude ferrochart-wasm --all-targets -- -D warnings
 
       - name: Clippy (wasm)
-        run: cargo clippy --package powerchart-wasm --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy --package ferrochart-wasm --target wasm32-unknown-unknown -- -D warnings
 
       - name: Test
-        run: cargo test --workspace --exclude powerchart-wasm
+        run: cargo test --workspace --exclude ferrochart-wasm
 
       - name: Format check
         run: cargo fmt --all -- --check

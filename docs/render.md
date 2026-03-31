@@ -1,4 +1,4 @@
-# powerchart-render
+# ferrochart-render
 
 Renderer trait and backend implementations.
 
@@ -28,9 +28,9 @@ pub trait Renderer {
 ## Usage
 
 ```rust
-use powerchart_core::Ohlcv;
-use powerchart_render::{SvgRenderer, Renderer};
-use powerchart_render::chart::{render_candlestick_chart, render_with_volume, ChartConfig};
+use ferrochart_core::Ohlcv;
+use ferrochart_render::{SvgRenderer, Renderer};
+use ferrochart_render::chart::{render_candlestick_chart, render_with_volume, ChartConfig};
 
 let config = ChartConfig::default();
 let mut renderer = SvgRenderer::new(config.width, config.height);
@@ -57,7 +57,7 @@ std::fs::write("chart.svg", &svg_bytes).unwrap();
 ## Running the Example
 
 ```bash
-cargo run --package powerchart-examples
+cargo run --package ferrochart-examples
 # Produces: candlestick.svg, candlestick_volume.svg
 ```
 

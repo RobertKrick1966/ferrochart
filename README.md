@@ -1,4 +1,4 @@
-# PowerChart
+# FerroChart
 
 High-performance financial charting library built in Rust, targeting WebAssembly and native platforms.
 
@@ -24,8 +24,8 @@ High-performance financial charting library built in Rust, targeting WebAssembly
 curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
 # Clone and build
-git clone https://github.com/RobertKrick1966/powerchart.git
-cd powerchart
+git clone https://github.com/RobertKrick1966/ferrochart.git
+cd ferrochart
 wasm-pack build crates/wasm --target web
 
 # Run the demo
@@ -38,11 +38,11 @@ python3 -m http.server 8080
 ```html
 <canvas id="chart" width="900" height="700"></canvas>
 <script type="module">
-import init, { PowerChart } from './pkg/powerchart_wasm.js';
+import init, { FerroChart } from './pkg/ferrochart_wasm.js';
 
 await init();
 
-const chart = new PowerChart(document.getElementById('chart'));
+const chart = new FerroChart(document.getElementById('chart'));
 
 // Set OHLCV data (parallel Float64Arrays)
 chart.setData(timestamps, opens, highs, lows, closes, volumes);
@@ -73,11 +73,11 @@ window.addEventListener('resize', () => {
 ```toml
 # In your Cargo.toml
 [dependencies]
-powerchart-core = { git = "https://github.com/RobertKrick1966/powerchart", features = ["serde"] }
+ferrochart-core = { git = "https://github.com/RobertKrick1966/ferrochart", features = ["serde"] }
 ```
 
 ```rust
-use powerchart_core::Ohlcv;
+use ferrochart_core::Ohlcv;
 // Ohlcv implements Serialize/Deserialize with the "serde" feature
 let data: Vec<Ohlcv> = fetch_from_database();
 let json = serde_json::to_string(&data)?;
@@ -85,11 +85,11 @@ let json = serde_json::to_string(&data)?;
 
 ## API Reference
 
-### `PowerChart` (WASM/JavaScript)
+### `FerroChart` (WASM/JavaScript)
 
 | Method | Description |
 |---|---|
-| `new PowerChart(canvas)` | Create interactive chart on canvas element |
+| `new FerroChart(canvas)` | Create interactive chart on canvas element |
 | `setData(ts, o, h, l, c, v)` | Set OHLCV data from parallel `Float64Array`s |
 | `addIndicator(name, period?)` | Add indicator: `"sma"`, `"ema"`, `"bollinger"`, `"rsi"`, `"macd"` |
 | `removeIndicator(name)` | Remove indicator by name (e.g. `"sma"`) |
@@ -120,20 +120,20 @@ let json = serde_json::to_string(&data)?;
 
 | Crate | Description |
 |---|---|
-| `powerchart-core` | Data structures, indicators, layout, coordinate transforms |
-| `powerchart-render` | Renderer trait + SVG/Canvas backends |
-| `powerchart-wasm` | WebAssembly bindings, event handling, interactive chart |
-| `powerchart-examples` | Example applications |
+| `ferrochart-core` | Data structures, indicators, layout, coordinate transforms |
+| `ferrochart-render` | Renderer trait + SVG/Canvas backends |
+| `ferrochart-wasm` | WebAssembly bindings, event handling, interactive chart |
+| `ferrochart-examples` | Example applications |
 
 ## Building
 
 ```bash
 # Run tests
-cargo test --workspace --exclude powerchart-wasm
+cargo test --workspace --exclude ferrochart-wasm
 
 # Clippy
-cargo clippy --workspace --exclude powerchart-wasm --all-targets -- -D warnings
-cargo clippy --package powerchart-wasm --target wasm32-unknown-unknown -- -D warnings
+cargo clippy --workspace --exclude ferrochart-wasm --all-targets -- -D warnings
+cargo clippy --package ferrochart-wasm --target wasm32-unknown-unknown -- -D warnings
 
 # Build WASM
 wasm-pack build crates/wasm --target web        # for <script type="module">
@@ -141,7 +141,7 @@ wasm-pack build crates/wasm --target bundler     # for Webpack/Vite
 wasm-pack build crates/wasm --target nodejs      # for Node.js
 
 # Generate SVG examples
-cargo run --package powerchart-examples
+cargo run --package ferrochart-examples
 ```
 
 ## Integration Guides

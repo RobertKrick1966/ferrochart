@@ -1,17 +1,17 @@
 # Axum OHLCV Endpoint Example
 
-Add `powerchart-core` as a dependency with serde support:
+Add `ferrochart-core` as a dependency with serde support:
 
 ```toml
 [dependencies]
-powerchart-core = { git = "https://github.com/RobertKrick1966/powerchart", features = ["serde"] }
+ferrochart-core = { git = "https://github.com/RobertKrick1966/ferrochart", features = ["serde"] }
 ```
 
 ## Endpoint
 
 ```rust
 use axum::{extract::Query, Json};
-use powerchart_core::Ohlcv;
+use ferrochart_core::Ohlcv;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -48,4 +48,4 @@ pub async fn get_ohlcv(
 ]
 ```
 
-The frontend fetches this JSON and passes it to `PowerChart.setData()`.
+The frontend fetches this JSON and passes it to `FerroChart.setData()`.

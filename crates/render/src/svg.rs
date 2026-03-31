@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use powerchart_core::{Point, Rect};
+use ferrochart_core::{Point, Rect};
 
 use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 use crate::Renderer;

@@ -4,16 +4,16 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
-use powerchart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
-use powerchart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
-use powerchart_core::{
+use ferrochart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
+use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
+use ferrochart_core::{
     Annotations, Corridor, FibonacciRetracement, Indicator, IndicatorOutput, IndicatorPlacement, Marker,
     MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
     TimeRange, Transform, TrendLine, Viewport, ZoomPanState,
 };
-use powerchart_render::chart::{render_full_chart_with_markers, ChartConfig, ChartLayoutInfo, PanelKind};
-use powerchart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
-use powerchart_render::Renderer;
+use ferrochart_render::chart::{render_full_chart_with_markers, ChartConfig, ChartLayoutInfo, PanelKind};
+use ferrochart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
+use ferrochart_render::Renderer;
 
 use crate::CanvasRenderer;
 
@@ -95,7 +95,7 @@ impl ChartState {
 
 /// Interactive candlestick chart rendered on an HTML canvas.
 #[wasm_bindgen]
-pub struct PowerChart {
+pub struct FerroChart {
     state: Rc<RefCell<ChartState>>,
     _closures: Vec<Closure<dyn FnMut(web_sys::MouseEvent)>>,
     _touch_closures: Vec<Closure<dyn FnMut(web_sys::TouchEvent)>>,
@@ -105,7 +105,7 @@ pub struct PowerChart {
 }
 
 #[wasm_bindgen]
-impl PowerChart {
+impl FerroChart {
     /// Create a new interactive chart on the given canvas element.
     ///
     /// # Errors
@@ -117,7 +117,7 @@ impl PowerChart {
     /// Panics if `window()` is not available (non-browser environment).
     #[wasm_bindgen(constructor)]
     #[allow(clippy::too_many_lines)]
-    pub fn new(canvas: &HtmlCanvasElement) -> Result<PowerChart, JsValue> {
+    pub fn new(canvas: &HtmlCanvasElement) -> Result<FerroChart, JsValue> {
         console_error_panic_hook::set_once();
         let config = ChartConfig {
             width: f64::from(canvas.width()),
@@ -160,7 +160,7 @@ impl PowerChart {
         let on_key = attach_keyboard_events(canvas, &state)?;
         let raf_handle = start_render_loop(&state);
 
-        Ok(PowerChart {
+        Ok(FerroChart {
             state,
             _closures: closures,
             _touch_closures: touch_closures,
@@ -880,7 +880,7 @@ fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {
         let _ = window.request_animation_frame(cb.as_ref().unwrap().as_ref().unchecked_ref());
     }
 
-    // Return the Rc — keeps the closure alive as long as PowerChart exists
+    // Return the Rc — keeps the closure alive as long as FerroChart exists
     raf_closure
 }
 
@@ -920,7 +920,7 @@ fn find_splitter_at_y(st: &ChartState, y: f64) -> Option<usize> {
         st.config.width - st.config.margin.left - st.config.margin.right,
         st.config.height - st.config.margin.top - st.config.margin.bottom,
     );
-    let layout = powerchart_core::PanelLayout::new(&weights, total_rect, 4.0);
+    let layout = ferrochart_core::PanelLayout::new(&weights, total_rect, 4.0);
     let hit_zone = 6.0; // pixels tolerance
 
     for i in 0..layout.len().saturating_sub(1) {

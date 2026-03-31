@@ -1,4 +1,4 @@
-//! `PowerChart` Render — renderer trait and backend implementations.
+//! `FerroChart` Render — renderer trait and backend implementations.
 
 pub mod chart;
 mod renderer;

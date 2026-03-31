@@ -1,4 +1,4 @@
-# PowerChart — Roadmap & Todo
+# FerroChart — Roadmap & Todo
 
 ## Phase 1 — Repo & Workspace ✅
 
@@ -16,7 +16,7 @@
 
 ## Phase 2 — Core-Datenstrukturen ✅
 
-### powerchart-core
+### ferrochart-core
 > Keine I/O, keine externen Dependencies (nur opt-in serde)
 
 - [x] `Ohlcv`, `Series<T>`, `PriceRange`, `TimeRange` Typen
@@ -49,7 +49,7 @@
 
 ### WASM Setup
 - [x] `wasm-pack` in Workspace integrieren
-- [x] `PowerChart` WASM-Klasse: `new PowerChart(canvas)`
+- [x] `FerroChart` WASM-Klasse: `new FerroChart(canvas)`
 - [x] `setData(timestamps, opens, highs, lows, closes, volumes)`
 - [x] `addIndicator(name, period)`, `removeIndicator(name)`, `clearIndicators()`
 - [x] `addMarker(...)`, `clearMarkers()`
@@ -120,7 +120,7 @@
 
 ### SMR-Backend-Anbindung
 - [x] `Ohlcv`, `Marker`, `MarkerShape`, `MarkerPosition` serde-fähig (opt-in Feature)
-- [x] Git-Dependency Doku: `powerchart-core = { git = "...", features = ["serde"] }`
+- [x] Git-Dependency Doku: `ferrochart-core = { git = "...", features = ["serde"] }`
 - [x] Axum-Endpoint Beispiel (`docs/integration/axum-endpoint.md`)
 
 ### SMR-Frontend-Integration

@@ -1,9 +1,9 @@
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
-use powerchart_core::{Point, Rect};
-use powerchart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
-use powerchart_render::Renderer;
+use ferrochart_core::{Point, Rect};
+use ferrochart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
+use ferrochart_render::Renderer;
 
 /// Canvas 2D rendering backend for browsers.
 ///

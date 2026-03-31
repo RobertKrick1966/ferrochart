@@ -1,6 +1,6 @@
 [package]
-name = "powerchart-core"
-description = "Core data structures and layout engine for PowerChart"
+name = "ferrochart-core"
+description = "Core data structures and layout engine for FerroChart"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

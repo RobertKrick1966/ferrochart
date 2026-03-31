@@ -1,8 +1,8 @@
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
-use powerchart_core::Ohlcv;
-use powerchart_render::chart::{render_with_volume, ChartConfig};
+use ferrochart_core::Ohlcv;
+use ferrochart_render::chart::{render_with_volume, ChartConfig};
 
 use crate::CanvasRenderer;
 

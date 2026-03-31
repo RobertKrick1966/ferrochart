@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <title>PowerChart Demo</title>
+    <title>FerroChart Demo</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -77,7 +77,7 @@
         &middot; Esc to cancel &middot; Home/End to jump &middot; Click canvas to focus keyboard
     </div>
     <script type="module">
-        import init, { PowerChart } from '../../crates/wasm/pkg/powerchart_wasm.js';
+        import init, { FerroChart } from '../../crates/wasm/pkg/ferrochart_wasm.js';
 
         let chart;
 
@@ -98,7 +98,7 @@
             canvas.style.height = (container.clientWidth * 0.65) + 'px';
             resizeCanvas(canvas);
 
-            chart = new PowerChart(canvas);
+            chart = new FerroChart(canvas);
 
             // Generate 200 days of sample OHLCV data
             const baseTimestamp = 1700000000;

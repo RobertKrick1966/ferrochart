@@ -1,8 +1,8 @@
 use std::fs;
 
-use powerchart_core::Ohlcv;
-use powerchart_render::chart::{render_candlestick_chart, render_with_volume, ChartConfig};
-use powerchart_render::{Renderer, SvgRenderer};
+use ferrochart_core::Ohlcv;
+use ferrochart_render::chart::{render_candlestick_chart, render_with_volume, ChartConfig};
+use ferrochart_render::{Renderer, SvgRenderer};
 
 fn main() {
     let data = sample_ohlcv();

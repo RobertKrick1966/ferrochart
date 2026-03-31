@@ -1,12 +1,12 @@
 [package]
-name = "powerchart-render"
-description = "Renderer trait and backends for PowerChart"
+name = "ferrochart-render"
+description = "Renderer trait and backends for FerroChart"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-powerchart-core = { path = "../core" }
+ferrochart-core = { path = "../core" }
 
 [lints]
 workspace = true

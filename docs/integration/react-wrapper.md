@@ -11,7 +11,7 @@ npm install powerchart
 
 ```tsx
 import { useEffect, useRef } from 'react';
-import init, { PowerChart } from 'powerchart';
+import init, { FerroChart } from 'powerchart';
 
 interface OhlcvBar {
   timestamp: number;
@@ -38,7 +38,7 @@ interface ChartProps {
 
 let wasmReady: Promise<void> | null = null;
 
-export function PowerChartComponent({
+export function FerroChartComponent({
   data,
   indicators = [],
   markers = [],
@@ -46,7 +46,7 @@ export function PowerChartComponent({
   height,
 }: ChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const chartRef = useRef<PowerChart | null>(null);
+  const chartRef = useRef<FerroChart | null>(null);
 
   // Initialize WASM once
   useEffect(() => {
@@ -65,7 +65,7 @@ export function PowerChartComponent({
       canvas.width = Math.round(canvas.clientWidth * dpr);
       canvas.height = Math.round(canvas.clientHeight * dpr);
 
-      chartRef.current = new PowerChart(canvas);
+      chartRef.current = new FerroChart(canvas);
     });
 
     return () => {
@@ -154,11 +154,11 @@ export function PowerChartComponent({
 ## Usage in SMR
 
 ```tsx
-import { PowerChartComponent } from './PowerChart';
+import { FerroChartComponent } from './FerroChart';
 
 function TradingView({ ohlcv, patterns }) {
   return (
-    <PowerChartComponent
+    <FerroChartComponent
       data={ohlcv}
       indicators={[
         { name: 'sma', period: 20 },

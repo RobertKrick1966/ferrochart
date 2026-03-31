@@ -1,4 +1,4 @@
-# powerchart-core
+# ferrochart-core
 
 Core data structures and layout engine. No I/O, no external dependencies.
 
@@ -24,7 +24,7 @@ Core data structures and layout engine. No I/O, no external dependencies.
 ## Usage
 
 ```rust
-use powerchart_core::*;
+use ferrochart_core::*;
 
 // Create a viewport
 let vp = Viewport {

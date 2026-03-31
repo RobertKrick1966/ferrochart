@@ -1,4 +1,4 @@
-use powerchart_core::{
+use ferrochart_core::{
     Annotations, CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition,
     MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform,
     Viewport,
@@ -1427,8 +1427,8 @@ mod tests {
 
     #[test]
     fn render_full_chart_with_indicators() {
-        use powerchart_core::indicator::{Sma, Ema, BollingerBands, Rsi, Macd};
-        use powerchart_core::Indicator;
+        use ferrochart_core::indicator::{Sma, Ema, BollingerBands, Rsi, Macd};
+        use ferrochart_core::Indicator;
 
         let data = sample_data();
         let indicators: Vec<IndicatorOutput> = vec![

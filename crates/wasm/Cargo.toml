@@ -1,17 +1,17 @@
 [package]
-name = "powerchart-wasm"
-description = "WebAssembly bindings for PowerChart"
+name = "ferrochart-wasm"
+description = "WebAssembly bindings for FerroChart"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-repository = "https://github.com/RobertKrick1966/powerchart"
+repository = "https://github.com/RobertKrick1966/ferrochart"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-powerchart-core = { path = "../core" }
-powerchart-render = { path = "../render" }
+ferrochart-core = { path = "../core" }
+ferrochart-render = { path = "../render" }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 console_error_panic_hook = "0.1"

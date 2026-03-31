@@ -1,4 +1,4 @@
-//! `PowerChart` Core — data structures and layout engine.
+//! `FerroChart` Core — data structures and layout engine.
 //!
 //! This crate contains no I/O and no external dependencies.
 
