@@ -57,6 +57,7 @@ mod tests {
             low: 100.0,
             close: 100.0,
             volume,
+            institutional_ratio: 0.0,
         }
     }
 
@@ -133,6 +134,7 @@ mod tests {
                 low: 40.0,
                 close: 55.0,
                 volume: 1000.0,
+                institutional_ratio: 0.0,
             },
             Ohlcv {
                 timestamp: 1,
@@ -141,6 +143,7 @@ mod tests {
                 low: 45.0,
                 close: 60.0,
                 volume: 2000.0,
+                institutional_ratio: 0.0,
             },
             Ohlcv {
                 timestamp: 2,
@@ -149,6 +152,7 @@ mod tests {
                 low: 50.0,
                 close: 65.0,
                 volume: 3000.0,
+                institutional_ratio: 0.0,
             },
         ];
         let out = VolumeSma { period: 3 }.compute(&data);

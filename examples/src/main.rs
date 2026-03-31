@@ -56,6 +56,7 @@ fn sample_ohlcv() -> Vec<Ohlcv> {
             low,
             close,
             volume,
+            institutional_ratio: 0.0,
         });
 
         price = close;

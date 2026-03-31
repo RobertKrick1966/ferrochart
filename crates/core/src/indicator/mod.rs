@@ -251,6 +251,7 @@ mod tests {
                 low: 100.0,
                 close: 100.0 + f64::from(i) * 0.1,
                 volume: 0.0,
+                institutional_ratio: 0.0,
             })
             .collect();
 

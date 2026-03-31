@@ -46,6 +46,7 @@ pub fn render_chart(
             low: lows[i],
             close: closes[i],
             volume: volumes[i],
+            institutional_ratio: 0.0,
         })
         .collect();
 

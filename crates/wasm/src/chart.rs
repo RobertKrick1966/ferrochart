@@ -196,6 +196,7 @@ impl FerroChart {
                 low: lows[i],
                 close: closes[i],
                 volume: volumes[i],
+                institutional_ratio: 0.0,
             })
             .collect();
 
@@ -203,6 +204,45 @@ impl FerroChart {
         let total = data.len();
         st.data = data;
         let future = total / 3; // allow scrolling 33% past data
+        st.zoom_pan = ZoomPanState::new(total, 100.min(total)).with_future_bars(future);
+        st.recompute_indicators();
+        st.dirty = true;
+    }
+
+    /// Set OHLCV data with institutional activity ratios.
+    ///
+    /// Same as `setData` but accepts an additional `institutional_ratios` array
+    /// (values 0.0–1.0) that controls split-body candle rendering.
+    #[wasm_bindgen(js_name = setDataWithRatios)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_data_with_ratios(
+        &self,
+        timestamps: &[f64],
+        opens: &[f64],
+        highs: &[f64],
+        lows: &[f64],
+        closes: &[f64],
+        volumes: &[f64],
+        institutional_ratios: &[f64],
+    ) {
+        let len = timestamps.len();
+        let data: Vec<Ohlcv> = (0..len)
+            .map(|i| Ohlcv {
+                #[allow(clippy::cast_possible_truncation)]
+                timestamp: timestamps[i] as i64,
+                open: opens[i],
+                high: highs[i],
+                low: lows[i],
+                close: closes[i],
+                volume: volumes[i],
+                institutional_ratio: institutional_ratios.get(i).copied().unwrap_or(0.0),
+            })
+            .collect();
+
+        let mut st = self.state.borrow_mut();
+        let total = data.len();
+        st.data = data;
+        let future = total / 3;
         st.zoom_pan = ZoomPanState::new(total, 100.min(total)).with_future_bars(future);
         st.recompute_indicators();
         st.dirty = true;
