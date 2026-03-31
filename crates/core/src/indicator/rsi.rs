@@ -112,6 +112,7 @@ mod tests {
             low: close,
             close,
             volume: 0.0,
+            institutional_ratio: 0.0,
         }
     }
 

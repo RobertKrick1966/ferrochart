@@ -6,12 +6,12 @@ Core data structures and layout engine. No I/O, no external dependencies.
 
 | Module | Types | Purpose |
 |---|---|---|
-| `data` | `Ohlcv`, `Series<T>`, `PriceRange`, `TimeRange` | Market data primitives |
+| `data` | `Ohlcv`, `Series<T>`, `PriceRange`, `TimeRange` | Market data primitives (`Ohlcv` includes `institutional_ratio` for split-body candles) |
 | `geometry` | `Point`, `Rect` | Pixel-space primitives |
 | `transform` | `Viewport`, `Transform` | Bidirectional data ↔ pixel coordinate mapping |
 | `layout` | `PanelLayout`, `Panel` | Multi-panel vertical layout with weighted splitting |
 | `zoom` | `ZoomPanState` | Zoom level, visible range, pan offset |
-| `candle` | `CandleGeometry` | Pixel coordinates per candlestick |
+| `candle` | `CandleGeometry` | Pixel coordinates per candlestick (carries `institutional_ratio` for split rendering) |
 | `indicator` | `Sma`, `Ema`, `BollingerBands`, `Rsi`, `Macd`, `VolumeSma` | Technical indicators (all implement `Indicator` trait) |
 
 ## Key Design Decisions

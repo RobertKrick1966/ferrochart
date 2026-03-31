@@ -11,6 +11,11 @@ pub struct Ohlcv {
     pub low: f64,
     pub close: f64,
     pub volume: f64,
+    /// Fraction of the bar attributable to institutional activity (0.0–1.0).
+    /// When > 0, the candle body is split: the bottom portion is drawn in the
+    /// institutional color and the top portion in the regular bull/bear color.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub institutional_ratio: f64,
 }
 
 /// A generic indexed series (thin wrapper over `Vec<T>`).
@@ -149,6 +154,7 @@ mod tests {
                 low: 95.0,
                 close: 105.0,
                 volume: 1000.0,
+                institutional_ratio: 0.0,
             },
             Ohlcv {
                 timestamp: 2,
@@ -157,6 +163,7 @@ mod tests {
                 low: 100.0,
                 close: 115.0,
                 volume: 1500.0,
+                institutional_ratio: 0.0,
             },
             Ohlcv {
                 timestamp: 3,
@@ -165,6 +172,7 @@ mod tests {
                 low: 90.0,
                 close: 92.0,
                 volume: 2000.0,
+                institutional_ratio: 0.0,
             },
         ]
     }

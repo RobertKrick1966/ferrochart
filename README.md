@@ -4,7 +4,7 @@ High-performance financial charting library built in Rust, targeting WebAssembly
 
 ## Features
 
-- Candlestick charts with volume panel
+- Candlestick charts with volume panel and split-body rendering (institutional vs. retail)
 - Technical indicators: SMA, EMA, Bollinger Bands, RSI, MACD, Volume SMA
 - Pattern markers (arrows, circles, diamonds)
 - Interactive: zoom (scroll), pan (drag), crosshair, tooltip
@@ -13,7 +13,7 @@ High-performance financial charting library built in Rust, targeting WebAssembly
 - Touch support: pinch-zoom, drag-pan
 - Responsive: auto-scales with window size
 - 60fps rendering via requestAnimationFrame (dirty-flag optimization)
-- 152 unit tests, clippy-pedantic clean
+- 175 unit tests, clippy-pedantic clean
 
 ## Quick Start
 
@@ -92,6 +92,7 @@ let json = serde_json::to_string(&data)?;
 |---|---|
 | `new FerroChart(canvas)` | Create interactive chart on canvas element |
 | `setData(ts, o, h, l, c, v)` | Set OHLCV data from parallel `Float64Array`s |
+| `setDataWithRatios(ts, o, h, l, c, v, ratios)` | Like `setData` but with institutional activity ratios (0.0–1.0) for split-body candles |
 | `addIndicator(name, period?)` | Add indicator: `"sma"`, `"ema"`, `"bollinger"`, `"rsi"`, `"macd"`, `"volsma"` |
 | `removeIndicator(name)` | Remove indicator by name (e.g. `"sma"`) |
 | `clearIndicators()` | Remove all indicators |

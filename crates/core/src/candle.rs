@@ -20,6 +20,8 @@ pub struct CandleGeometry {
     pub body_width: f64,
     /// `true` if close >= open (bullish candle).
     pub bullish: bool,
+    /// Institutional activity ratio (0.0–1.0) for split-body rendering.
+    pub institutional_ratio: f64,
 }
 
 impl CandleGeometry {
@@ -58,6 +60,7 @@ impl CandleGeometry {
             wick_bottom,
             body_width,
             bullish,
+            institutional_ratio: bar.institutional_ratio.clamp(0.0, 1.0),
         }
     }
 
@@ -98,6 +101,7 @@ mod tests {
             low: 95.0,
             close: 115.0,
             volume: 1000.0,
+            institutional_ratio: 0.0,
         }
     }
 
@@ -109,6 +113,7 @@ mod tests {
             low: 98.0,
             close: 102.0,
             volume: 1500.0,
+            institutional_ratio: 0.0,
         }
     }
 
@@ -211,9 +216,56 @@ mod tests {
             low: 90.0,
             close: 100.0,
             volume: 500.0,
+            institutional_ratio: 0.0,
         };
         let c = CandleGeometry::from_ohlcv(&doji, 0, &t, 0.8);
         assert!(c.bullish); // close == open → bullish
         assert!((c.body_top - c.body_bottom).abs() < 1e-9);
+    }
+
+    #[test]
+    fn institutional_ratio_propagated() {
+        let t = make_transform();
+        let bar = Ohlcv {
+            timestamp: 1,
+            open: 100.0,
+            high: 120.0,
+            low: 95.0,
+            close: 115.0,
+            volume: 1000.0,
+            institutional_ratio: 0.6,
+        };
+        let c = CandleGeometry::from_ohlcv(&bar, 0, &t, 0.8);
+        assert!((c.institutional_ratio - 0.6).abs() < 1e-9);
+    }
+
+    #[test]
+    fn institutional_ratio_clamped_to_unit() {
+        let t = make_transform();
+        let bar = Ohlcv {
+            timestamp: 1,
+            open: 100.0,
+            high: 120.0,
+            low: 95.0,
+            close: 115.0,
+            volume: 1000.0,
+            institutional_ratio: 1.5,
+        };
+        let c = CandleGeometry::from_ohlcv(&bar, 0, &t, 0.8);
+        assert!((c.institutional_ratio - 1.0).abs() < 1e-9);
+
+        let bar_neg = Ohlcv {
+            institutional_ratio: -0.3,
+            ..bar
+        };
+        let c2 = CandleGeometry::from_ohlcv(&bar_neg, 0, &t, 0.8);
+        assert!((c2.institutional_ratio).abs() < 1e-9);
+    }
+
+    #[test]
+    fn zero_ratio_is_default() {
+        let t = make_transform();
+        let c = CandleGeometry::from_ohlcv(&bullish_bar(), 0, &t, 0.8);
+        assert!((c.institutional_ratio).abs() < 1e-9);
     }
 }

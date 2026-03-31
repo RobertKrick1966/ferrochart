@@ -18,6 +18,8 @@ pub struct ChartConfig {
     pub background: Color,
     pub bullish_color: Color,
     pub bearish_color: Color,
+    /// Color for the institutional portion of a split candle body.
+    pub institutional_color: Color,
     pub wick_color: Color,
     pub axis_color: Color,
     pub grid_color: Color,
@@ -54,6 +56,7 @@ impl Default for ChartConfig {
             background: Color::rgb(22, 26, 37),
             bullish_color: Color::GREEN,
             bearish_color: Color::RED,
+            institutional_color: Color::rgb(0, 120, 255), // blue
             wick_color: Color::LIGHT_GRAY,
             axis_color: Color::GRAY,
             grid_color: Color::rgba(128, 128, 128, 40),
@@ -194,17 +197,38 @@ fn draw_candles(renderer: &mut dyn Renderer, candles: &[CandleGeometry], config:
             &wick_style,
         );
 
-        // Body
+        // Body (split when institutional_ratio > 0)
         let body_height = (c.body_bottom - c.body_top).max(1.0);
-        renderer.draw_rect(
-            Rect::new(
-                c.x - c.body_width / 2.0,
-                c.body_top,
-                c.body_width,
-                body_height,
-            ),
-            &FillStyle { color: body_color },
-        );
+        let body_x = c.x - c.body_width / 2.0;
+
+        if c.institutional_ratio > 0.0 {
+            // Bottom portion: institutional color
+            let inst_height = body_height * c.institutional_ratio;
+            let retail_height = body_height - inst_height;
+
+            // Top part: regular bull/bear color
+            renderer.draw_rect(
+                Rect::new(body_x, c.body_top, c.body_width, retail_height),
+                &FillStyle { color: body_color },
+            );
+            // Bottom part: institutional color
+            renderer.draw_rect(
+                Rect::new(
+                    body_x,
+                    c.body_top + retail_height,
+                    c.body_width,
+                    inst_height,
+                ),
+                &FillStyle {
+                    color: config.institutional_color,
+                },
+            );
+        } else {
+            renderer.draw_rect(
+                Rect::new(body_x, c.body_top, c.body_width, body_height),
+                &FillStyle { color: body_color },
+            );
+        }
     }
 }
 
@@ -1525,6 +1549,7 @@ mod tests {
                 low: 95.0,
                 close: 108.0,
                 volume: 5000.0,
+                institutional_ratio: 0.0,
             },
             Ohlcv {
                 timestamp: 1_700_086_400,
@@ -1533,6 +1558,7 @@ mod tests {
                 low: 105.0,
                 close: 112.0,
                 volume: 6000.0,
+                institutional_ratio: 0.0,
             },
             Ohlcv {
                 timestamp: 1_700_172_800,
@@ -1541,6 +1567,7 @@ mod tests {
                 low: 100.0,
                 close: 102.0,
                 volume: 8000.0,
+                institutional_ratio: 0.0,
             },
             Ohlcv {
                 timestamp: 1_700_259_200,
@@ -1549,6 +1576,7 @@ mod tests {
                 low: 98.0,
                 close: 106.0,
                 volume: 4000.0,
+                institutional_ratio: 0.0,
             },
             Ohlcv {
                 timestamp: 1_700_345_600,
@@ -1557,6 +1585,7 @@ mod tests {
                 low: 104.0,
                 close: 118.0,
                 volume: 7000.0,
+                institutional_ratio: 0.0,
             },
         ]
     }
@@ -1698,5 +1727,110 @@ mod tests {
         assert!(inset.width < r.width);
         // Symmetric: right edge moves in equally
         assert!((inset.right() - (r.right() - (inset.x - r.x))).abs() < 1e-9);
+    }
+
+    #[test]
+    fn split_candle_produces_two_rects_per_body() {
+        // One bar with institutional_ratio = 0.5 should produce 2 body rects
+        let data = vec![Ohlcv {
+            timestamp: 1_700_000_000,
+            open: 100.0,
+            high: 110.0,
+            low: 95.0,
+            close: 108.0,
+            volume: 5000.0,
+            institutional_ratio: 0.5,
+        }];
+        let mut r = crate::SvgRenderer::new(900.0, 500.0);
+        render_candlestick_chart(&mut r, &data, &ChartConfig::default());
+        let out = String::from_utf8(r.finish()).unwrap();
+        // 2 body rects (split) + 1 background + 1 chart border = 4
+        let rect_count = out.matches("<rect").count();
+        assert_eq!(
+            rect_count, 4,
+            "expected 4 rects (2 split body + bg + border), got {rect_count}"
+        );
+    }
+
+    #[test]
+    fn no_split_when_ratio_is_zero() {
+        let data = vec![Ohlcv {
+            timestamp: 1_700_000_000,
+            open: 100.0,
+            high: 110.0,
+            low: 95.0,
+            close: 108.0,
+            volume: 5000.0,
+            institutional_ratio: 0.0,
+        }];
+        let mut r = crate::SvgRenderer::new(900.0, 500.0);
+        render_candlestick_chart(&mut r, &data, &ChartConfig::default());
+        let out = String::from_utf8(r.finish()).unwrap();
+        // 1 body rect + 1 background + 1 chart border = 3
+        let rect_count = out.matches("<rect").count();
+        assert_eq!(
+            rect_count, 3,
+            "expected 3 rects (1 body + bg + border), got {rect_count}"
+        );
+    }
+
+    #[test]
+    fn split_candle_uses_institutional_color() {
+        let config = ChartConfig {
+            institutional_color: Color::rgb(0, 120, 255),
+            ..ChartConfig::default()
+        };
+        let data = vec![Ohlcv {
+            timestamp: 1_700_000_000,
+            open: 100.0,
+            high: 110.0,
+            low: 95.0,
+            close: 108.0,
+            volume: 5000.0,
+            institutional_ratio: 0.4,
+        }];
+        let mut r = crate::SvgRenderer::new(900.0, 500.0);
+        render_candlestick_chart(&mut r, &data, &config);
+        let out = String::from_utf8(r.finish()).unwrap();
+        // The institutional color rgb(0,120,255) should appear in the SVG
+        assert!(
+            out.contains("rgb(0,120,255)"),
+            "expected institutional color in SVG output"
+        );
+    }
+
+    #[test]
+    fn mixed_split_and_normal_candles() {
+        let data = vec![
+            Ohlcv {
+                timestamp: 1_700_000_000,
+                open: 100.0,
+                high: 110.0,
+                low: 95.0,
+                close: 108.0,
+                volume: 5000.0,
+                institutional_ratio: 0.0, // normal: 1 rect
+            },
+            Ohlcv {
+                timestamp: 1_700_086_400,
+                open: 108.0,
+                high: 115.0,
+                low: 105.0,
+                close: 112.0,
+                volume: 6000.0,
+                institutional_ratio: 0.7, // split: 2 rects
+            },
+        ];
+        let mut r = crate::SvgRenderer::new(900.0, 500.0);
+        render_candlestick_chart(&mut r, &data, &ChartConfig::default());
+        let out = String::from_utf8(r.finish()).unwrap();
+        // 1 normal body + 2 split body + 1 border + 1 background = ?
+        // Let's just verify the institutional color appears exactly once
+        let inst_color = ChartConfig::default().institutional_color.to_css();
+        let inst_count = out.matches(&inst_color).count();
+        assert_eq!(
+            inst_count, 1,
+            "expected 1 institutional rect, got {inst_count}"
+        );
     }
 }
