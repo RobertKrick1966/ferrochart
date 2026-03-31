@@ -12,6 +12,7 @@ Core data structures and layout engine. No I/O, no external dependencies.
 | `layout` | `PanelLayout`, `Panel` | Multi-panel vertical layout with weighted splitting |
 | `zoom` | `ZoomPanState` | Zoom level, visible range, pan offset |
 | `candle` | `CandleGeometry` | Pixel coordinates per candlestick |
+| `indicator` | `Sma`, `Ema`, `BollingerBands`, `Rsi`, `Macd`, `VolumeSma` | Technical indicators (all implement `Indicator` trait) |
 
 ## Key Design Decisions
 

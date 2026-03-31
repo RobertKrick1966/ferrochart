@@ -25,7 +25,7 @@
 - [x] `ZoomPanState` — Zoom-Level, sichtbarer Index-Range, Offset, Future Space
 - [x] `CandleGeometry` — Pixel-Koordinaten pro Kerze
 - [x] `interaction` — testbare Zoom/Pan/Hit-Test Logik
-- [x] `indicator` — SMA, EMA, Bollinger Bands, RSI, MACD mit Indicator-Trait
+- [x] `indicator` — SMA, EMA, Bollinger Bands, RSI, MACD, VolumeSMA mit Indicator-Trait
 - [x] `marker` — MarkerShape, MarkerPosition, MarkerSet
 - [x] Serde-Support (opt-in Feature) für Ohlcv, Marker-Typen
 

@@ -5,7 +5,7 @@ High-performance financial charting library built in Rust, targeting WebAssembly
 ## Features
 
 - Candlestick charts with volume panel
-- Technical indicators: SMA, EMA, Bollinger Bands, RSI, MACD
+- Technical indicators: SMA, EMA, Bollinger Bands, RSI, MACD, Volume SMA
 - Pattern markers (arrows, circles, diamonds)
 - Interactive: zoom (scroll), pan (drag), crosshair, tooltip
 - Y-axis scaling (drag on right margin, double-click to reset)
@@ -53,6 +53,7 @@ chart.addIndicator('ema', 10);
 chart.addIndicator('bollinger', 20);
 chart.addIndicator('rsi', 14);
 chart.addIndicator('macd', 26);
+chart.addIndicator('volsma', 20);
 
 // Add pattern markers
 chart.addMarker(42, 'arrow_up', 'below', 0, 200, 0, 'Hammer');
@@ -91,7 +92,7 @@ let json = serde_json::to_string(&data)?;
 |---|---|
 | `new FerroChart(canvas)` | Create interactive chart on canvas element |
 | `setData(ts, o, h, l, c, v)` | Set OHLCV data from parallel `Float64Array`s |
-| `addIndicator(name, period?)` | Add indicator: `"sma"`, `"ema"`, `"bollinger"`, `"rsi"`, `"macd"` |
+| `addIndicator(name, period?)` | Add indicator: `"sma"`, `"ema"`, `"bollinger"`, `"rsi"`, `"macd"`, `"volsma"` |
 | `removeIndicator(name)` | Remove indicator by name (e.g. `"sma"`) |
 | `clearIndicators()` | Remove all indicators |
 | `addMarker(idx, shape, pos, r, g, b, label)` | Add marker: shapes `"arrow_up"`, `"arrow_down"`, `"circle"`, `"diamond"` |

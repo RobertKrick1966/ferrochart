@@ -11,12 +11,14 @@ mod ema;
 mod macd;
 mod rsi;
 mod sma;
+mod volume_sma;
 
 pub use bollinger::BollingerBands;
 pub use ema::Ema;
 pub use macd::Macd;
 pub use rsi::Rsi;
 pub use sma::Sma;
+pub use volume_sma::VolumeSma;
 
 use crate::Ohlcv;
 
