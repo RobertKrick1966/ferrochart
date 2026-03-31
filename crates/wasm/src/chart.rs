@@ -7,7 +7,7 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
-use ferrochart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
+use ferrochart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma, VolumeSma};
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
     Annotations, Corridor, FibonacciRetracement, Indicator, IndicatorOutput, IndicatorPlacement,
@@ -236,6 +236,9 @@ impl FerroChart {
                 fast_period: 12,
                 slow_period: period.unwrap_or(26) as usize,
                 signal_period: 9,
+            }),
+            "volsma" => Box::new(VolumeSma {
+                period: period.unwrap_or(20) as usize,
             }),
             _ => return Err(JsValue::from_str(&format!("unknown indicator: {name}"))),
         };
