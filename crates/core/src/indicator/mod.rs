@@ -213,9 +213,21 @@ mod tests {
             name: "bb".to_string(),
             placement: IndicatorPlacement::Overlay,
             series: vec![
-                IndicatorSeries { name: "upper", values: vec![10.0, 20.0, 30.0], style_hint: SeriesStyle::Line },
-                IndicatorSeries { name: "mid", values: vec![8.0, 18.0, 28.0], style_hint: SeriesStyle::Line },
-                IndicatorSeries { name: "lower", values: vec![6.0, 16.0, 26.0], style_hint: SeriesStyle::Line },
+                IndicatorSeries {
+                    name: "upper",
+                    values: vec![10.0, 20.0, 30.0],
+                    style_hint: SeriesStyle::Line,
+                },
+                IndicatorSeries {
+                    name: "mid",
+                    values: vec![8.0, 18.0, 28.0],
+                    style_hint: SeriesStyle::Line,
+                },
+                IndicatorSeries {
+                    name: "lower",
+                    values: vec![6.0, 16.0, 26.0],
+                    style_hint: SeriesStyle::Line,
+                },
             ],
         };
         let sliced = output.slice(1..3);

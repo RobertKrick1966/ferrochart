@@ -5,8 +5,8 @@ use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 use ferrochart_core::{Point, Rect};
-use ferrochart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 use ferrochart_render::Renderer;
+use ferrochart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 
 /// Canvas 2D rendering backend for browsers.
 ///
@@ -56,8 +56,7 @@ impl Renderer for CanvasRenderer {
 
     fn draw_rect(&mut self, rect: Rect, fill: &FillStyle) {
         self.set_fill(fill.color);
-        self.ctx
-            .fill_rect(rect.x, rect.y, rect.width, rect.height);
+        self.ctx.fill_rect(rect.x, rect.y, rect.width, rect.height);
     }
 
     fn draw_rect_outline(&mut self, rect: Rect, style: &LineStyle) {

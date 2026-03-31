@@ -4,7 +4,7 @@
 use std::fs;
 
 use ferrochart_core::Ohlcv;
-use ferrochart_render::chart::{render_candlestick_chart, render_with_volume, ChartConfig};
+use ferrochart_render::chart::{ChartConfig, render_candlestick_chart, render_with_volume};
 use ferrochart_render::{Renderer, SvgRenderer};
 
 fn main() {
@@ -38,8 +38,8 @@ fn sample_ohlcv() -> Vec<Ohlcv> {
 
     // Deterministic pseudo-random walk
     let moves = [
-        2.5, -1.2, 3.8, -0.5, 1.7, -2.3, 4.1, -1.8, 0.9, -3.2, 2.1, 1.5, -0.8, 3.3, -2.7,
-        1.9, -1.1, 2.6, -0.3, 4.5, -3.1, 1.4, 2.2, -1.6, 0.7, -2.0, 3.0, -0.9, 1.8, -1.4,
+        2.5, -1.2, 3.8, -0.5, 1.7, -2.3, 4.1, -1.8, 0.9, -3.2, 2.1, 1.5, -0.8, 3.3, -2.7, 1.9,
+        -1.1, 2.6, -0.3, 4.5, -3.1, 1.4, 2.2, -1.6, 0.7, -2.0, 3.0, -0.9, 1.8, -1.4,
     ];
 
     for (i, &mv) in moves.iter().enumerate() {

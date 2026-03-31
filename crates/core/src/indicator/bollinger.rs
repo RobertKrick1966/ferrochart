@@ -2,8 +2,8 @@
 // Copyright (C) 2025 Robert Krick
 
 use super::{
-    closes, compute_sma, Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries,
-    SeriesStyle,
+    Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, SeriesStyle, closes,
+    compute_sma,
 };
 use crate::Ohlcv;
 
@@ -38,7 +38,8 @@ impl Indicator for BollingerBands {
             let start = i + 1 - self.period;
             let slice = &c[start..=i];
             let mean = middle[i];
-            let variance = slice.iter().map(|&v| (v - mean).powi(2)).sum::<f64>() / self.period as f64;
+            let variance =
+                slice.iter().map(|&v| (v - mean).powi(2)).sum::<f64>() / self.period as f64;
             let sd = variance.sqrt() * self.std_dev;
             upper[i] = mean + sd;
             lower[i] = mean - sd;

@@ -159,13 +159,19 @@ mod tests {
         assert!(ann.is_empty());
 
         ann.add_trend_line(TrendLine {
-            start_bar: 0.0, start_price: 100.0,
-            end_bar: 10.0, end_price: 110.0,
-            color: (255, 255, 0), width: 1.5, extend_right: false,
+            start_bar: 0.0,
+            start_price: 100.0,
+            end_bar: 10.0,
+            end_price: 110.0,
+            color: (255, 255, 0),
+            width: 1.5,
+            extend_right: false,
         });
         ann.add_fibonacci(FibonacciRetracement {
-            high_bar: 10, high_price: 200.0,
-            low_bar: 0, low_price: 100.0,
+            high_bar: 10,
+            high_price: 200.0,
+            low_bar: 0,
+            low_price: 100.0,
             color: (255, 165, 0),
         });
         assert!(!ann.is_empty());
@@ -177,9 +183,13 @@ mod tests {
     #[test]
     fn trend_line_extend_right() {
         let line = TrendLine {
-            start_bar: 5.0, start_price: 100.0,
-            end_bar: 15.0, end_price: 120.0,
-            color: (0, 255, 0), width: 2.0, extend_right: true,
+            start_bar: 5.0,
+            start_price: 100.0,
+            end_bar: 15.0,
+            end_price: 120.0,
+            color: (0, 255, 0),
+            width: 2.0,
+            extend_right: true,
         };
         // Slope = (120-100) / (15-5) = 2.0 per bar
         let slope = (line.end_price - line.start_price) / (line.end_bar - line.start_bar);

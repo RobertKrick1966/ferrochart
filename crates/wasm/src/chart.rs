@@ -10,13 +10,15 @@ use web_sys::HtmlCanvasElement;
 use ferrochart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
-    Annotations, Corridor, FibonacciRetracement, Indicator, IndicatorOutput, IndicatorPlacement, Marker,
-    MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
+    Annotations, Corridor, FibonacciRetracement, Indicator, IndicatorOutput, IndicatorPlacement,
+    Marker, MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
     TimeRange, Transform, TrendLine, Viewport, ZoomPanState,
 };
-use ferrochart_render::chart::{render_full_chart_with_markers, ChartConfig, ChartLayoutInfo, PanelKind};
-use ferrochart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 use ferrochart_render::Renderer;
+use ferrochart_render::chart::{
+    ChartConfig, ChartLayoutInfo, PanelKind, render_full_chart_with_markers,
+};
+use ferrochart_render::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 
 use crate::CanvasRenderer;
 
@@ -217,13 +219,19 @@ impl FerroChart {
     #[wasm_bindgen(js_name = addIndicator)]
     pub fn add_indicator(&self, name: &str, period: Option<u32>) -> Result<(), JsValue> {
         let indicator: Box<dyn Indicator> = match name {
-            "sma" => Box::new(Sma { period: period.unwrap_or(20) as usize }),
-            "ema" => Box::new(Ema { period: period.unwrap_or(20) as usize }),
+            "sma" => Box::new(Sma {
+                period: period.unwrap_or(20) as usize,
+            }),
+            "ema" => Box::new(Ema {
+                period: period.unwrap_or(20) as usize,
+            }),
             "bollinger" => Box::new(BollingerBands {
                 period: period.unwrap_or(20) as usize,
                 std_dev: 2.0,
             }),
-            "rsi" => Box::new(Rsi { period: period.unwrap_or(14) as usize }),
+            "rsi" => Box::new(Rsi {
+                period: period.unwrap_or(14) as usize,
+            }),
             "macd" => Box::new(Macd {
                 fast_period: 12,
                 slow_period: period.unwrap_or(26) as usize,
@@ -320,15 +328,21 @@ impl FerroChart {
     #[allow(clippy::too_many_arguments)]
     pub fn add_trend_line(
         &self,
-        start_bar: f64, start_price: f64,
-        end_bar: f64, end_price: f64,
-        r: u8, g: u8, b: u8,
+        start_bar: f64,
+        start_price: f64,
+        end_bar: f64,
+        end_price: f64,
+        r: u8,
+        g: u8,
+        b: u8,
         extend_right: bool,
     ) {
         let mut st = self.state.borrow_mut();
         st.annotations.add_trend_line(TrendLine {
-            start_bar, start_price,
-            end_bar, end_price,
+            start_bar,
+            start_price,
+            end_bar,
+            end_price,
             color: (r, g, b),
             width: 1.5,
             extend_right,
@@ -341,9 +355,13 @@ impl FerroChart {
     #[allow(clippy::too_many_arguments)]
     pub fn add_fibonacci(
         &self,
-        high_bar: u32, high_price: f64,
-        low_bar: u32, low_price: f64,
-        r: u8, g: u8, b: u8,
+        high_bar: u32,
+        high_price: f64,
+        low_bar: u32,
+        low_price: f64,
+        r: u8,
+        g: u8,
+        b: u8,
     ) {
         let mut st = self.state.borrow_mut();
         st.annotations.add_fibonacci(FibonacciRetracement {
@@ -489,78 +507,92 @@ fn attach_mouse_events(
         let y_axis_left = st.config.width - st.config.margin.right;
 
         // Drawing mode takes priority
-        if st.draw_mode != DrawMode::None && pos.x < y_axis_left
+        if st.draw_mode != DrawMode::None
+            && pos.x < y_axis_left
             && let Some(data_pos) = pixel_to_data(&st, pos)
         {
-                if let Some(start) = st.drawing {
-                    match st.draw_mode {
-                        DrawMode::TrendLine => {
-                            st.annotations.add_trend_line(TrendLine {
-                                start_bar: start.start_bar,
-                                start_price: start.start_price,
-                                end_bar: data_pos.0,
-                                end_price: data_pos.1,
-                                color: (255, 255, 0),
-                                width: 1.5,
-                                extend_right: true,
-                            });
-                            st.drawing = None;
-                            st.draw_mode = DrawMode::None;
-                        }
-                        DrawMode::Fibonacci => {
-                            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                            let (high_bar, high_price, low_bar, low_price) =
-                                if start.start_price >= data_pos.1 {
-                                    (start.start_bar as usize, start.start_price, data_pos.0 as usize, data_pos.1)
-                                } else {
-                                    (data_pos.0 as usize, data_pos.1, start.start_bar as usize, start.start_price)
-                                };
-                            st.annotations.add_fibonacci(FibonacciRetracement {
-                                high_bar, high_price, low_bar, low_price,
-                                color: (255, 165, 0),
-                            });
-                            st.drawing = None;
-                            st.draw_mode = DrawMode::None;
-                        }
-                        DrawMode::Corridor => {
-                            if let (Some(end_bar), Some(end_price)) = (start.end_bar, start.end_price) {
-                                // Third click → set corridor offset
-                                let price_offset = data_pos.1 - start.start_price;
-                                st.annotations.add_corridor(Corridor {
-                                    line: TrendLine {
-                                        start_bar: start.start_bar,
-                                        start_price: start.start_price,
-                                        end_bar,
-                                        end_price,
-                                        color: (0, 150, 255),
-                                        width: 1.0,
-                                        extend_right: true,
-                                    },
-                                    offset: price_offset,
-                                });
-                                st.drawing = None;
-                                st.draw_mode = DrawMode::None;
+            if let Some(start) = st.drawing {
+                match st.draw_mode {
+                    DrawMode::TrendLine => {
+                        st.annotations.add_trend_line(TrendLine {
+                            start_bar: start.start_bar,
+                            start_price: start.start_price,
+                            end_bar: data_pos.0,
+                            end_price: data_pos.1,
+                            color: (255, 255, 0),
+                            width: 1.5,
+                            extend_right: true,
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::Fibonacci => {
+                        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                        let (high_bar, high_price, low_bar, low_price) =
+                            if start.start_price >= data_pos.1 {
+                                (
+                                    start.start_bar as usize,
+                                    start.start_price,
+                                    data_pos.0 as usize,
+                                    data_pos.1,
+                                )
                             } else {
-                                // Second click → set end of trendline, wait for third
-                                st.drawing = Some(DrawingInProgress {
+                                (
+                                    data_pos.0 as usize,
+                                    data_pos.1,
+                                    start.start_bar as usize,
+                                    start.start_price,
+                                )
+                            };
+                        st.annotations.add_fibonacci(FibonacciRetracement {
+                            high_bar,
+                            high_price,
+                            low_bar,
+                            low_price,
+                            color: (255, 165, 0),
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::Corridor => {
+                        if let (Some(end_bar), Some(end_price)) = (start.end_bar, start.end_price) {
+                            // Third click → set corridor offset
+                            let price_offset = data_pos.1 - start.start_price;
+                            st.annotations.add_corridor(Corridor {
+                                line: TrendLine {
                                     start_bar: start.start_bar,
                                     start_price: start.start_price,
-                                    end_bar: Some(data_pos.0),
-                                    end_price: Some(data_pos.1),
-                                });
-                            }
+                                    end_bar,
+                                    end_price,
+                                    color: (0, 150, 255),
+                                    width: 1.0,
+                                    extend_right: true,
+                                },
+                                offset: price_offset,
+                            });
+                            st.drawing = None;
+                            st.draw_mode = DrawMode::None;
+                        } else {
+                            // Second click → set end of trendline, wait for third
+                            st.drawing = Some(DrawingInProgress {
+                                start_bar: start.start_bar,
+                                start_price: start.start_price,
+                                end_bar: Some(data_pos.0),
+                                end_price: Some(data_pos.1),
+                            });
                         }
-                        DrawMode::None => {}
                     }
-                } else {
-                    // First click → start drawing
-                    st.drawing = Some(DrawingInProgress {
-                        start_bar: data_pos.0,
-                        start_price: data_pos.1,
-                        end_bar: None,
-                        end_price: None,
-                    });
+                    DrawMode::None => {}
                 }
+            } else {
+                // First click → start drawing
+                st.drawing = Some(DrawingInProgress {
+                    start_bar: data_pos.0,
+                    start_price: data_pos.1,
+                    end_bar: None,
+                    end_price: None,
+                });
+            }
             st.dirty = true;
             return;
         }
@@ -572,15 +604,16 @@ fn attach_mouse_events(
             st.y_drag_start_scale = st.price_scale;
         } else if let Some(panel_idx) = find_splitter_at_y(&st, pos.y) {
             // Click on a splitter gap → start splitter drag
-            let num_sub = st.cached_outputs.iter()
+            let num_sub = st
+                .cached_outputs
+                .iter()
                 .filter(|o| o.placement != IndicatorPlacement::Overlay)
                 .count();
-            let weights = st.panel_weights.clone()
-                .unwrap_or_else(|| {
-                    let mut w = vec![55.0, 20.0];
-                    w.extend(std::iter::repeat_n(15.0, num_sub));
-                    w
-                });
+            let weights = st.panel_weights.clone().unwrap_or_else(|| {
+                let mut w = vec![55.0, 20.0];
+                w.extend(std::iter::repeat_n(15.0, num_sub));
+                w
+            });
             st.splitter_drag = Some(SplitterDrag {
                 panel_above: panel_idx,
                 start_y: pos.y,
@@ -630,7 +663,8 @@ fn attach_mouse_events(
         st.y_drag_active = false;
         st.dirty = true;
     }) as Box<dyn FnMut(web_sys::MouseEvent)>);
-    canvas.add_event_listener_with_callback("mouseleave", on_mouseleave.as_ref().unchecked_ref())?;
+    canvas
+        .add_event_listener_with_callback("mouseleave", on_mouseleave.as_ref().unchecked_ref())?;
     closures.push(on_mouseleave);
 
     Ok(())
@@ -722,7 +756,9 @@ fn attach_touch_events(
         }
     }) as Box<dyn FnMut(web_sys::TouchEvent)>);
     canvas.add_event_listener_with_callback_and_add_event_listener_options(
-        "touchstart", on_touchstart.as_ref().unchecked_ref(), &opts,
+        "touchstart",
+        on_touchstart.as_ref().unchecked_ref(),
+        &opts,
     )?;
     closures.push(on_touchstart);
 
@@ -751,14 +787,16 @@ fn attach_touch_events(
                     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                     let new_visible = (st.pinch_start_visible as f64 / scale)
                         .round()
-                        .clamp(5.0, st.zoom_pan.total_bars as f64) as usize;
+                        .clamp(5.0, st.zoom_pan.total_bars as f64)
+                        as usize;
                     // Keep centered
                     let mid = st.zoom_pan.offset + st.zoom_pan.visible_bars / 2;
                     let new_offset = mid.saturating_sub(new_visible / 2);
                     st.zoom_pan = ZoomPanState {
                         visible_bars: new_visible,
                         offset: new_offset,
-                        total_bars: st.zoom_pan.total_bars, future_bars: 0,
+                        total_bars: st.zoom_pan.total_bars,
+                        future_bars: 0,
                     };
                     // Clamp
                     st.zoom_pan = st.zoom_pan.pan(0);
@@ -768,7 +806,9 @@ fn attach_touch_events(
         }
     }) as Box<dyn FnMut(web_sys::TouchEvent)>);
     canvas.add_event_listener_with_callback_and_add_event_listener_options(
-        "touchmove", on_touchmove.as_ref().unchecked_ref(), &opts,
+        "touchmove",
+        on_touchmove.as_ref().unchecked_ref(),
+        &opts,
     )?;
     closures.push(on_touchmove);
 
@@ -905,7 +945,9 @@ fn pixel_to_data(st: &ChartState, pos: Point) -> Option<(f64, f64)> {
 /// Returns the index of the panel above the gap, or None.
 fn find_splitter_at_y(st: &ChartState, y: f64) -> Option<usize> {
     // We need to reconstruct the panel layout to find gaps.
-    let num_sub = st.cached_outputs.iter()
+    let num_sub = st
+        .cached_outputs
+        .iter()
         .filter(|o| o.placement != IndicatorPlacement::Overlay)
         .count();
     let expected = 2 + num_sub;
@@ -961,7 +1003,8 @@ fn render_frame(st: &mut ChartState) {
     };
 
     // Slice cached indicator outputs for visible range
-    let outputs: Vec<IndicatorOutput> = st.cached_outputs
+    let outputs: Vec<IndicatorOutput> = st
+        .cached_outputs
         .iter()
         .map(|out| out.slice(start..end))
         .collect();
@@ -991,7 +1034,14 @@ fn render_frame(st: &mut ChartState) {
         None
     };
 
-    let layout_info = render_full_chart_with_markers(&mut renderer, visible_data, &outputs, &marker_refs, &st.annotations, &st.config);
+    let layout_info = render_full_chart_with_markers(
+        &mut renderer,
+        visible_data,
+        &outputs,
+        &marker_refs,
+        &st.annotations,
+        &st.config,
+    );
     st.last_layout = layout_info.clone();
 
     // Crosshair + Tooltip
@@ -1007,19 +1057,36 @@ fn render_frame(st: &mut ChartState) {
                 width: 0.5,
             };
             renderer.draw_line(
-                Point { x: mouse.x, y: chart_top },
-                Point { x: mouse.x, y: chart_bottom },
+                Point {
+                    x: mouse.x,
+                    y: chart_top,
+                },
+                Point {
+                    x: mouse.x,
+                    y: chart_bottom,
+                },
                 &crosshair_style,
             );
             renderer.draw_line(
-                Point { x: chart_left, y: mouse.y },
-                Point { x: chart_right, y: mouse.y },
+                Point {
+                    x: chart_left,
+                    y: mouse.y,
+                },
+                Point {
+                    x: chart_right,
+                    y: mouse.y,
+                },
                 &crosshair_style,
             );
 
             draw_tooltip(
-                &mut renderer, mouse, visible_data, &outputs, &adjusted_markers,
-                &layout_info, &st.config,
+                &mut renderer,
+                mouse,
+                visible_data,
+                &outputs,
+                &adjusted_markers,
+                &layout_info,
+                &st.config,
             );
 
             // Drawing preview
@@ -1076,10 +1143,17 @@ fn draw_preview(
             for &level in &levels {
                 let price = high - range_val * level;
                 let y = transform.price_y(price);
-                let alpha = if level < f64::EPSILON || (level - 1.0).abs() < f64::EPSILON { 180 } else { 80 };
+                let alpha = if level < f64::EPSILON || (level - 1.0).abs() < f64::EPSILON {
+                    180
+                } else {
+                    80
+                };
                 renderer.draw_line(
                     Point { x: chart_rect.x, y },
-                    Point { x: chart_rect.right(), y },
+                    Point {
+                        x: chart_rect.right(),
+                        y,
+                    },
                     &LineStyle {
                         color: Color::rgba(255, 165, 0, alpha),
                         width: 0.5,
@@ -1087,10 +1161,14 @@ fn draw_preview(
                 );
             }
             // Also draw vertical connection line
-            renderer.draw_line(start_pixel, mouse, &LineStyle {
-                color: Color::rgba(255, 165, 0, 100),
-                width: 0.5,
-            });
+            renderer.draw_line(
+                start_pixel,
+                mouse,
+                &LineStyle {
+                    color: Color::rgba(255, 165, 0, 100),
+                    width: 0.5,
+                },
+            );
         }
         DrawMode::Corridor => {
             let style = LineStyle {
@@ -1108,10 +1186,14 @@ fn draw_preview(
                 let offset = mouse_price - drawing.start_price;
                 let p1 = transform.to_pixel(rel_start_bar, drawing.start_price + offset);
                 let p2 = transform.to_pixel(rel_end, end_price + offset);
-                renderer.draw_line(p1, p2, &LineStyle {
-                    color: Color::rgba(0, 150, 255, 100),
-                    width: 1.0,
-                });
+                renderer.draw_line(
+                    p1,
+                    p2,
+                    &LineStyle {
+                        color: Color::rgba(0, 150, 255, 100),
+                        width: 1.0,
+                    },
+                );
             } else {
                 // Before second click: show line from start to mouse
                 renderer.draw_line(start_pixel, mouse, &style);
@@ -1122,7 +1204,12 @@ fn draw_preview(
 }
 
 /// Draw a panel-aware tooltip for the hovered bar.
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::too_many_lines)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::too_many_lines
+)]
 fn draw_tooltip(
     renderer: &mut CanvasRenderer,
     mouse: Point,
@@ -1137,9 +1224,10 @@ fn draw_tooltip(
     }
 
     // Find which panel the mouse is in
-    let active_panel = layout_info.panels.iter().find(|p| {
-        mouse.y >= p.rect.y && mouse.y <= p.rect.bottom()
-    });
+    let active_panel = layout_info
+        .panels
+        .iter()
+        .find(|p| mouse.y >= p.rect.y && mouse.y <= p.rect.bottom());
 
     // Reconstruct transform to map mouse X to bar index
     let chart_rect = Rect::new(
@@ -1161,7 +1249,11 @@ fn draw_tooltip(
     );
     let price_range = PriceRange::from_ohlcv(data).unwrap_or(PriceRange::new(0.0, 100.0));
     let time_range = TimeRange::new(0, data.len());
-    let vp = Viewport { rect: data_rect, time_range, price_range };
+    let vp = Viewport {
+        rect: data_rect,
+        time_range,
+        price_range,
+    };
     let transform = Transform::from_viewport(&vp);
 
     let (bar_f, _) = transform.to_data(mouse);
@@ -1251,11 +1343,16 @@ fn draw_tooltip(
     // Background
     renderer.draw_rect(
         Rect::new(tx, ty, tooltip_width, tooltip_height),
-        &FillStyle { color: Color::rgba(22, 26, 37, 220) },
+        &FillStyle {
+            color: Color::rgba(22, 26, 37, 220),
+        },
     );
     renderer.draw_rect_outline(
         Rect::new(tx, ty, tooltip_width, tooltip_height),
-        &LineStyle { color: Color::GRAY, width: 0.5 },
+        &LineStyle {
+            color: Color::GRAY,
+            width: 0.5,
+        },
     );
 
     // Text

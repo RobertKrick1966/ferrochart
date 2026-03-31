@@ -2,8 +2,8 @@
 // Copyright (C) 2025 Robert Krick
 
 use super::{
-    closes, compute_ema, Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries,
-    SeriesStyle,
+    Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, SeriesStyle, closes,
+    compute_ema,
 };
 use crate::Ohlcv;
 

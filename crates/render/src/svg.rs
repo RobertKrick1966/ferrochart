@@ -5,8 +5,8 @@ use std::fmt::Write;
 
 use ferrochart_core::{Point, Rect};
 
-use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 use crate::Renderer;
+use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 
 /// SVG rendering backend.
 ///

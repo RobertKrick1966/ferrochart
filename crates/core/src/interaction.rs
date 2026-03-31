@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025 Robert Krick
 
-use crate::{ZoomPanState};
 use crate::Point;
+use crate::ZoomPanState;
 
 /// Result of processing a drag movement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,7 +16,11 @@ pub struct DragUpdate {
 /// `chart_left` / `chart_width` define the chart's data area in pixels.
 /// `delta_y` is the wheel delta (positive = scroll down = zoom out).
 #[must_use]
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 pub fn compute_zoom(
     state: ZoomPanState,
     mouse_x: f64,
@@ -40,7 +44,11 @@ pub fn compute_zoom(
 /// `chart_width` is the pixel width of the chart data area.
 /// `drag_start_offset` is the `zoom_pan.offset` when the drag began.
 #[must_use]
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 pub fn compute_pan(
     state: ZoomPanState,
     dx: f64,
@@ -78,7 +86,8 @@ mod tests {
         ZoomPanState {
             visible_bars: 50,
             offset: 25,
-            total_bars: 100, future_bars: 0,
+            total_bars: 100,
+            future_bars: 0,
         }
     }
 
@@ -122,7 +131,8 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 5,
             offset: 0,
-            total_bars: 0, future_bars: 0,
+            total_bars: 0,
+            future_bars: 0,
         };
         let zoomed = compute_zoom(state, 400.0, 0.0, 800.0, -1.0);
         assert_eq!(zoomed, state);
@@ -140,7 +150,8 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 5,
             offset: 0,
-            total_bars: 100, future_bars: 0,
+            total_bars: 100,
+            future_bars: 0,
         };
         // Zoom in aggressively — should not go below 5
         let zoomed = compute_zoom(state, 400.0, 0.0, 800.0, -1.0);
@@ -152,7 +163,8 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 95,
             offset: 0,
-            total_bars: 100, future_bars: 0,
+            total_bars: 100,
+            future_bars: 0,
         };
         // Keep zooming out
         let mut s = state;
@@ -186,7 +198,8 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 50,
             offset: 2,
-            total_bars: 100, future_bars: 0,
+            total_bars: 100,
+            future_bars: 0,
         };
         let panned = compute_pan(state, 500.0, 800.0, state.offset);
         assert_eq!(panned.offset, 0);
@@ -197,7 +210,8 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 50,
             offset: 48,
-            total_bars: 100, future_bars: 0,
+            total_bars: 100,
+            future_bars: 0,
         };
         let panned = compute_pan(state, -500.0, 800.0, state.offset);
         assert_eq!(panned.offset, 50); // max = 100 - 50
@@ -216,7 +230,8 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 5,
             offset: 0,
-            total_bars: 0, future_bars: 0,
+            total_bars: 0,
+            future_bars: 0,
         };
         let panned = compute_pan(state, 100.0, 800.0, 0);
         assert_eq!(panned, state);
@@ -227,7 +242,8 @@ mod tests {
         let state = ZoomPanState {
             visible_bars: 50,
             offset: 30,
-            total_bars: 100, future_bars: 0,
+            total_bars: 100,
+            future_bars: 0,
         };
         // Simulate drag that started at offset 10
         let panned = compute_pan(state, -80.0, 800.0, 10);
@@ -239,19 +255,55 @@ mod tests {
 
     #[test]
     fn point_inside_chart() {
-        assert!(is_in_chart_area(Point { x: 50.0, y: 50.0 }, 10.0, 100.0, 10.0, 100.0));
+        assert!(is_in_chart_area(
+            Point { x: 50.0, y: 50.0 },
+            10.0,
+            100.0,
+            10.0,
+            100.0
+        ));
     }
 
     #[test]
     fn point_on_edge() {
-        assert!(is_in_chart_area(Point { x: 10.0, y: 10.0 }, 10.0, 100.0, 10.0, 100.0));
-        assert!(is_in_chart_area(Point { x: 100.0, y: 100.0 }, 10.0, 100.0, 10.0, 100.0));
+        assert!(is_in_chart_area(
+            Point { x: 10.0, y: 10.0 },
+            10.0,
+            100.0,
+            10.0,
+            100.0
+        ));
+        assert!(is_in_chart_area(
+            Point { x: 100.0, y: 100.0 },
+            10.0,
+            100.0,
+            10.0,
+            100.0
+        ));
     }
 
     #[test]
     fn point_outside_chart() {
-        assert!(!is_in_chart_area(Point { x: 5.0, y: 50.0 }, 10.0, 100.0, 10.0, 100.0));
-        assert!(!is_in_chart_area(Point { x: 50.0, y: 5.0 }, 10.0, 100.0, 10.0, 100.0));
-        assert!(!is_in_chart_area(Point { x: 105.0, y: 50.0 }, 10.0, 100.0, 10.0, 100.0));
+        assert!(!is_in_chart_area(
+            Point { x: 5.0, y: 50.0 },
+            10.0,
+            100.0,
+            10.0,
+            100.0
+        ));
+        assert!(!is_in_chart_area(
+            Point { x: 50.0, y: 5.0 },
+            10.0,
+            100.0,
+            10.0,
+            100.0
+        ));
+        assert!(!is_in_chart_area(
+            Point { x: 105.0, y: 50.0 },
+            10.0,
+            100.0,
+            10.0,
+            100.0
+        ));
     }
 }

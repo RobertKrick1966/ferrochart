@@ -32,10 +32,7 @@ impl PanelLayout {
         assert!(!weights.is_empty(), "weights must not be empty");
 
         let weight_sum: f64 = weights.iter().sum();
-        assert!(
-            weight_sum > f64::EPSILON,
-            "sum of weights must be positive"
-        );
+        assert!(weight_sum > f64::EPSILON, "sum of weights must be positive");
 
         let num_gaps = weights.len().saturating_sub(1);
         #[allow(clippy::cast_precision_loss)]
@@ -89,7 +86,6 @@ impl<'a> IntoIterator for &'a PanelLayout {
 }
 
 impl PanelLayout {
-
     /// Find which panel contains the given Y coordinate.
     /// Returns `None` if Y is in a gap or outside the layout.
     #[must_use]

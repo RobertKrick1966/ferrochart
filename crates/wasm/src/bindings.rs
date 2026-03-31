@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
 use ferrochart_core::Ohlcv;
-use ferrochart_render::chart::{render_with_volume, ChartConfig};
+use ferrochart_render::chart::{ChartConfig, render_with_volume};
 
 use crate::CanvasRenderer;
 

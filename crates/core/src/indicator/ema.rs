@@ -2,8 +2,8 @@
 // Copyright (C) 2025 Robert Krick
 
 use super::{
-    closes, compute_ema, Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries,
-    SeriesStyle,
+    Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, SeriesStyle, closes,
+    compute_ema,
 };
 use crate::Ohlcv;
 
@@ -53,10 +53,12 @@ mod tests {
 
     #[test]
     fn ema_basic() {
-        let data: Vec<Ohlcv> = [22.27, 22.19, 22.08, 22.17, 22.18, 22.13, 22.23, 22.43, 22.24, 22.29]
-            .iter()
-            .map(|&c| bar(c))
-            .collect();
+        let data: Vec<Ohlcv> = [
+            22.27, 22.19, 22.08, 22.17, 22.18, 22.13, 22.23, 22.43, 22.24, 22.29,
+        ]
+        .iter()
+        .map(|&c| bar(c))
+        .collect();
         let out = Ema { period: 10 }.compute(&data);
         let v = &out.series[0].values;
         // First 9 are NaN

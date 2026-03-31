@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025 Robert Krick
 
-use super::{
-    closes, Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, SeriesStyle,
-};
+use super::{Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, SeriesStyle, closes};
 use crate::Ohlcv;
 
 /// Relative Strength Index.
@@ -142,8 +140,8 @@ mod tests {
     #[test]
     fn rsi_in_range() {
         let data: Vec<Ohlcv> = [
-            44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42, 45.84, 46.08, 45.89,
-            46.03, 45.61, 46.28, 46.28, 46.00, 46.03, 46.41, 46.22, 45.64,
+            44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42, 45.84, 46.08, 45.89, 46.03,
+            45.61, 46.28, 46.28, 46.00, 46.03, 46.41, 46.22, 45.64,
         ]
         .iter()
         .map(|&c| bar(c))
@@ -185,6 +183,8 @@ mod tests {
     #[test]
     fn rsi_placement_is_sub_panel() {
         let p = Rsi { period: 14 }.placement();
-        assert!(matches!(p, IndicatorPlacement::SubPanel { y_min, y_max } if (y_min - 0.0).abs() < f64::EPSILON && (y_max - 100.0).abs() < f64::EPSILON));
+        assert!(
+            matches!(p, IndicatorPlacement::SubPanel { y_min, y_max } if (y_min - 0.0).abs() < f64::EPSILON && (y_max - 100.0).abs() < f64::EPSILON)
+        );
     }
 }

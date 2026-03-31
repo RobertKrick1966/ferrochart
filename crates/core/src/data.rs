@@ -55,7 +55,6 @@ impl<'a, T> IntoIterator for &'a Series<T> {
 }
 
 impl<T> Series<T> {
-
     /// Return a sub-slice. Panics if `range` is out of bounds.
     #[must_use]
     pub fn slice(&self, range: std::ops::Range<usize>) -> &[T] {
@@ -143,9 +142,30 @@ mod tests {
 
     fn sample_bars() -> Vec<Ohlcv> {
         vec![
-            Ohlcv { timestamp: 1, open: 100.0, high: 110.0, low: 95.0, close: 105.0, volume: 1000.0 },
-            Ohlcv { timestamp: 2, open: 105.0, high: 120.0, low: 100.0, close: 115.0, volume: 1500.0 },
-            Ohlcv { timestamp: 3, open: 115.0, high: 118.0, low: 90.0, close: 92.0, volume: 2000.0 },
+            Ohlcv {
+                timestamp: 1,
+                open: 100.0,
+                high: 110.0,
+                low: 95.0,
+                close: 105.0,
+                volume: 1000.0,
+            },
+            Ohlcv {
+                timestamp: 2,
+                open: 105.0,
+                high: 120.0,
+                low: 100.0,
+                close: 115.0,
+                volume: 1500.0,
+            },
+            Ohlcv {
+                timestamp: 3,
+                open: 115.0,
+                high: 118.0,
+                low: 90.0,
+                close: 92.0,
+                volume: 2000.0,
+            },
         ]
     }
 

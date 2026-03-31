@@ -7,8 +7,8 @@ use ferrochart_core::{
     Viewport,
 };
 
-use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 use crate::Renderer;
+use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 
 /// Configuration for chart rendering.
 #[derive(Debug, Clone)]
@@ -71,14 +71,14 @@ impl Default for ChartConfig {
             visible_bar_slots: None,
             visible_offset: 0,
             indicator_colors: vec![
-                Color::rgb(255, 235, 59),  // yellow
-                Color::rgb(0, 188, 212),   // cyan
-                Color::rgb(233, 30, 99),   // pink
-                Color::rgb(255, 152, 0),   // orange
-                Color::rgb(103, 58, 183),  // purple
-                Color::rgb(76, 175, 80),   // light green
-                Color::rgb(33, 150, 243),  // blue
-                Color::rgb(255, 87, 34),   // deep orange
+                Color::rgb(255, 235, 59), // yellow
+                Color::rgb(0, 188, 212),  // cyan
+                Color::rgb(233, 30, 99),  // pink
+                Color::rgb(255, 152, 0),  // orange
+                Color::rgb(103, 58, 183), // purple
+                Color::rgb(76, 175, 80),  // light green
+                Color::rgb(33, 150, 243), // blue
+                Color::rgb(255, 87, 34),  // deep orange
             ],
         }
     }
@@ -103,14 +103,14 @@ impl ChartConfig {
             grid_color: Color::rgba(0, 0, 0, 20),
             text_color: Color::rgb(60, 60, 60),
             indicator_colors: vec![
-                Color::rgb(41, 128, 185),   // blue
-                Color::rgb(231, 76, 60),    // red
-                Color::rgb(39, 174, 96),    // green
-                Color::rgb(243, 156, 18),   // orange
-                Color::rgb(142, 68, 173),   // purple
-                Color::rgb(22, 160, 133),   // teal
-                Color::rgb(211, 84, 0),     // dark orange
-                Color::rgb(44, 62, 80),     // dark blue
+                Color::rgb(41, 128, 185), // blue
+                Color::rgb(231, 76, 60),  // red
+                Color::rgb(39, 174, 96),  // green
+                Color::rgb(243, 156, 18), // orange
+                Color::rgb(142, 68, 173), // purple
+                Color::rgb(22, 160, 133), // teal
+                Color::rgb(211, 84, 0),   // dark orange
+                Color::rgb(44, 62, 80),   // dark blue
             ],
             ..Self::default()
         }
@@ -119,11 +119,7 @@ impl ChartConfig {
 
 /// Render a candlestick chart into the given renderer.
 #[allow(clippy::cast_precision_loss)]
-pub fn render_candlestick_chart(
-    renderer: &mut dyn Renderer,
-    data: &[Ohlcv],
-    config: &ChartConfig,
-) {
+pub fn render_candlestick_chart(renderer: &mut dyn Renderer, data: &[Ohlcv], config: &ChartConfig) {
     if data.is_empty() {
         return;
     }
@@ -201,7 +197,12 @@ fn draw_candles(renderer: &mut dyn Renderer, candles: &[CandleGeometry], config:
         // Body
         let body_height = (c.body_bottom - c.body_top).max(1.0);
         renderer.draw_rect(
-            Rect::new(c.x - c.body_width / 2.0, c.body_top, c.body_width, body_height),
+            Rect::new(
+                c.x - c.body_width / 2.0,
+                c.body_top,
+                c.body_width,
+                body_height,
+            ),
             &FillStyle { color: body_color },
         );
     }
@@ -235,10 +236,7 @@ fn draw_y_axis(
 
         // Grid line
         renderer.draw_line(
-            Point {
-                x: chart_rect.x,
-                y,
-            },
+            Point { x: chart_rect.x, y },
             Point {
                 x: chart_rect.right(),
                 y,
@@ -328,7 +326,9 @@ fn draw_date_labels(
         let days = bar.timestamp / 86_400;
         let (year, month, day) = days_to_ymd(days);
         if let Some(last) = day_spans.last_mut()
-            && last.0 == year && last.1 == month && last.2 == day
+            && last.0 == year
+            && last.1 == month
+            && last.2 == day
         {
             last.4 = i;
             continue;
@@ -342,7 +342,10 @@ fn draw_date_labels(
 
         renderer.draw_text(
             &label,
-            Point { x: x_center, y: chart_rect.bottom() + 30.0 },
+            Point {
+                x: x_center,
+                y: chart_rect.bottom() + 30.0,
+            },
             &text_style,
             TextAnchor::Middle,
         );
@@ -370,7 +373,8 @@ fn draw_month_labels(
     for (i, bar) in data.iter().enumerate() {
         let (year, month, _day) = days_to_ymd(bar.timestamp / 86_400);
         if let Some(last) = month_spans.last_mut()
-            && last.0 == year && last.1 == month
+            && last.0 == year
+            && last.1 == month
         {
             last.3 = i;
             continue;
@@ -445,7 +449,10 @@ fn draw_volume_axis(
 
         renderer.draw_line(
             Point { x: panel_rect.x, y },
-            Point { x: panel_rect.right(), y },
+            Point {
+                x: panel_rect.right(),
+                y,
+            },
             &grid_style,
         );
 
@@ -483,7 +490,12 @@ fn inset_rect_horizontal(rect: &Rect, num_bars: usize) -> Rect {
         rect.width
     };
     let inset = bar_width * 0.5;
-    Rect::new(rect.x + inset, rect.y, rect.width - 2.0 * inset, rect.height)
+    Rect::new(
+        rect.x + inset,
+        rect.y,
+        rect.width - 2.0 * inset,
+        rect.height,
+    )
 }
 
 /// Detect the average interval between bars in seconds.
@@ -538,11 +550,7 @@ fn days_to_ymd(days: i64) -> (i64, u32, u32) {
 ///
 /// Panics if the internal panel layout cannot be constructed (should not happen).
 #[allow(clippy::cast_precision_loss)]
-pub fn render_with_volume(
-    renderer: &mut dyn Renderer,
-    data: &[Ohlcv],
-    config: &ChartConfig,
-) {
+pub fn render_with_volume(renderer: &mut dyn Renderer, data: &[Ohlcv], config: &ChartConfig) {
     if data.is_empty() {
         return;
     }
@@ -575,7 +583,13 @@ pub fn render_with_volume(
     };
     let price_transform = Transform::from_viewport(&price_vp);
 
-    draw_y_axis(renderer, &price_panel.rect, &price_range, &price_transform, config);
+    draw_y_axis(
+        renderer,
+        &price_panel.rect,
+        &price_range,
+        &price_transform,
+        config,
+    );
     let candles = CandleGeometry::compute_all(data, 0, &price_transform, config.body_ratio);
     draw_candles(renderer, &candles, config);
     renderer.draw_rect_outline(
@@ -587,10 +601,7 @@ pub fn render_with_volume(
     );
 
     // --- Volume panel ---
-    let max_vol = data
-        .iter()
-        .map(|b| b.volume)
-        .fold(0.0_f64, f64::max);
+    let max_vol = data.iter().map(|b| b.volume).fold(0.0_f64, f64::max);
     let vol_range = PriceRange::new(0.0, max_vol * 1.1);
     let vol_vp = Viewport {
         rect: vol_data_rect,
@@ -600,7 +611,13 @@ pub fn render_with_volume(
     let vol_transform = Transform::from_viewport(&vol_vp);
 
     // Volume Y-axis labels
-    draw_volume_axis(renderer, &volume_panel.rect, &vol_range, &vol_transform, config);
+    draw_volume_axis(
+        renderer,
+        &volume_panel.rect,
+        &vol_range,
+        &vol_transform,
+        config,
+    );
 
     for (i, bar) in data.iter().enumerate() {
         let x = vol_transform.bar_x(i);
@@ -673,7 +690,14 @@ pub fn render_full_chart(
     indicators: &[IndicatorOutput],
     config: &ChartConfig,
 ) -> ChartLayoutInfo {
-    render_full_chart_with_markers(renderer, data, indicators, &[], &Annotations::default(), config)
+    render_full_chart_with_markers(
+        renderer,
+        data,
+        indicators,
+        &[],
+        &Annotations::default(),
+        config,
+    )
 }
 
 /// Render a full chart with candlesticks, volume, indicators, markers, and annotations.
@@ -717,7 +741,11 @@ pub fn render_full_chart_with_markers(
     // Panel weights: use custom if provided, otherwise default
     let expected_panels = 2 + sub_panels.len();
     let weights = if let Some(ref w) = config.panel_weights {
-        if w.len() == expected_panels { w.clone() } else { default_panel_weights(sub_panels.len()) }
+        if w.len() == expected_panels {
+            w.clone()
+        } else {
+            default_panel_weights(sub_panels.len())
+        }
     } else {
         default_panel_weights(sub_panels.len())
     };
@@ -732,8 +760,7 @@ pub fn render_full_chart_with_markers(
 
     // --- Price panel ---
     // Extend price range to include overlay indicator values (BB bands, etc.)
-    let mut price_range = PriceRange::from_ohlcv(data)
-        .unwrap_or(PriceRange::new(0.0, 100.0));
+    let mut price_range = PriceRange::from_ohlcv(data).unwrap_or(PriceRange::new(0.0, 100.0));
     for overlay in &overlays {
         for series in &overlay.series {
             if series.style_hint == SeriesStyle::Line {
@@ -775,7 +802,13 @@ pub fn render_full_chart_with_markers(
     );
     renderer.clip(clip_rect);
 
-    draw_y_axis(renderer, &price_panel.rect, &price_range, &price_transform, config);
+    draw_y_axis(
+        renderer,
+        &price_panel.rect,
+        &price_range,
+        &price_transform,
+        config,
+    );
     let candles = CandleGeometry::compute_all(data, 0, &price_transform, config.body_ratio);
     draw_candles(renderer, &candles, config);
 
@@ -789,14 +822,30 @@ pub fn render_full_chart_with_markers(
     draw_markers(renderer, markers, data, &price_transform, config);
 
     // Draw annotations (trendlines, fibonacci) on price panel
-    draw_annotations(renderer, annotations, &price_transform, &price_panel.rect, bar_slots, config);
+    draw_annotations(
+        renderer,
+        annotations,
+        &price_transform,
+        &price_panel.rect,
+        bar_slots,
+        config,
+    );
 
     // Price panel legend
     draw_panel_legend(renderer, price_panel.rect, &overlays, config);
 
     renderer.restore_clip();
-    renderer.draw_rect_outline(price_panel.rect, &LineStyle { color: config.axis_color, width: 1.0 });
-    layout_info.panels.push(PanelInfo { rect: price_panel.rect, kind: PanelKind::Price });
+    renderer.draw_rect_outline(
+        price_panel.rect,
+        &LineStyle {
+            color: config.axis_color,
+            width: 1.0,
+        },
+    );
+    layout_info.panels.push(PanelInfo {
+        rect: price_panel.rect,
+        kind: PanelKind::Price,
+    });
 
     // --- Volume panel ---
     let vol_clip = Rect::new(
@@ -809,30 +858,63 @@ pub fn render_full_chart_with_markers(
     let vol_data_rect = inset_rect_horizontal(&volume_panel.rect, bar_slots);
     let max_vol = data.iter().map(|b| b.volume).fold(0.0_f64, f64::max);
     let vol_range = PriceRange::new(0.0, max_vol * 1.1);
-    let vol_vp = Viewport { rect: vol_data_rect, time_range, price_range: vol_range };
+    let vol_vp = Viewport {
+        rect: vol_data_rect,
+        time_range,
+        price_range: vol_range,
+    };
     let vol_transform = Transform::from_viewport(&vol_vp);
 
-    draw_volume_axis(renderer, &volume_panel.rect, &vol_range, &vol_transform, config);
+    draw_volume_axis(
+        renderer,
+        &volume_panel.rect,
+        &vol_range,
+        &vol_transform,
+        config,
+    );
     for (i, bar) in data.iter().enumerate() {
         let x = vol_transform.bar_x(i);
         let bar_w = vol_transform.bar_width() * config.body_ratio;
         let top_y = vol_transform.price_y(bar.volume);
         let bottom_y = vol_transform.price_y(0.0);
         let height = (bottom_y - top_y).max(0.0);
-        let color = if bar.close >= bar.open { config.bullish_color } else { config.bearish_color };
-        renderer.draw_rect(Rect::new(x - bar_w / 2.0, top_y, bar_w, height), &FillStyle { color });
+        let color = if bar.close >= bar.open {
+            config.bullish_color
+        } else {
+            config.bearish_color
+        };
+        renderer.draw_rect(
+            Rect::new(x - bar_w / 2.0, top_y, bar_w, height),
+            &FillStyle { color },
+        );
     }
     // Volume panel legend
     draw_label_in_panel(renderer, volume_panel.rect, "Volume", config);
 
     renderer.restore_clip();
-    renderer.draw_rect_outline(volume_panel.rect, &LineStyle { color: config.axis_color, width: 1.0 });
-    layout_info.panels.push(PanelInfo { rect: volume_panel.rect, kind: PanelKind::Volume });
+    renderer.draw_rect_outline(
+        volume_panel.rect,
+        &LineStyle {
+            color: config.axis_color,
+            width: 1.0,
+        },
+    );
+    layout_info.panels.push(PanelInfo {
+        rect: volume_panel.rect,
+        kind: PanelKind::Volume,
+    });
 
     // --- Sub-panel indicators (RSI, MACD, etc.) ---
     for (idx, sub_ind) in sub_panels.iter().enumerate() {
         let panel = layout.get(2 + idx).unwrap();
-        draw_indicator_sub_panel(renderer, panel.rect, sub_ind, bar_slots, config, &mut color_idx);
+        draw_indicator_sub_panel(
+            renderer,
+            panel.rect,
+            sub_ind,
+            bar_slots,
+            config,
+            &mut color_idx,
+        );
         layout_info.panels.push(PanelInfo {
             rect: panel.rect,
             kind: PanelKind::Indicator(sub_ind.name.clone()),
@@ -869,7 +951,7 @@ fn draw_indicator_overlay(
 }
 
 /// Draw a sub-panel indicator (RSI, MACD).
-#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 fn draw_indicator_sub_panel(
     renderer: &mut dyn Renderer,
     panel_rect: Rect,
@@ -902,17 +984,29 @@ fn draw_indicator_sub_panel(
                 }
                 for &v in &s.values {
                     if !v.is_nan() {
-                        if v < min { min = v; }
-                        if v > max { max = v; }
+                        if v < min {
+                            min = v;
+                        }
+                        if v > max {
+                            max = v;
+                        }
                     }
                 }
             }
-            if min > max { PriceRange::new(-1.0, 1.0) } else { PriceRange::new(min, max).with_padding(0.1) }
+            if min > max {
+                PriceRange::new(-1.0, 1.0)
+            } else {
+                PriceRange::new(min, max).with_padding(0.1)
+            }
         }
         IndicatorPlacement::Overlay => return, // shouldn't happen
     };
 
-    let vp = Viewport { rect: data_rect, time_range, price_range: y_range };
+    let vp = Viewport {
+        rect: data_rect,
+        time_range,
+        price_range: y_range,
+    };
     let transform = Transform::from_viewport(&vp);
 
     // Y-axis labels
@@ -926,7 +1020,10 @@ fn draw_indicator_sub_panel(
     };
     renderer.draw_text(
         &output.name,
-        Point { x: panel_rect.x + 5.0, y: panel_rect.y + config.font_size + 2.0 },
+        Point {
+            x: panel_rect.x + 5.0,
+            y: panel_rect.y + config.font_size + 2.0,
+        },
         &text_style,
         TextAnchor::Start,
     );
@@ -943,17 +1040,31 @@ fn draw_indicator_sub_panel(
 
         match series.style_hint {
             SeriesStyle::Line => {
-                draw_series_line(renderer, &series.values, &transform, &LineStyle { color, width: 1.5 });
+                draw_series_line(
+                    renderer,
+                    &series.values,
+                    &transform,
+                    &LineStyle { color, width: 1.5 },
+                );
             }
             SeriesStyle::Histogram => {
-                draw_series_histogram(renderer, &series.values, &transform, color, config.body_ratio);
+                draw_series_histogram(
+                    renderer,
+                    &series.values,
+                    &transform,
+                    color,
+                    config.body_ratio,
+                );
             }
             SeriesStyle::HorizontalLine => {
                 if let Some(&val) = series.values.first() {
                     let y = transform.price_y(val);
                     renderer.draw_line(
                         Point { x: panel_rect.x, y },
-                        Point { x: panel_rect.right(), y },
+                        Point {
+                            x: panel_rect.right(),
+                            y,
+                        },
                         &LineStyle { color, width: 0.5 },
                     );
                 }
@@ -962,7 +1073,13 @@ fn draw_indicator_sub_panel(
     }
 
     renderer.restore_clip();
-    renderer.draw_rect_outline(panel_rect, &LineStyle { color: config.axis_color, width: 1.0 });
+    renderer.draw_rect_outline(
+        panel_rect,
+        &LineStyle {
+            color: config.axis_color,
+            width: 1.0,
+        },
+    );
 }
 
 /// Draw Y-axis labels and grid lines for a sub-panel.
@@ -993,13 +1110,19 @@ fn draw_sub_panel_y_axis(
 
         renderer.draw_line(
             Point { x: panel_rect.x, y },
-            Point { x: panel_rect.right(), y },
+            Point {
+                x: panel_rect.right(),
+                y,
+            },
             &grid_style,
         );
 
         renderer.draw_text(
             &format!("{val:.1}"),
-            Point { x: panel_rect.right() + 5.0, y: y + 4.0 },
+            Point {
+                x: panel_rect.right() + 5.0,
+                y: y + 4.0,
+            },
             &text_style,
             TextAnchor::Start,
         );
@@ -1063,8 +1186,14 @@ fn draw_panel_legend(
 
             // Color swatch (short line)
             renderer.draw_line(
-                Point { x, y: y - font_size * 0.3 },
-                Point { x: x + line_len, y: y - font_size * 0.3 },
+                Point {
+                    x,
+                    y: y - font_size * 0.3,
+                },
+                Point {
+                    x: x + line_len,
+                    y: y - font_size * 0.3,
+                },
                 &LineStyle { color, width: 2.0 },
             );
             x += line_len + 3.0;
@@ -1105,7 +1234,7 @@ fn draw_label_in_panel(
 }
 
 /// Draw trendlines and Fibonacci retracements on the price panel.
-#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 fn draw_annotations(
     renderer: &mut dyn Renderer,
     annotations: &Annotations,
@@ -1119,7 +1248,10 @@ fn draw_annotations(
     // Trend lines
     for line in &annotations.trend_lines {
         let color = Color::rgb(line.color.0, line.color.1, line.color.2);
-        let style = LineStyle { color, width: line.width };
+        let style = LineStyle {
+            color,
+            width: line.width,
+        };
 
         // Convert absolute bar indices to visible-relative
         let rel_start = line.start_bar - offset;
@@ -1143,7 +1275,10 @@ fn draw_annotations(
         let line = &corridor.line;
         let color = Color::rgba(line.color.0, line.color.1, line.color.2, 150);
         let fill_color = Color::rgba(line.color.0, line.color.1, line.color.2, 25);
-        let style = LineStyle { color, width: line.width };
+        let style = LineStyle {
+            color,
+            width: line.width,
+        };
 
         let rel_start = line.start_bar - offset;
         let rel_end = if line.extend_right {
@@ -1159,7 +1294,8 @@ fn draw_annotations(
         };
 
         let p1_upper = line.start_price + corridor.offset;
-        let p2_upper = line.start_price + slope * (rel_end + offset - line.start_bar) + corridor.offset;
+        let p2_upper =
+            line.start_price + slope * (rel_end + offset - line.start_bar) + corridor.offset;
         let p1_lower = line.start_price;
         let p2_lower = line.start_price + slope * (rel_end + offset - line.start_bar);
 
@@ -1181,7 +1317,9 @@ fn draw_annotations(
                 transform.to_pixel(rel_start, 0.0).x,
                 transform.price_y(p1_upper.max(p1_lower)),
                 transform.to_pixel(rel_end, 0.0).x - transform.to_pixel(rel_start, 0.0).x,
-                (transform.price_y(p1_upper.min(p1_lower)) - transform.price_y(p1_upper.max(p1_lower))).abs(),
+                (transform.price_y(p1_upper.min(p1_lower))
+                    - transform.price_y(p1_upper.max(p1_lower)))
+                .abs(),
             ),
             &FillStyle { color: fill_color },
         );
@@ -1211,12 +1349,18 @@ fn draw_annotations(
             renderer.draw_line(
                 Point { x: left_x, y },
                 Point { x: right_x, y },
-                &LineStyle { color: line_color, width: 0.5 },
+                &LineStyle {
+                    color: line_color,
+                    width: 0.5,
+                },
             );
 
             renderer.draw_text(
                 &format!("{:.1}% ({:.2})", level * 100.0, price),
-                Point { x: left_x + 5.0, y: y - 3.0 },
+                Point {
+                    x: left_x + 5.0,
+                    y: y - 3.0,
+                },
                 &text_style,
                 TextAnchor::Start,
             );
@@ -1260,20 +1404,43 @@ fn draw_markers(
             }
         };
 
-        let color = Color::rgba(marker.color.0, marker.color.1, marker.color.2, marker.color.3);
+        let color = Color::rgba(
+            marker.color.0,
+            marker.color.1,
+            marker.color.2,
+            marker.color.3,
+        );
 
         match marker.shape {
             MarkerShape::ArrowUp => {
                 // Triangle pointing up: 3 points
-                let top = Point { x, y: cy - marker_size };
-                let bl = Point { x: x - marker_size * 0.6, y: cy };
-                let br = Point { x: x + marker_size * 0.6, y: cy };
+                let top = Point {
+                    x,
+                    y: cy - marker_size,
+                };
+                let bl = Point {
+                    x: x - marker_size * 0.6,
+                    y: cy,
+                };
+                let br = Point {
+                    x: x + marker_size * 0.6,
+                    y: cy,
+                };
                 renderer.draw_path(&[top, br, bl, top], &LineStyle { color, width: 2.0 });
             }
             MarkerShape::ArrowDown => {
-                let bottom = Point { x, y: cy + marker_size };
-                let tl = Point { x: x - marker_size * 0.6, y: cy };
-                let tr = Point { x: x + marker_size * 0.6, y: cy };
+                let bottom = Point {
+                    x,
+                    y: cy + marker_size,
+                };
+                let tl = Point {
+                    x: x - marker_size * 0.6,
+                    y: cy,
+                };
+                let tr = Point {
+                    x: x + marker_size * 0.6,
+                    y: cy,
+                };
                 renderer.draw_path(&[bottom, tl, tr, bottom], &LineStyle { color, width: 2.0 });
             }
             MarkerShape::Circle => {
@@ -1304,7 +1471,12 @@ fn draw_markers(
 
         // Label
         if !marker.label.is_empty() {
-            renderer.draw_text(&marker.label, Point { x, y: label_y }, &text_style, label_anchor);
+            renderer.draw_text(
+                &marker.label,
+                Point { x, y: label_y },
+                &text_style,
+                label_anchor,
+            );
         }
     }
 }
@@ -1346,11 +1518,46 @@ mod tests {
 
     fn sample_data() -> Vec<Ohlcv> {
         vec![
-            Ohlcv { timestamp: 1_700_000_000, open: 100.0, high: 110.0, low: 95.0, close: 108.0, volume: 5000.0 },
-            Ohlcv { timestamp: 1_700_086_400, open: 108.0, high: 115.0, low: 105.0, close: 112.0, volume: 6000.0 },
-            Ohlcv { timestamp: 1_700_172_800, open: 112.0, high: 118.0, low: 100.0, close: 102.0, volume: 8000.0 },
-            Ohlcv { timestamp: 1_700_259_200, open: 102.0, high: 108.0, low: 98.0, close: 106.0, volume: 4000.0 },
-            Ohlcv { timestamp: 1_700_345_600, open: 106.0, high: 120.0, low: 104.0, close: 118.0, volume: 7000.0 },
+            Ohlcv {
+                timestamp: 1_700_000_000,
+                open: 100.0,
+                high: 110.0,
+                low: 95.0,
+                close: 108.0,
+                volume: 5000.0,
+            },
+            Ohlcv {
+                timestamp: 1_700_086_400,
+                open: 108.0,
+                high: 115.0,
+                low: 105.0,
+                close: 112.0,
+                volume: 6000.0,
+            },
+            Ohlcv {
+                timestamp: 1_700_172_800,
+                open: 112.0,
+                high: 118.0,
+                low: 100.0,
+                close: 102.0,
+                volume: 8000.0,
+            },
+            Ohlcv {
+                timestamp: 1_700_259_200,
+                open: 102.0,
+                high: 108.0,
+                low: 98.0,
+                close: 106.0,
+                volume: 4000.0,
+            },
+            Ohlcv {
+                timestamp: 1_700_345_600,
+                open: 106.0,
+                high: 120.0,
+                low: 104.0,
+                close: 118.0,
+                volume: 7000.0,
+            },
         ]
     }
 
@@ -1430,20 +1637,32 @@ mod tests {
 
     #[test]
     fn render_full_chart_with_indicators() {
-        use ferrochart_core::indicator::{Sma, Ema, BollingerBands, Rsi, Macd};
         use ferrochart_core::Indicator;
+        use ferrochart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma};
 
         let data = sample_data();
         let indicators: Vec<IndicatorOutput> = vec![
             Sma { period: 3 }.compute(&data),
             Ema { period: 3 }.compute(&data),
-            BollingerBands { period: 3, std_dev: 2.0 }.compute(&data),
+            BollingerBands {
+                period: 3,
+                std_dev: 2.0,
+            }
+            .compute(&data),
             Rsi { period: 3 }.compute(&data),
-            Macd { fast_period: 2, slow_period: 3, signal_period: 2 }.compute(&data),
+            Macd {
+                fast_period: 2,
+                slow_period: 3,
+                signal_period: 2,
+            }
+            .compute(&data),
         ];
 
         let mut r = crate::SvgRenderer::new(900.0, 600.0);
-        let config = ChartConfig { height: 600.0, ..ChartConfig::default() };
+        let config = ChartConfig {
+            height: 600.0,
+            ..ChartConfig::default()
+        };
         render_full_chart(&mut r, &data, &indicators, &config);
         let out = String::from_utf8(r.finish()).unwrap();
 
