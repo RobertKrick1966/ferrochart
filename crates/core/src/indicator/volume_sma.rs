@@ -77,10 +77,7 @@ mod tests {
 
     #[test]
     fn volume_sma_period_equals_length() {
-        let data: Vec<Ohlcv> = [1000.0, 2000.0, 3000.0]
-            .iter()
-            .map(|&v| bar(v))
-            .collect();
+        let data: Vec<Ohlcv> = [1000.0, 2000.0, 3000.0].iter().map(|&v| bar(v)).collect();
         let out = VolumeSma { period: 3 }.compute(&data);
         let v = &out.series[0].values;
         assert!(v[0].is_nan());
@@ -103,10 +100,7 @@ mod tests {
 
     #[test]
     fn volume_sma_period_one() {
-        let data: Vec<Ohlcv> = [500.0, 1000.0, 1500.0]
-            .iter()
-            .map(|&v| bar(v))
-            .collect();
+        let data: Vec<Ohlcv> = [500.0, 1000.0, 1500.0].iter().map(|&v| bar(v)).collect();
         let out = VolumeSma { period: 1 }.compute(&data);
         let v = &out.series[0].values;
         assert!((v[0] - 500.0).abs() < 1e-9);
