@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025 Robert Krick
+
 /// RGBA color (0–255 per channel).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Color {

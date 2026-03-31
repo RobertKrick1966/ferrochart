@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025 Robert Krick
+
 //! `FerroChart` Core — data structures and layout engine.
 //!
 //! This crate contains no I/O and no external dependencies.

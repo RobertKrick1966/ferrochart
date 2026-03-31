@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025 Robert Krick
+
 use ferrochart_core::{
     Annotations, CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition,
     MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform,

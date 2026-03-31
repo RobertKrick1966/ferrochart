@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025 Robert Krick
+
 use crate::{Point, PriceRange, Rect, TimeRange};
 
 /// Defines the visible data window and the pixel area it maps to.

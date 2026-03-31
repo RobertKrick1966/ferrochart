@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025 Robert Krick
+
 //! `FerroChart` Render — renderer trait and backend implementations.
 
 pub mod chart;

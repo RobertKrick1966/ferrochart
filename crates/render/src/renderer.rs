@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025 Robert Krick
+
 use ferrochart_core::{Point, Rect};
 
 use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};

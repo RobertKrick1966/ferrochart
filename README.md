@@ -151,4 +151,4 @@ cargo run --package ferrochart-examples
 
 ## License
 
-MIT
+AGPL-3.0-or-later
