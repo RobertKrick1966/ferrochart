@@ -3,7 +3,7 @@
 ## Phase 1 — Repo & Workspace ✅
 
 ### GitHub Setup
-- [x] GitHub-Repo erstellen: `powerchart`
+- [x] GitHub-Repo erstellen: `ferrochart`
 - [x] README.md mit Vision + API-Preview
 - [x] MIT-Lizenz hinzufügen
 - [x] `.gitignore` für Rust/Node

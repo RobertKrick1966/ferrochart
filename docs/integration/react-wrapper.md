@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-npm install powerchart
+npm install ferrochart
 # or use the WASM pkg directly from your build
 ```
 
@@ -11,7 +11,7 @@ npm install powerchart
 
 ```tsx
 import { useEffect, useRef } from 'react';
-import init, { FerroChart } from 'powerchart';
+import init, { FerroChart } from 'ferrochart';
 
 interface OhlcvBar {
   timestamp: number;
