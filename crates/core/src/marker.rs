@@ -5,9 +5,13 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MarkerShape {
+    /// Upward-pointing arrow.
     ArrowUp,
+    /// Downward-pointing arrow.
     ArrowDown,
+    /// Filled circle.
     Circle,
+    /// Diamond / rotated square.
     Diamond,
 }
 
@@ -27,7 +31,9 @@ pub enum MarkerPosition {
 pub struct Marker {
     /// Bar index in the data array.
     pub bar_index: usize,
+    /// Visual shape of the marker.
     pub shape: MarkerShape,
+    /// Vertical placement relative to the candle.
     pub position: MarkerPosition,
     /// RGBA color (r, g, b, a).
     pub color: (u8, u8, u8, u8),
@@ -42,6 +48,7 @@ pub struct MarkerSet {
 }
 
 impl MarkerSet {
+    /// Creates an empty marker set.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -49,10 +56,12 @@ impl MarkerSet {
         }
     }
 
+    /// Adds a marker to the set.
     pub fn add(&mut self, marker: Marker) {
         self.markers.push(marker);
     }
 
+    /// Removes all markers from the set.
     pub fn clear(&mut self) {
         self.markers.clear();
     }
@@ -75,11 +84,13 @@ impl MarkerSet {
             .min_by_key(|m| m.bar_index.abs_diff(bar_index))
     }
 
+    /// Returns the number of markers in the set.
     #[must_use]
     pub fn len(&self) -> usize {
         self.markers.len()
     }
 
+    /// Returns `true` if the set contains no markers.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.markers.is_empty()

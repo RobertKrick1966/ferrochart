@@ -10,7 +10,9 @@ use crate::Ohlcv;
 /// Bollinger Bands (middle = SMA, upper/lower = SMA ± `std_dev` × σ).
 #[derive(Debug, Clone)]
 pub struct BollingerBands {
+    /// Lookback period for the middle SMA.
     pub period: usize,
+    /// Number of standard deviations for upper/lower bands.
     pub std_dev: f64,
 }
 

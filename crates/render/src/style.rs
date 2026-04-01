@@ -4,18 +4,24 @@
 /// RGBA color (0–255 per channel).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Color {
+    /// Red channel.
     pub r: u8,
+    /// Green channel.
     pub g: u8,
+    /// Blue channel.
     pub b: u8,
+    /// Alpha channel (255 = fully opaque).
     pub a: u8,
 }
 
 impl Color {
+    /// Creates a fully opaque color from RGB components.
     #[must_use]
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b, a: 255 }
     }
 
+    /// Creates a color from RGBA components.
     #[must_use]
     pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
@@ -37,19 +43,26 @@ impl Color {
         }
     }
 
-    // Common colors
+    /// Black (`#000000`).
     pub const BLACK: Self = Self::rgb(0, 0, 0);
+    /// White (`#FFFFFF`).
     pub const WHITE: Self = Self::rgb(255, 255, 255);
+    /// Red, used for bearish candles.
     pub const RED: Self = Self::rgb(239, 83, 80);
+    /// Green, used for bullish candles.
     pub const GREEN: Self = Self::rgb(38, 166, 154);
+    /// Mid-gray.
     pub const GRAY: Self = Self::rgb(128, 128, 128);
+    /// Light gray, used for wicks and labels.
     pub const LIGHT_GRAY: Self = Self::rgb(200, 200, 200);
 }
 
 /// Style for line drawing.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LineStyle {
+    /// Stroke color.
     pub color: Color,
+    /// Stroke width in pixels.
     pub width: f64,
 }
 
@@ -65,14 +78,18 @@ impl Default for LineStyle {
 /// Style for filled shapes.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FillStyle {
+    /// Fill color.
     pub color: Color,
 }
 
 /// Style for text rendering.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextStyle {
+    /// Text color.
     pub color: Color,
+    /// Font size in pixels.
     pub size: f64,
+    /// CSS font-family string.
     pub font_family: String,
 }
 
@@ -89,8 +106,11 @@ impl Default for TextStyle {
 /// Horizontal text anchor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextAnchor {
+    /// Anchors text at its start (left-aligned).
     Start,
+    /// Anchors text at its midpoint (center-aligned).
     Middle,
+    /// Anchors text at its end (right-aligned).
     End,
 }
 

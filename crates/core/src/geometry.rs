@@ -4,20 +4,27 @@
 /// A 2D point in pixel coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
+    /// Horizontal pixel coordinate.
     pub x: f64,
+    /// Vertical pixel coordinate.
     pub y: f64,
 }
 
 /// An axis-aligned rectangle in pixel coordinates (origin + size).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect {
+    /// Left edge X coordinate.
     pub x: f64,
+    /// Top edge Y coordinate.
     pub y: f64,
+    /// Width in pixels.
     pub width: f64,
+    /// Height in pixels.
     pub height: f64,
 }
 
 impl Rect {
+    /// Creates a new rectangle from origin and size.
     #[must_use]
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
         Self {
@@ -28,16 +35,19 @@ impl Rect {
         }
     }
 
+    /// Returns the X coordinate of the right edge.
     #[must_use]
     pub fn right(&self) -> f64 {
         self.x + self.width
     }
 
+    /// Returns the Y coordinate of the bottom edge.
     #[must_use]
     pub fn bottom(&self) -> f64 {
         self.y + self.height
     }
 
+    /// Returns the center point of the rectangle.
     #[must_use]
     pub fn center(&self) -> Point {
         Point {
@@ -46,6 +56,7 @@ impl Rect {
         }
     }
 
+    /// Returns `true` if the given point lies inside or on the edge of the rectangle.
     #[must_use]
     pub fn contains(&self, point: Point) -> bool {
         point.x >= self.x

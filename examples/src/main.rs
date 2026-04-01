@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025 Robert Krick
 
+//! Example binary that renders sample candlestick charts to SVG files.
+
 use std::fs;
 
 use ferrochart_core::{

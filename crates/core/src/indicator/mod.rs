@@ -13,11 +13,17 @@ mod rsi;
 mod sma;
 mod volume_sma;
 
+/// Re-exported Bollinger Bands indicator.
 pub use bollinger::BollingerBands;
+/// Re-exported Exponential Moving Average indicator.
 pub use ema::Ema;
+/// Re-exported MACD indicator.
 pub use macd::Macd;
+/// Re-exported Relative Strength Index indicator.
 pub use rsi::Rsi;
+/// Re-exported Simple Moving Average indicator.
 pub use sma::Sma;
+/// Re-exported Volume SMA indicator.
 pub use volume_sma::VolumeSma;
 
 use crate::Ohlcv;
@@ -28,7 +34,12 @@ pub enum IndicatorPlacement {
     /// Drawn on top of the price panel (SMA, EMA, Bollinger Bands).
     Overlay,
     /// Own sub-panel with a fixed Y range (e.g. RSI: 0–100).
-    SubPanel { y_min: f64, y_max: f64 },
+    SubPanel {
+        /// Fixed minimum Y value.
+        y_min: f64,
+        /// Fixed maximum Y value.
+        y_max: f64,
+    },
     /// Own sub-panel with auto-scaled Y range (e.g. MACD).
     SubPanelAuto,
 }
@@ -36,7 +47,9 @@ pub enum IndicatorPlacement {
 /// Rendering hint for a series.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SeriesStyle {
+    /// Continuous line connecting data points.
     Line,
+    /// Vertical bars drawn from zero.
     Histogram,
     /// Horizontal reference line at a fixed value.
     HorizontalLine,
@@ -45,16 +58,22 @@ pub enum SeriesStyle {
 /// A single named output series from an indicator.
 #[derive(Debug, Clone)]
 pub struct IndicatorSeries {
+    /// Display name of the series (e.g. "SMA(20)").
     pub name: &'static str,
+    /// Computed values, one per bar; leading entries may be `NAN`.
     pub values: Vec<f64>,
+    /// Hint for how the renderer should draw this series.
     pub style_hint: SeriesStyle,
 }
 
 /// Complete output of an indicator computation.
 #[derive(Debug, Clone)]
 pub struct IndicatorOutput {
+    /// Human-readable name of the indicator.
     pub name: String,
+    /// Where the indicator should be rendered on the chart.
     pub placement: IndicatorPlacement,
+    /// One or more data series produced by the indicator.
     pub series: Vec<IndicatorSeries>,
 }
 
@@ -88,8 +107,11 @@ impl IndicatorOutput {
 
 /// Core indicator trait. Stateless — takes data, returns output.
 pub trait Indicator {
+    /// Returns the indicator's display name.
     fn name(&self) -> &'static str;
+    /// Returns where the indicator should be placed on the chart.
     fn placement(&self) -> IndicatorPlacement;
+    /// Computes the indicator over the full OHLCV dataset.
     fn compute(&self, data: &[Ohlcv]) -> IndicatorOutput;
 }
 

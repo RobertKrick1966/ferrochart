@@ -13,20 +13,33 @@ use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 /// Configuration for chart rendering.
 #[derive(Debug, Clone)]
 pub struct ChartConfig {
+    /// Total chart width in pixels.
     pub width: f64,
+    /// Total chart height in pixels.
     pub height: f64,
+    /// Background color for the chart area.
     pub background: Color,
+    /// Body color for bullish (close >= open) candles.
     pub bullish_color: Color,
+    /// Body color for bearish (close < open) candles.
     pub bearish_color: Color,
     /// Color for the institutional portion of a split candle body.
     pub institutional_color: Color,
+    /// Wick (high-low line) color.
     pub wick_color: Color,
+    /// Color for axis border lines.
     pub axis_color: Color,
+    /// Color for background grid lines.
     pub grid_color: Color,
+    /// Color for axis labels and legend text.
     pub text_color: Color,
+    /// Candle body width as a fraction of bar spacing (0.0..1.0).
     pub body_ratio: f64,
+    /// Margins around the chart area.
     pub margin: ChartMargin,
+    /// Font size in pixels for axis labels and legends.
     pub font_size: f64,
+    /// Rotating palette of colors assigned to indicator series.
     pub indicator_colors: Vec<Color>,
     /// Y-axis scale factor (1.0 = auto-fit, <1.0 = zoom in, >1.0 = zoom out).
     pub price_scale: f64,
@@ -42,9 +55,13 @@ pub struct ChartConfig {
 /// Margins around the chart area.
 #[derive(Debug, Clone, Copy)]
 pub struct ChartMargin {
+    /// Top margin in pixels.
     pub top: f64,
+    /// Right margin in pixels (houses Y-axis labels).
     pub right: f64,
+    /// Bottom margin in pixels (houses X-axis labels).
     pub bottom: f64,
+    /// Left margin in pixels.
     pub left: f64,
 }
 
@@ -670,21 +687,27 @@ fn default_panel_weights(num_sub_panels: usize) -> Vec<f64> {
 /// Describes what a rendered panel contains.
 #[derive(Debug, Clone)]
 pub enum PanelKind {
+    /// Main candlestick price panel.
     Price,
+    /// Volume bar panel.
     Volume,
+    /// Sub-panel indicator identified by name.
     Indicator(String),
 }
 
 /// Info about a rendered panel (for hit-testing/tooltip).
 #[derive(Debug, Clone)]
 pub struct PanelInfo {
+    /// Bounding rectangle of this panel in pixel coordinates.
     pub rect: Rect,
+    /// What this panel displays.
     pub kind: PanelKind,
 }
 
 /// Result of rendering, containing panel layout info and transforms.
 #[derive(Debug, Clone, Default)]
 pub struct ChartLayoutInfo {
+    /// Ordered list of rendered panels and their bounding rectangles.
     pub panels: Vec<PanelInfo>,
     /// The price transform used for the main chart panel (for coordinate mapping).
     pub price_transform: Option<Transform>,

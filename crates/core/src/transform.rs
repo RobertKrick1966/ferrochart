@@ -6,8 +6,11 @@ use crate::{Point, PriceRange, Rect, TimeRange};
 /// Defines the visible data window and the pixel area it maps to.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
+    /// Pixel rectangle the viewport maps into.
     pub rect: Rect,
+    /// Visible bar index range.
     pub time_range: TimeRange,
+    /// Visible price range.
     pub price_range: PriceRange,
 }
 

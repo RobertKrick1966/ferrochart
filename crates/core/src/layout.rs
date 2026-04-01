@@ -6,8 +6,11 @@ use crate::Rect;
 /// A single panel in the chart layout.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Panel {
+    /// Zero-based index of this panel in the layout.
     pub index: usize,
+    /// Relative weight used to compute this panel's height.
     pub weight: f64,
+    /// Pixel rectangle occupied by this panel.
     pub rect: Rect,
 }
 
@@ -55,21 +58,25 @@ impl PanelLayout {
         Self { panels }
     }
 
+    /// Returns the number of panels in the layout.
     #[must_use]
     pub fn len(&self) -> usize {
         self.panels.len()
     }
 
+    /// Returns `true` if the layout contains no panels.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.panels.is_empty()
     }
 
+    /// Returns a reference to the panel at the given index, or `None`.
     #[must_use]
     pub fn get(&self, index: usize) -> Option<&Panel> {
         self.panels.get(index)
     }
 
+    /// Returns an iterator over the panels.
     pub fn iter(&self) -> std::slice::Iter<'_, Panel> {
         self.panels.iter()
     }

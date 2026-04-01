@@ -10,8 +10,11 @@ use crate::Ohlcv;
 /// Moving Average Convergence Divergence.
 #[derive(Debug, Clone)]
 pub struct Macd {
+    /// Period for the fast EMA.
     pub fast_period: usize,
+    /// Period for the slow EMA.
     pub slow_period: usize,
+    /// Period for the signal line EMA.
     pub signal_period: usize,
 }
 

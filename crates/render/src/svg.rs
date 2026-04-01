@@ -20,6 +20,7 @@ pub struct SvgRenderer {
 }
 
 impl SvgRenderer {
+    /// Creates a new SVG renderer with the given dimensions in pixels.
     #[must_use]
     pub fn new(width: f64, height: f64) -> Self {
         Self {

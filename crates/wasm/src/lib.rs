@@ -7,5 +7,7 @@ mod bindings;
 mod canvas;
 mod chart;
 
+/// Canvas 2D rendering backend for browsers.
 pub use canvas::CanvasRenderer;
+/// Interactive candlestick chart rendered on an HTML canvas.
 pub use chart::FerroChart;

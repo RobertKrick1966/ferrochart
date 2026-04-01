@@ -18,6 +18,7 @@ fn volumes(data: &[Ohlcv]) -> Vec<f64> {
 /// relative to the rolling mean.
 #[derive(Debug, Clone)]
 pub struct VolumeSma {
+    /// Lookback period.
     pub period: usize,
 }
 

@@ -5,11 +5,17 @@
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ohlcv {
+    /// Unix timestamp of the bar.
     pub timestamp: i64,
+    /// Opening price.
     pub open: f64,
+    /// Highest price during the bar.
     pub high: f64,
+    /// Lowest price during the bar.
     pub low: f64,
+    /// Closing price.
     pub close: f64,
+    /// Trade volume.
     pub volume: f64,
     /// Fraction of the bar attributable to institutional activity (0.0–1.0).
     /// When > 0, the candle body is split: the bottom portion is drawn in the
@@ -25,26 +31,31 @@ pub struct Series<T> {
 }
 
 impl<T> Series<T> {
+    /// Creates a new series from a vector of values.
     #[must_use]
     pub fn new(values: Vec<T>) -> Self {
         Self { values }
     }
 
+    /// Returns the number of elements in the series.
     #[must_use]
     pub fn len(&self) -> usize {
         self.values.len()
     }
 
+    /// Returns `true` if the series contains no elements.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
 
+    /// Returns a reference to the element at the given index, or `None`.
     #[must_use]
     pub fn get(&self, index: usize) -> Option<&T> {
         self.values.get(index)
     }
 
+    /// Returns an iterator over the series values.
     pub fn iter(&self) -> std::slice::Iter<'_, T> {
         self.values.iter()
     }
@@ -70,11 +81,14 @@ impl<T> Series<T> {
 /// Inclusive price range `[min, max]`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PriceRange {
+    /// Minimum price.
     pub min: f64,
+    /// Maximum price.
     pub max: f64,
 }
 
 impl PriceRange {
+    /// Creates a new price range from minimum and maximum values.
     #[must_use]
     pub fn new(min: f64, max: f64) -> Self {
         Self { min, max }
@@ -120,21 +134,26 @@ impl PriceRange {
 /// Half-open index range `[start, end)` into a data series.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimeRange {
+    /// Start index (inclusive).
     pub start: usize,
+    /// End index (exclusive).
     pub end: usize,
 }
 
 impl TimeRange {
+    /// Creates a new half-open time range `[start, end)`.
     #[must_use]
     pub fn new(start: usize, end: usize) -> Self {
         Self { start, end }
     }
 
+    /// Returns the number of bars in the range.
     #[must_use]
     pub fn len(&self) -> usize {
         self.end.saturating_sub(self.start)
     }
 
+    /// Returns `true` if the range contains no bars.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.end <= self.start

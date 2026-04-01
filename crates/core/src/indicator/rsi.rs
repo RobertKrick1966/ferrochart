@@ -7,6 +7,7 @@ use crate::Ohlcv;
 /// Relative Strength Index.
 #[derive(Debug, Clone)]
 pub struct Rsi {
+    /// Lookback period.
     pub period: usize,
 }
 

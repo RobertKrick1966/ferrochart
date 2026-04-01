@@ -65,35 +65,44 @@ pub struct Corridor {
 /// Collection of annotations on a chart.
 #[derive(Debug, Clone, Default)]
 pub struct Annotations {
+    /// All trend lines on the chart.
     pub trend_lines: Vec<TrendLine>,
+    /// All corridors (parallel channel pairs) on the chart.
     pub corridors: Vec<Corridor>,
+    /// All Fibonacci retracement overlays on the chart.
     pub fibonaccis: Vec<FibonacciRetracement>,
 }
 
 impl Annotations {
+    /// Creates an empty annotations collection.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Adds a trend line to the collection.
     pub fn add_trend_line(&mut self, line: TrendLine) {
         self.trend_lines.push(line);
     }
 
+    /// Adds a corridor to the collection.
     pub fn add_corridor(&mut self, corridor: Corridor) {
         self.corridors.push(corridor);
     }
 
+    /// Adds a Fibonacci retracement to the collection.
     pub fn add_fibonacci(&mut self, fib: FibonacciRetracement) {
         self.fibonaccis.push(fib);
     }
 
+    /// Removes all annotations.
     pub fn clear(&mut self) {
         self.trend_lines.clear();
         self.corridors.clear();
         self.fibonaccis.clear();
     }
 
+    /// Returns `true` if there are no annotations of any kind.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.trend_lines.is_empty() && self.corridors.is_empty() && self.fibonaccis.is_empty()
