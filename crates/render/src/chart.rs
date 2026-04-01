@@ -707,7 +707,7 @@ pub struct ChartLayoutInfo {
 /// # Panics
 ///
 /// Panics if the internal panel layout cannot be constructed.
-#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+#[allow(clippy::cast_precision_loss)]
 pub fn render_full_chart(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -729,7 +729,7 @@ pub fn render_full_chart(
 /// # Panics
 ///
 /// Panics if the internal panel layout cannot be constructed.
-#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+#[allow(clippy::cast_precision_loss)]
 pub fn render_full_chart_with_markers(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -975,7 +975,7 @@ fn draw_indicator_overlay(
 }
 
 /// Draw a sub-panel indicator (RSI, MACD).
-#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+#[allow(clippy::cast_precision_loss)]
 fn draw_indicator_sub_panel(
     renderer: &mut dyn Renderer,
     panel_rect: Rect,
@@ -1258,7 +1258,7 @@ fn draw_label_in_panel(
 }
 
 /// Draw trendlines and Fibonacci retracements on the price panel.
-#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+#[allow(clippy::cast_precision_loss)]
 fn draw_annotations(
     renderer: &mut dyn Renderer,
     annotations: &Annotations,

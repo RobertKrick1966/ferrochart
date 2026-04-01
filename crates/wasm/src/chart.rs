@@ -121,7 +121,6 @@ impl FerroChart {
     ///
     /// Panics if `window()` is not available (non-browser environment).
     #[wasm_bindgen(constructor)]
-    #[allow(clippy::too_many_lines)]
     pub fn new(canvas: &HtmlCanvasElement) -> Result<FerroChart, JsValue> {
         console_error_panic_hook::set_once();
         let config = ChartConfig {
@@ -502,7 +501,6 @@ fn mouse_pos(e: &web_sys::MouseEvent, canvas: &HtmlCanvasElement) -> Point {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn attach_mouse_events(
     canvas: &HtmlCanvasElement,
     state: &Rc<RefCell<ChartState>>,
@@ -1250,8 +1248,7 @@ fn draw_preview(
 #[allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::too_many_lines
+    clippy::cast_sign_loss
 )]
 fn draw_tooltip(
     renderer: &mut CanvasRenderer,
