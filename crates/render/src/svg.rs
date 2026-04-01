@@ -101,6 +101,13 @@ impl Renderer for SvgRenderer {
         ));
     }
 
+    fn draw_circle(&mut self, center: Point, radius: f64, fill: &FillStyle) {
+        self.elements.push(format!(
+            r#"<circle cx="{:.2}" cy="{:.2}" r="{:.2}" fill="{}" />"#,
+            center.x, center.y, radius, fill.color.to_css()
+        ));
+    }
+
     fn set_background(&mut self, color: Color) {
         self.background = Some(color);
     }
@@ -253,5 +260,23 @@ mod tests {
         r.draw_path(&[], &LineStyle::default());
         let out = String::from_utf8(r.finish()).unwrap();
         assert!(!out.contains("<path"));
+    }
+
+    #[test]
+    fn draw_circle_produces_circle_element() {
+        let mut r = SvgRenderer::new(100.0, 100.0);
+        r.draw_circle(
+            Point { x: 50.0, y: 50.0 },
+            10.0,
+            &FillStyle {
+                color: Color::RED,
+            },
+        );
+        let out = String::from_utf8(r.finish()).unwrap();
+        assert!(out.contains("<circle"));
+        assert!(out.contains("cx=\"50.00\""));
+        assert!(out.contains("cy=\"50.00\""));
+        assert!(out.contains("r=\"10.00\""));
+        assert!(out.contains("fill="));
     }
 }

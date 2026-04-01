@@ -25,6 +25,9 @@ pub trait Renderer {
     /// Draw a polyline (connected line segments).
     fn draw_path(&mut self, points: &[Point], style: &LineStyle);
 
+    /// Draw a filled circle at `center` with the given `radius`.
+    fn draw_circle(&mut self, center: Point, radius: f64, fill: &FillStyle);
+
     /// Set the background color.
     fn set_background(&mut self, color: Color);
 

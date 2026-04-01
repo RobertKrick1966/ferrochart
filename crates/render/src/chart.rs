@@ -1401,8 +1401,11 @@ fn draw_markers(
     transform: &Transform,
     config: &ChartConfig,
 ) {
-    let marker_size = 8.0;
-    let offset = 6.0; // distance from high/low
+    let bar_width = transform.bar_width();
+    // Marker radius = 25% of bar width (so diameter = 50% of candle width).
+    // Clamp to a reasonable minimum so markers stay visible when zoomed out.
+    let marker_radius = (bar_width * 0.25).max(3.0);
+    let offset = marker_radius * 0.75; // distance from high/low
 
     let text_style = TextStyle {
         color: Color::LIGHT_GRAY,
@@ -1419,12 +1422,12 @@ fn draw_markers(
 
         let (cy, label_y, label_anchor) = match marker.position {
             MarkerPosition::BelowBar => {
-                let y = transform.price_y(bar.low) + offset + marker_size;
-                (y, y + marker_size + 2.0, TextAnchor::Middle)
+                let y = transform.price_y(bar.low) + offset + marker_radius;
+                (y, y + marker_radius + 2.0, TextAnchor::Middle)
             }
             MarkerPosition::AboveBar => {
-                let y = transform.price_y(bar.high) - offset - marker_size;
-                (y, y - marker_size + 2.0, TextAnchor::Middle)
+                let y = transform.price_y(bar.high) - offset - marker_radius;
+                (y, y - marker_radius - 2.0, TextAnchor::Middle)
             }
         };
 
@@ -1437,17 +1440,16 @@ fn draw_markers(
 
         match marker.shape {
             MarkerShape::ArrowUp => {
-                // Triangle pointing up: 3 points
                 let top = Point {
                     x,
-                    y: cy - marker_size,
+                    y: cy - marker_radius,
                 };
                 let bl = Point {
-                    x: x - marker_size * 0.6,
+                    x: x - marker_radius * 0.6,
                     y: cy,
                 };
                 let br = Point {
-                    x: x + marker_size * 0.6,
+                    x: x + marker_radius * 0.6,
                     y: cy,
                 };
                 renderer.draw_path(&[top, br, bl, top], &LineStyle { color, width: 2.0 });
@@ -1455,33 +1457,28 @@ fn draw_markers(
             MarkerShape::ArrowDown => {
                 let bottom = Point {
                     x,
-                    y: cy + marker_size,
+                    y: cy + marker_radius,
                 };
                 let tl = Point {
-                    x: x - marker_size * 0.6,
+                    x: x - marker_radius * 0.6,
                     y: cy,
                 };
                 let tr = Point {
-                    x: x + marker_size * 0.6,
+                    x: x + marker_radius * 0.6,
                     y: cy,
                 };
                 renderer.draw_path(&[bottom, tl, tr, bottom], &LineStyle { color, width: 2.0 });
             }
             MarkerShape::Circle => {
-                // Approximate circle with 8-sided polygon
-                let steps = 8;
-                let mut pts = Vec::with_capacity(steps + 1);
-                for s in 0..=steps {
-                    let angle = std::f64::consts::TAU * s as f64 / steps as f64;
-                    pts.push(Point {
-                        x: x + angle.cos() * marker_size * 0.5,
-                        y: cy + angle.sin() * marker_size * 0.5,
-                    });
-                }
-                renderer.draw_path(&pts, &LineStyle { color, width: 2.0 });
+                // Filled circle (ball) marker
+                renderer.draw_circle(
+                    Point { x, y: cy },
+                    marker_radius,
+                    &FillStyle { color },
+                );
             }
             MarkerShape::Diamond => {
-                let s = marker_size * 0.6;
+                let s = marker_radius * 0.6;
                 let pts = [
                     Point { x, y: cy - s },
                     Point { x: x + s, y: cy },

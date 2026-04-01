@@ -92,6 +92,19 @@ impl Renderer for CanvasRenderer {
         self.ctx.stroke();
     }
 
+    fn draw_circle(&mut self, center: Point, radius: f64, fill: &FillStyle) {
+        self.set_fill(fill.color);
+        self.ctx.begin_path();
+        let _ = self.ctx.arc(
+            center.x,
+            center.y,
+            radius,
+            0.0,
+            std::f64::consts::TAU,
+        );
+        self.ctx.fill();
+    }
+
     fn set_background(&mut self, color: Color) {
         self.set_fill(color);
         self.ctx.fill_rect(0.0, 0.0, self.width, self.height);
