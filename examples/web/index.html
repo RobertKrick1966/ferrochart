@@ -76,6 +76,7 @@
             <span class="separator">|</span>
             <button id="theme-toggle">Light/Dark</button>
             <button id="log-toggle">Log Y</button>
+            <button id="vp-toggle">Vol Profile</button>
             <span class="status" id="draw-status"></span>
         </div>
         <canvas id="chart"></canvas>
@@ -172,6 +173,9 @@
             chart.addTripleBarrier(80, closes[80], closes[80]*1.05, closes[80]*0.96, 20, 95, 'sl', 255, 150, 50);
             chart.addTripleBarrier(130, closes[130], closes[130]*1.03, closes[130]*0.98, 12, null, '', 180, 180, 180);
 
+            // Anchored VWAP from bar 50
+            chart.addAnchoredVwap(50);
+
             // Drawing tool dropdown
             const drawSelect = document.getElementById('draw-tool');
             const status = document.getElementById('draw-status');
@@ -223,6 +227,15 @@
                 isLog = !isLog;
                 chart.setLogScale(isLog);
                 document.getElementById('log-toggle').textContent = isLog ? 'Linear Y' : 'Log Y';
+                canvas.focus();
+            });
+
+            // Volume Profile toggle
+            let vpOn = false;
+            document.getElementById('vp-toggle').addEventListener('click', () => {
+                vpOn = !vpOn;
+                chart.showVolumeProfile(vpOn ? 50 : 0);
+                document.getElementById('vp-toggle').textContent = vpOn ? 'Hide VP' : 'Vol Profile';
                 canvas.focus();
             });
 

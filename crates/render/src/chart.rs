@@ -4,7 +4,7 @@
 use ferrochart_core::{
     Annotations, BarrierOutcome, CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker,
     MarkerPosition, MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle,
-    TimeRange, Transform, Viewport, YScaleMode,
+    TimeRange, Transform, Viewport, YScaleMode, indicator::VolumeProfile,
 };
 
 use crate::Renderer;
@@ -759,6 +759,7 @@ pub fn render_full_chart(
         indicators,
         &[],
         &Annotations::default(),
+        None,
         config,
     )
 }
@@ -774,6 +775,7 @@ pub fn render_full_chart_with_markers(
     indicators: &[IndicatorOutput],
     markers: &[&Marker],
     annotations: &Annotations,
+    volume_profile: Option<&VolumeProfile>,
     config: &ChartConfig,
 ) -> ChartLayoutInfo {
     if data.is_empty() {
@@ -878,6 +880,11 @@ pub fn render_full_chart_with_markers(
     );
     let candles = CandleGeometry::compute_all(data, 0, &price_transform, config.body_ratio);
     draw_candles(renderer, &candles, config);
+
+    // Draw volume profile on price panel (behind overlays)
+    if let Some(vp) = volume_profile {
+        draw_volume_profile(renderer, vp, &price_panel.rect, &price_transform, config);
+    }
 
     // Draw overlay indicators on price panel
     let mut color_idx = 0;
@@ -1548,6 +1555,41 @@ fn draw_annotations(
     }
 }
 
+/// Draw volume profile histogram on the price panel (horizontal bars from right edge).
+fn draw_volume_profile(
+    renderer: &mut dyn Renderer,
+    profile: &VolumeProfile,
+    panel_rect: &Rect,
+    transform: &Transform,
+    config: &ChartConfig,
+) {
+    if profile.buckets.is_empty() || profile.max_volume < f64::EPSILON {
+        return;
+    }
+
+    let max_bar_width = panel_rect.width * 0.20;
+    let color = Color::rgba(100, 149, 237, 50); // cornflower blue, semi-transparent
+
+    // Suppress unused variable warning for config
+    let _ = config;
+
+    for bucket in &profile.buckets {
+        let y_top = transform.price_y(bucket.price_high);
+        let y_bottom = transform.price_y(bucket.price_low);
+        let height = (y_bottom - y_top).max(1.0);
+        let width = (bucket.volume / profile.max_volume) * max_bar_width;
+
+        if width < 0.5 {
+            continue;
+        }
+
+        renderer.draw_rect(
+            Rect::new(panel_rect.right() - width, y_top, width, height),
+            &FillStyle { color },
+        );
+    }
+}
+
 /// Draw markers on the price panel.
 fn draw_markers(
     renderer: &mut dyn Renderer,
@@ -2054,7 +2096,8 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        let layout = render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        let layout =
+            render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // --- Trendline must exist in SVG ---
@@ -2125,7 +2168,8 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        let layout = render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        let layout =
+            render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         let lines = parse_svg_lines(&svg);
@@ -2179,8 +2223,15 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        let layout =
-            render_full_chart_with_markers(&mut r, visible_data, &[], &[], &annotations, &config);
+        let layout = render_full_chart_with_markers(
+            &mut r,
+            visible_data,
+            &[],
+            &[],
+            &annotations,
+            None,
+            &config,
+        );
         let svg = String::from_utf8(r.finish()).unwrap();
 
         let lines = parse_svg_lines(&svg);
@@ -2241,7 +2292,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // Two lines with corridor color (alpha 150)
@@ -2280,7 +2331,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // 7 Fibonacci levels → 7 horizontal lines
@@ -2329,7 +2380,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // TP line (green)
@@ -2370,7 +2421,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // Should have TP and SL lines but no exit circle

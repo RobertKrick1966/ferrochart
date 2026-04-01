@@ -144,6 +144,7 @@ fn main() {
             &[],
             &marker_refs,
             &Annotations::default(),
+            None,
             config,
         );
     });
@@ -203,7 +204,15 @@ fn main() {
             });
 
             let marker_refs: Vec<&Marker> = vec![];
-            render_full_chart_with_markers(renderer, data, &[], &marker_refs, &annotations, config);
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &marker_refs,
+                &annotations,
+                None,
+                config,
+            );
         },
     );
 

@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
-> **Stand:** 2026-04-01 18:10 CEST
-> **Tests:** 202 (159 core + 43 render), Clippy-pedantic clean
+> **Stand:** 2026-04-01 18:30 CEST
+> **Tests:** 216 (173 core + 43 render), Clippy-pedantic clean
 
 ---
 
@@ -114,14 +114,9 @@
 - [x] **CUSUM Indikator** -- `Cusum { threshold }` als Sub-Panel (S+, S-, Event-Histogramm)
 - [x] **Triple Barrier Overlay** -- `TripleBarrier` Annotation mit TP/SL-Linien, Time-Barrier, Polygon-Fill, Exit-Marker
 - [x] **Imbalance Bar Coloring** -- Split-Candles via `institutional_ratio` (seit Phase 1)
-- [x] WASM-API: `addIndicator("cusum", period)`, `addTripleBarrier(...)`
-
-### Offen
-
-| Feature | Beschreibung | Abhaengigkeit |
-|---|---|---|
-| Volume Profile Histogram | Horizontales Volumen-Profil (z.B. rechter Rand oder Overlay) | Neuer Indikator-Typ |
-| Anchored VWAP | Click-to-Anchor VWAP-Linie, live berechnet ab Ankerpunkt | Interaction Layer (vorhanden) |
+- [x] **Anchored VWAP** -- `AnchoredVwap { anchor_bar }` Overlay, WASM: `addAnchoredVwap(bar)`
+- [x] **Volume Profile** -- `VolumeProfile::compute(data, buckets)` mit proportionaler Volumen-Verteilung, horizontale Bars am rechten Rand des Preis-Panels
+- [x] WASM-API: `addIndicator("cusum", period)`, `addTripleBarrier(...)`, `addAnchoredVwap(bar)`, `showVolumeProfile(buckets)`
 
 ---
 
@@ -160,7 +155,7 @@
 | Phase | Inhalt | Status |
 |---|---|---|
 | 1 | Fundament (Core + Render + WASM + Interaktion + Annotations) | ✅ (3 offene Punkte) |
-| 2 | SMR-Kern (CUSUM, Triple Barrier, Imbalance ✅ / Volume Profile, VWAP offen) | teilweise ✅ |
+| 2 | SMR-Kern (CUSUM, Triple Barrier, VWAP, Volume Profile, Imbalance) | ✅ |
 | 3 | ML-Integration (ONNX, Walk-Forward, News) | -- |
 | 4 | Erweitert (GEX, Max Pain, Multi-Chart, Backtest) | -- |
 
