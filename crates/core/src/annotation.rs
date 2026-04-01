@@ -147,6 +147,37 @@ pub struct NewsEvent {
     pub color: Option<(u8, u8, u8)>,
 }
 
+/// Horizontal histogram overlay on the price panel (e.g. GEX profile).
+///
+/// Renders horizontal bars at price levels, similar to Volume Profile
+/// but driven by external data (not computed from OHLCV volume).
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HorizontalHistogram {
+    /// Price levels and their values (e.g. gamma exposure at each strike).
+    pub levels: Vec<(f64, f64)>,
+    /// Label for the histogram (e.g. "GEX").
+    pub label: String,
+    /// RGB color for the bars.
+    pub color: (u8, u8, u8),
+    /// Alpha for the bars (0-255).
+    pub alpha: u8,
+}
+
+/// A horizontal price level line (e.g. Max Pain, support/resistance).
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HorizontalLevel {
+    /// Price at which to draw the line.
+    pub price: f64,
+    /// Label (e.g. "Max Pain $150.00").
+    pub label: String,
+    /// RGB color.
+    pub color: (u8, u8, u8),
+    /// Line width in pixels.
+    pub width: f64,
+}
+
 /// Collection of annotations on a chart.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -165,6 +196,10 @@ pub struct Annotations {
     pub walk_forward_zones: Vec<WalkForwardZone>,
     /// News/event markers.
     pub news_events: Vec<NewsEvent>,
+    /// Horizontal histograms (GEX profile, etc.) on the price panel.
+    pub horizontal_histograms: Vec<HorizontalHistogram>,
+    /// Horizontal price level lines (Max Pain, support/resistance).
+    pub horizontal_levels: Vec<HorizontalLevel>,
 }
 
 impl Annotations {
@@ -209,6 +244,16 @@ impl Annotations {
         self.news_events.push(event);
     }
 
+    /// Adds a horizontal histogram (e.g. GEX profile) to the collection.
+    pub fn add_horizontal_histogram(&mut self, hist: HorizontalHistogram) {
+        self.horizontal_histograms.push(hist);
+    }
+
+    /// Adds a horizontal price level line (e.g. Max Pain) to the collection.
+    pub fn add_horizontal_level(&mut self, level: HorizontalLevel) {
+        self.horizontal_levels.push(level);
+    }
+
     /// Removes all annotations.
     pub fn clear(&mut self) {
         self.trend_lines.clear();
@@ -218,6 +263,8 @@ impl Annotations {
         self.confidence_bands.clear();
         self.walk_forward_zones.clear();
         self.news_events.clear();
+        self.horizontal_histograms.clear();
+        self.horizontal_levels.clear();
     }
 
     /// Returns `true` if there are no annotations of any kind.
@@ -230,6 +277,8 @@ impl Annotations {
             && self.confidence_bands.is_empty()
             && self.walk_forward_zones.is_empty()
             && self.news_events.is_empty()
+            && self.horizontal_histograms.is_empty()
+            && self.horizontal_levels.is_empty()
     }
 }
 

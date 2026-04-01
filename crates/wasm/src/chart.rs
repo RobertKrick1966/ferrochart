@@ -12,10 +12,10 @@ use ferrochart_core::indicator::{
 };
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
-    Annotations, BarrierOutcome, ConfidenceBand, Corridor, FibonacciRetracement, Indicator,
-    IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape, NewsEvent,
-    Ohlcv, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform, TrendLine, TripleBarrier,
-    Viewport, WalkForwardZone, ZoomPanState,
+    Annotations, BarrierOutcome, ConfidenceBand, Corridor, FibonacciRetracement,
+    HorizontalHistogram, HorizontalLevel, Indicator, IndicatorOutput, IndicatorPlacement, Marker,
+    MarkerPosition, MarkerSet, MarkerShape, NewsEvent, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
+    TimeRange, Transform, TrendLine, TripleBarrier, Viewport, WalkForwardZone, ZoomPanState,
 };
 use ferrochart_render::Renderer;
 use ferrochart_render::chart::{
@@ -624,6 +624,63 @@ impl FerroChart {
         st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
+    /// Add a horizontal histogram (e.g. GEX profile) to the price panel.
+    ///
+    /// `prices` and `values` are parallel arrays of price levels and their values.
+    #[wasm_bindgen(js_name = addHorizontalHistogram)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_horizontal_histogram(
+        &self,
+        prices: &[f64],
+        values: &[f64],
+        label: &str,
+        r: u8,
+        g: u8,
+        b: u8,
+        alpha: u8,
+    ) {
+        let levels = prices
+            .iter()
+            .zip(values.iter())
+            .map(|(&p, &v)| (p, v))
+            .collect();
+        let mut st = self.state.borrow_mut();
+        st.annotations
+            .add_horizontal_histogram(HorizontalHistogram {
+                levels,
+                label: label.to_string(),
+                color: (r, g, b),
+                alpha,
+            });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a horizontal price level line (e.g. Max Pain).
+    #[wasm_bindgen(js_name = addHorizontalLevel)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_horizontal_level(&self, price: f64, label: &str, r: u8, g: u8, b: u8, width: f64) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_horizontal_level(HorizontalLevel {
+            price,
+            label: label.to_string(),
+            color: (r, g, b),
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add an equity curve sub-panel from pre-computed per-bar returns.
+    #[wasm_bindgen(js_name = addEquityCurve)]
+    pub fn add_equity_curve(&self, returns: &[f64]) {
+        use ferrochart_core::indicator::EquityCurve;
+        let mut st = self.state.borrow_mut();
+        st.indicators.push(Box::new(EquityCurve {
+            returns: returns.to_vec(),
+        }));
+        st.recompute_indicators();
+        st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
+    }
+
     /// Set the interactive drawing mode.
     ///
     /// `"trendline"` — click two points to draw a trendline.
@@ -736,6 +793,29 @@ impl FerroChart {
     pub fn show_volume_profile(&self, num_buckets: u32) {
         let mut st = self.state.borrow_mut();
         st.volume_profile_buckets = num_buckets as usize;
+        st.dirty.mark_all();
+    }
+
+    /// Get the current zoom/pan state as `[visible_bars, offset, total_bars]`.
+    /// Use with `setZoomPanState` for multi-chart synchronization.
+    #[must_use]
+    #[wasm_bindgen(js_name = getZoomPanState)]
+    pub fn get_zoom_pan_state(&self) -> Vec<u32> {
+        let st = self.state.borrow();
+        vec![
+            st.zoom_pan.visible_bars as u32,
+            st.zoom_pan.offset as u32,
+            st.zoom_pan.total_bars as u32,
+        ]
+    }
+
+    /// Set the zoom/pan state from `[visible_bars, offset, total_bars]`.
+    /// Use for multi-chart synchronization.
+    #[wasm_bindgen(js_name = setZoomPanState)]
+    pub fn set_zoom_pan_state(&self, visible_bars: u32, offset: u32) {
+        let mut st = self.state.borrow_mut();
+        st.zoom_pan.visible_bars = visible_bars as usize;
+        st.zoom_pan.offset = offset as usize;
         st.dirty.mark_all();
     }
 }

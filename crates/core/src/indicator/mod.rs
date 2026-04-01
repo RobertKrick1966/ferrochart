@@ -10,6 +10,7 @@ mod anchored_vwap;
 mod bollinger;
 mod cusum;
 mod ema;
+mod equity_curve;
 mod macd;
 mod rsi;
 mod sma;
@@ -24,6 +25,8 @@ pub use bollinger::BollingerBands;
 pub use cusum::Cusum;
 /// Re-exported Exponential Moving Average indicator.
 pub use ema::Ema;
+/// Re-exported Equity Curve indicator.
+pub use equity_curve::EquityCurve;
 /// Re-exported MACD indicator.
 pub use macd::Macd;
 /// Re-exported Relative Strength Index indicator.

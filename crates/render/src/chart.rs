@@ -1678,6 +1678,73 @@ fn draw_annotations(
             );
         }
     }
+
+    // Horizontal histograms (GEX profile, etc.)
+    for hist in &annotations.horizontal_histograms {
+        if hist.levels.is_empty() {
+            continue;
+        }
+        let max_val = hist
+            .levels
+            .iter()
+            .map(|&(_, v)| v.abs())
+            .fold(0.0_f64, f64::max);
+        if max_val < f64::EPSILON {
+            continue;
+        }
+        let max_bar_width = panel_rect.width * 0.15;
+        let color = Color::rgba(hist.color.0, hist.color.1, hist.color.2, hist.alpha);
+
+        for &(price, value) in &hist.levels {
+            let y = transform.price_y(price);
+            let width = (value.abs() / max_val) * max_bar_width;
+            if width < 0.5 {
+                continue;
+            }
+            // Draw from left edge for negative, right edge for positive
+            let x = if value >= 0.0 {
+                panel_rect.right() - width
+            } else {
+                panel_rect.x
+            };
+            renderer.draw_rect(Rect::new(x, y - 1.5, width, 3.0), &FillStyle { color });
+        }
+    }
+
+    // Horizontal price level lines (Max Pain, support/resistance)
+    for level in &annotations.horizontal_levels {
+        let y = transform.price_y(level.price);
+        let color = Color::rgb(level.color.0, level.color.1, level.color.2);
+
+        renderer.draw_line(
+            Point { x: panel_rect.x, y },
+            Point {
+                x: panel_rect.right(),
+                y,
+            },
+            &LineStyle {
+                color,
+                width: level.width,
+            },
+        );
+
+        if !level.label.is_empty() {
+            let text_style = TextStyle {
+                color,
+                size: config.font_size - 1.0,
+                font_family: "monospace".to_string(),
+            };
+            renderer.draw_text(
+                &level.label,
+                Point {
+                    x: panel_rect.x + 5.0,
+                    y: y - 3.0,
+                },
+                &text_style,
+                TextAnchor::Start,
+            );
+        }
+    }
 }
 
 /// Draw volume profile histogram on the price panel (horizontal bars from right edge).
