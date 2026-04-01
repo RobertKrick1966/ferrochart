@@ -22,7 +22,8 @@ mod zoom;
 
 /// Re-exported annotation types.
 pub use annotation::{
-    Annotations, BarrierOutcome, Corridor, FibonacciRetracement, TrendLine, TripleBarrier,
+    Annotations, BarrierOutcome, ConfidenceBand, Corridor, FibonacciRetracement, NewsEvent,
+    TrendLine, TripleBarrier, WalkForwardZone,
 };
 /// Re-exported candlestick geometry.
 pub use candle::CandleGeometry;

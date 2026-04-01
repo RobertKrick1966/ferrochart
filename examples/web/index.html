@@ -176,6 +176,23 @@
             // Anchored VWAP from bar 50
             chart.addAnchoredVwap(50);
 
+            // ML confidence band (fake: close +/- spread)
+            const upper = closes.map((c, i) => i < 40 ? NaN : c * 1.02);
+            const lower = closes.map((c, i) => i < 40 ? NaN : c * 0.98);
+            chart.addConfidenceBand(new Float64Array(upper), new Float64Array(lower), 100, 200, 255, 35);
+
+            // Walk-forward zones
+            chart.addWalkForwardZone(0, 60, true, 'Train 1');
+            chart.addWalkForwardZone(60, 90, false, 'Val 1');
+            chart.addWalkForwardZone(90, 150, true, 'Train 2');
+            chart.addWalkForwardZone(150, 180, false, 'Val 2');
+
+            // News events
+            chart.addNewsEvent(25, 'Earnings', 0.8, 3);
+            chart.addNewsEvent(70, 'FDA', -0.6, 2);
+            chart.addNewsEvent(110, 'FOMC', 0.1, 1);
+            chart.addNewsEvent(160, 'Guidance', -0.9, 3);
+
             // Drawing tool dropdown
             const drawSelect = document.getElementById('draw-tool');
             const status = document.getElementById('draw-status');

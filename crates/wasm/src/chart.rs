@@ -12,9 +12,10 @@ use ferrochart_core::indicator::{
 };
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
-    Annotations, BarrierOutcome, Corridor, FibonacciRetracement, Indicator, IndicatorOutput,
-    IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point, PriceRange,
-    Rect, SeriesStyle, TimeRange, Transform, TrendLine, TripleBarrier, Viewport, ZoomPanState,
+    Annotations, BarrierOutcome, ConfidenceBand, Corridor, FibonacciRetracement, Indicator,
+    IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape, NewsEvent,
+    Ohlcv, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform, TrendLine, TripleBarrier,
+    Viewport, WalkForwardZone, ZoomPanState,
 };
 use ferrochart_render::Renderer;
 use ferrochart_render::chart::{
@@ -563,6 +564,62 @@ impl FerroChart {
             exit_bar: exit_bar.map(|b| b as usize),
             outcome: outcome_enum,
             color: (r, g, b),
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add an ML confidence band overlay on the price panel.
+    ///
+    /// `upper` and `lower` are parallel arrays of prices (one per bar).
+    #[wasm_bindgen(js_name = addConfidenceBand)]
+    pub fn add_confidence_band(
+        &self,
+        upper: &[f64],
+        lower: &[f64],
+        r: u8,
+        g: u8,
+        b: u8,
+        alpha: u8,
+    ) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_confidence_band(ConfidenceBand {
+            upper: upper.to_vec(),
+            lower: lower.to_vec(),
+            color: (r, g, b),
+            alpha,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a walk-forward train/validation zone.
+    #[wasm_bindgen(js_name = addWalkForwardZone)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_walk_forward_zone(&self, start_bar: u32, end_bar: u32, is_train: bool, label: &str) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_walk_forward_zone(WalkForwardZone {
+            start_bar: start_bar as usize,
+            end_bar: end_bar as usize,
+            is_train,
+            label: label.to_string(),
+            color: None,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a news/event marker at a specific bar.
+    ///
+    /// `impact`: -1.0 (bearish) to +1.0 (bullish).
+    /// `urgency`: 0=low, 1=medium, 2=high, 3=critical.
+    #[wasm_bindgen(js_name = addNewsEvent)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_news_event(&self, bar_index: u32, label: &str, impact: f64, urgency: u8) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_news_event(NewsEvent {
+            bar_index: bar_index as usize,
+            label: label.to_string(),
+            impact,
+            urgency,
+            color: None,
         });
         st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }

@@ -1553,6 +1553,131 @@ fn draw_annotations(
             );
         }
     }
+
+    // Confidence bands
+    for band in &annotations.confidence_bands {
+        let color = Color::rgba(band.color.0, band.color.1, band.color.2, band.alpha);
+        let n = band.upper.len().min(band.lower.len());
+
+        // Draw band as connected polygon segments
+        let mut top_points = Vec::new();
+        let mut bot_points = Vec::new();
+        for i in 0..n {
+            if band.upper[i].is_nan() || band.lower[i].is_nan() {
+                // Flush segment if we have points
+                if top_points.len() >= 2 {
+                    bot_points.reverse();
+                    top_points.append(&mut bot_points);
+                    renderer.fill_polygon(&top_points, &FillStyle { color });
+                    top_points.clear();
+                }
+                bot_points.clear();
+                continue;
+            }
+            let rel = i as f64 - offset;
+            top_points.push(transform.to_pixel(rel, band.upper[i]));
+            bot_points.push(transform.to_pixel(rel, band.lower[i]));
+        }
+        if top_points.len() >= 2 {
+            bot_points.reverse();
+            top_points.append(&mut bot_points);
+            renderer.fill_polygon(&top_points, &FillStyle { color });
+        }
+    }
+
+    // Walk-forward zones (vertical shaded regions across full panel height)
+    for zone in &annotations.walk_forward_zones {
+        let start_rel = zone.start_bar as f64 - offset;
+        let end_rel = zone.end_bar as f64 - offset;
+        let x1 = transform.bar_x(start_rel.round().max(0.0) as usize);
+        let x2 = transform.bar_x(end_rel.round().max(0.0) as usize);
+        let width = (x2 - x1).max(1.0);
+
+        let (r, g, b) = zone.color.unwrap_or(if zone.is_train {
+            (50, 100, 200) // blue for train
+        } else {
+            (255, 165, 0) // orange for validation
+        });
+
+        renderer.draw_rect(
+            Rect::new(x1, panel_rect.y, width, panel_rect.height),
+            &FillStyle {
+                color: Color::rgba(r, g, b, 20),
+            },
+        );
+
+        // Label at top
+        if !zone.label.is_empty() {
+            let text_style = TextStyle {
+                color: Color::rgba(r, g, b, 180),
+                size: config.font_size - 1.0,
+                font_family: "monospace".to_string(),
+            };
+            renderer.draw_text(
+                &zone.label,
+                Point {
+                    x: x1 + 3.0,
+                    y: panel_rect.y + config.font_size,
+                },
+                &text_style,
+                TextAnchor::Start,
+            );
+        }
+    }
+
+    // News event markers (vertical line + label at top of panel)
+    for event in &annotations.news_events {
+        let rel = event.bar_index as f64 - offset;
+        let x = transform.bar_x(rel.round().max(0.0) as usize);
+
+        let (r, g, b) = event.color.unwrap_or_else(|| {
+            if event.impact > 0.2 {
+                (0, 200, 0) // green = bullish
+            } else if event.impact < -0.2 {
+                (220, 0, 0) // red = bearish
+            } else {
+                (180, 180, 0) // yellow = neutral
+            }
+        });
+
+        let alpha = match event.urgency {
+            3 => 200, // critical
+            2 => 150, // high
+            1 => 100, // medium
+            _ => 60,  // low
+        };
+
+        // Vertical line spanning panel
+        renderer.draw_line(
+            Point { x, y: panel_rect.y },
+            Point {
+                x,
+                y: panel_rect.bottom(),
+            },
+            &LineStyle {
+                color: Color::rgba(r, g, b, alpha),
+                width: 1.0,
+            },
+        );
+
+        // Label at top
+        if !event.label.is_empty() {
+            let text_style = TextStyle {
+                color: Color::rgba(r, g, b, alpha.min(220)),
+                size: config.font_size - 2.0,
+                font_family: "monospace".to_string(),
+            };
+            renderer.draw_text(
+                &event.label,
+                Point {
+                    x: x + 2.0,
+                    y: panel_rect.y + config.font_size - 1.0,
+                },
+                &text_style,
+                TextAnchor::Start,
+            );
+        }
+    }
 }
 
 /// Draw volume profile histogram on the price panel (horizontal bars from right edge).

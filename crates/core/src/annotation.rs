@@ -98,6 +98,55 @@ pub struct TripleBarrier {
     pub color: (u8, u8, u8),
 }
 
+/// ML confidence band overlay on the price panel.
+///
+/// Renders a semi-transparent band between `upper` and `lower` values per bar,
+/// typically representing prediction confidence intervals.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ConfidenceBand {
+    /// Upper bound values, one per bar. `NaN` entries are skipped.
+    pub upper: Vec<f64>,
+    /// Lower bound values, one per bar. `NaN` entries are skipped.
+    pub lower: Vec<f64>,
+    /// RGB color for the band fill.
+    pub color: (u8, u8, u8),
+    /// Alpha for the band fill (0–255).
+    pub alpha: u8,
+}
+
+/// Walk-forward validation zone — marks a train or test time range.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct WalkForwardZone {
+    /// First bar index of the zone.
+    pub start_bar: usize,
+    /// Last bar index of the zone (exclusive).
+    pub end_bar: usize,
+    /// `true` = training zone, `false` = validation/test zone.
+    pub is_train: bool,
+    /// Optional fold label (e.g. "Fold 1").
+    pub label: String,
+    /// RGB color override. If `None`, uses default train (blue) / val (orange).
+    pub color: Option<(u8, u8, u8)>,
+}
+
+/// A news or event marker at a specific bar.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct NewsEvent {
+    /// Bar index of the event.
+    pub bar_index: usize,
+    /// Short label (e.g. "Earnings", "FDA", "FOMC").
+    pub label: String,
+    /// Impact score: -1.0 (bearish) to +1.0 (bullish), 0.0 = neutral.
+    pub impact: f64,
+    /// Urgency: 0 = low, 1 = medium, 2 = high, 3 = critical.
+    pub urgency: u8,
+    /// RGB color override. If `None`, color is derived from `impact`.
+    pub color: Option<(u8, u8, u8)>,
+}
+
 /// Collection of annotations on a chart.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -110,6 +159,12 @@ pub struct Annotations {
     pub fibonaccis: Vec<FibonacciRetracement>,
     /// All triple barrier overlays on the chart.
     pub triple_barriers: Vec<TripleBarrier>,
+    /// ML confidence bands on the price panel.
+    pub confidence_bands: Vec<ConfidenceBand>,
+    /// Walk-forward train/validation zones.
+    pub walk_forward_zones: Vec<WalkForwardZone>,
+    /// News/event markers.
+    pub news_events: Vec<NewsEvent>,
 }
 
 impl Annotations {
@@ -139,12 +194,30 @@ impl Annotations {
         self.triple_barriers.push(tb);
     }
 
+    /// Adds an ML confidence band to the collection.
+    pub fn add_confidence_band(&mut self, band: ConfidenceBand) {
+        self.confidence_bands.push(band);
+    }
+
+    /// Adds a walk-forward zone to the collection.
+    pub fn add_walk_forward_zone(&mut self, zone: WalkForwardZone) {
+        self.walk_forward_zones.push(zone);
+    }
+
+    /// Adds a news event marker to the collection.
+    pub fn add_news_event(&mut self, event: NewsEvent) {
+        self.news_events.push(event);
+    }
+
     /// Removes all annotations.
     pub fn clear(&mut self) {
         self.trend_lines.clear();
         self.corridors.clear();
         self.fibonaccis.clear();
         self.triple_barriers.clear();
+        self.confidence_bands.clear();
+        self.walk_forward_zones.clear();
+        self.news_events.clear();
     }
 
     /// Returns `true` if there are no annotations of any kind.
@@ -154,6 +227,9 @@ impl Annotations {
             && self.corridors.is_empty()
             && self.fibonaccis.is_empty()
             && self.triple_barriers.is_empty()
+            && self.confidence_bands.is_empty()
+            && self.walk_forward_zones.is_empty()
+            && self.news_events.is_empty()
     }
 }
 

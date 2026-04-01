@@ -1,6 +1,6 @@
 # FerroChart -- Roadmap & Todo
 
-> **Stand:** 2026-04-01 18:30 CEST
+> **Stand:** 2026-04-01 18:50 CEST
 > **Tests:** 216 (173 core + 43 render), Clippy-pedantic clean
 
 ---
@@ -120,13 +120,12 @@
 
 ---
 
-## Phase 3 -- ML-Integration (nicht begonnen)
+## Phase 3 -- ML-Integration ✅
 
-| Feature | Beschreibung | Abhaengigkeit |
-|---|---|---|
-| ONNX Confidence Overlay | ML-Confidence als Band/Overlay auf Preis-Panel | Neuer Overlay-Typ |
-| Walk-Forward Boundary Zones | Zeitbereiche fuer Train/Test-Splits markieren | Annotation-System (vorhanden) |
-| News Event Overlay | Zeitpunkt-Marker fuer Nachrichten/Events | Marker-System (vorhanden) |
+- [x] **Confidence Band** -- `ConfidenceBand { upper, lower, color, alpha }` Polygon-Fill auf Preis-Panel
+- [x] **Walk-Forward Zones** -- `WalkForwardZone { start_bar, end_bar, is_train, label }` vertikale Farbzonen (blau=Train, orange=Val)
+- [x] **News Event Overlay** -- `NewsEvent { bar_index, label, impact, urgency }` vertikale Linien + Labels, Farbe nach Impact, Alpha nach Urgency
+- [x] WASM-API: `addConfidenceBand(upper, lower, r, g, b, alpha)`, `addWalkForwardZone(start, end, isTrain, label)`, `addNewsEvent(bar, label, impact, urgency)`
 
 ---
 
@@ -156,7 +155,7 @@
 |---|---|---|
 | 1 | Fundament (Core + Render + WASM + Interaktion + Annotations) | ✅ (3 offene Punkte) |
 | 2 | SMR-Kern (CUSUM, Triple Barrier, VWAP, Volume Profile, Imbalance) | ✅ |
-| 3 | ML-Integration (ONNX, Walk-Forward, News) | -- |
+| 3 | ML-Integration (Confidence Band, Walk-Forward, News Events) | ✅ |
 | 4 | Erweitert (GEX, Max Pain, Multi-Chart, Backtest) | -- |
 
 ### Strukturelle Basis fuer Phase 2+
