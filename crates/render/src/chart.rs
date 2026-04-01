@@ -276,17 +276,17 @@ fn draw_y_axis(
         // Log mode: distribute ticks evenly in log-space
         let log_min = price_range.min.ln();
         let log_max = price_range.max.ln();
-        let num_labels = 8;
-        let step = (log_max - log_min) / num_labels as f64;
+        let num_labels: i32 = 8;
+        let step = (log_max - log_min) / f64::from(num_labels);
         (1..num_labels)
-            .map(|i| (log_min + step * i as f64).exp())
+            .map(|i| (log_min + step * f64::from(i)).exp())
             .collect::<Vec<_>>()
     } else {
         // Linear mode
-        let num_labels = 8;
-        let step = price_range.span() / num_labels as f64;
+        let num_labels: i32 = 8;
+        let step = price_range.span() / f64::from(num_labels);
         (1..num_labels)
-            .map(|i| price_range.min + step * i as f64)
+            .map(|i| price_range.min + step * f64::from(i))
             .collect::<Vec<_>>()
     };
 

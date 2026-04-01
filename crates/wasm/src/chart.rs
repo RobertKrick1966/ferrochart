@@ -544,6 +544,10 @@ impl FerroChart {
     }
 
     /// Export all annotations as a JSON string for persistence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `JsValue` error if serialization fails.
     #[wasm_bindgen(js_name = exportAnnotations)]
     pub fn export_annotations(&self) -> Result<String, JsValue> {
         let st = self.state.borrow();
@@ -552,6 +556,10 @@ impl FerroChart {
     }
 
     /// Import annotations from a JSON string (replaces current annotations).
+    ///
+    /// # Errors
+    ///
+    /// Returns a `JsValue` error if the JSON is invalid.
     #[wasm_bindgen(js_name = importAnnotations)]
     pub fn import_annotations(&self, json: &str) -> Result<(), JsValue> {
         let annotations: Annotations = serde_json::from_str(json)
