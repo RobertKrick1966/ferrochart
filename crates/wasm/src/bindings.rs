@@ -39,7 +39,6 @@ pub fn render_chart(
 
     let data: Vec<Ohlcv> = (0..len)
         .map(|i| Ohlcv {
-            #[allow(clippy::cast_possible_truncation)]
             timestamp: timestamps[i] as i64,
             open: opens[i],
             high: highs[i],

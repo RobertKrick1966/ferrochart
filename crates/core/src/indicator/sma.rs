@@ -10,6 +10,7 @@ use crate::Ohlcv;
 /// Simple Moving Average.
 #[derive(Debug, Clone)]
 pub struct Sma {
+    /// Lookback period.
     pub period: usize,
 }
 

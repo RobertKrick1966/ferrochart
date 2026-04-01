@@ -10,6 +10,7 @@ use crate::Ohlcv;
 /// Exponential Moving Average.
 #[derive(Debug, Clone)]
 pub struct Ema {
+    /// Lookback period.
     pub period: usize,
 }
 

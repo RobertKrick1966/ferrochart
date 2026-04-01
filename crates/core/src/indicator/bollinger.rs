@@ -10,7 +10,9 @@ use crate::Ohlcv;
 /// Bollinger Bands (middle = SMA, upper/lower = SMA ± `std_dev` × σ).
 #[derive(Debug, Clone)]
 pub struct BollingerBands {
+    /// Lookback period for the middle SMA.
     pub period: usize,
+    /// Number of standard deviations for upper/lower bands.
     pub std_dev: f64,
 }
 
@@ -23,7 +25,6 @@ impl Indicator for BollingerBands {
         IndicatorPlacement::Overlay
     }
 
-    #[allow(clippy::cast_precision_loss)]
     fn compute(&self, data: &[Ohlcv]) -> IndicatorOutput {
         let c = closes(data);
         let middle = compute_sma(&c, self.period);

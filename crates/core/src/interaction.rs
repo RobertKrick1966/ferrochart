@@ -7,6 +7,7 @@ use crate::ZoomPanState;
 /// Result of processing a drag movement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DragUpdate {
+    /// Updated bar offset after the drag.
     pub new_offset: usize,
 }
 

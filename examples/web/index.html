@@ -61,6 +61,9 @@
 <body>
     <div class="chart-container">
         <div class="toolbar">
+            <label for="symbol-input" style="font-size:12px;">Symbol:</label>
+            <input id="symbol-input" type="text" value="DEMO" style="width:80px;font-family:monospace;font-size:12px;padding:3px 8px;background:#2a2e3e;color:#c8c8c8;border:1px solid #444;text-transform:uppercase;" />
+            <span class="separator">|</span>
             <select id="draw-tool">
                 <option value="none">Select Tool...</option>
                 <option value="trendline">Trendline</option>
@@ -68,8 +71,11 @@
                 <option value="fibonacci">Fibonacci Retracement</option>
             </select>
             <button id="btn-clear">Clear Drawings</button>
+            <button id="btn-save">Save</button>
+            <button id="btn-load">Load</button>
             <span class="separator">|</span>
             <button id="theme-toggle">Light/Dark</button>
+            <button id="log-toggle">Log Y</button>
             <span class="status" id="draw-status"></span>
         </div>
         <canvas id="chart"></canvas>
@@ -175,6 +181,42 @@
 
             document.getElementById('btn-clear').addEventListener('click', () => {
                 chart.clearAnnotations();
+                canvas.focus();
+            });
+
+            const symbolInput = document.getElementById('symbol-input');
+            const storageKey = () => `ferrochart-annotations-${symbolInput.value.trim().toUpperCase()}`;
+
+            // Auto-load annotations for current symbol on startup
+            const saved = localStorage.getItem(storageKey());
+            if (saved) {
+                try { chart.importAnnotations(saved); status.textContent = 'Loaded'; } catch(e) { console.warn('load failed:', e); }
+            }
+
+            document.getElementById('btn-save').addEventListener('click', () => {
+                const json = chart.exportAnnotations();
+                localStorage.setItem(storageKey(), json);
+                status.textContent = `Saved (${symbolInput.value.toUpperCase()})`;
+                canvas.focus();
+            });
+
+            document.getElementById('btn-load').addEventListener('click', () => {
+                const json = localStorage.getItem(storageKey());
+                if (json) {
+                    chart.importAnnotations(json);
+                    status.textContent = `Loaded (${symbolInput.value.toUpperCase()})`;
+                } else {
+                    status.textContent = 'No saved annotations';
+                }
+                canvas.focus();
+            });
+
+            // Log Y-axis toggle
+            let isLog = false;
+            document.getElementById('log-toggle').addEventListener('click', () => {
+                isLog = !isLog;
+                chart.setLogScale(isLog);
+                document.getElementById('log-toggle').textContent = isLog ? 'Linear Y' : 'Log Y';
                 canvas.focus();
             });
 

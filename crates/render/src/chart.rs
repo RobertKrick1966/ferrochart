@@ -4,7 +4,7 @@
 use ferrochart_core::{
     Annotations, CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition,
     MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform,
-    Viewport,
+    Viewport, YScaleMode,
 };
 
 use crate::Renderer;
@@ -13,20 +13,33 @@ use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 /// Configuration for chart rendering.
 #[derive(Debug, Clone)]
 pub struct ChartConfig {
+    /// Total chart width in pixels.
     pub width: f64,
+    /// Total chart height in pixels.
     pub height: f64,
+    /// Background color for the chart area.
     pub background: Color,
+    /// Body color for bullish (close >= open) candles.
     pub bullish_color: Color,
+    /// Body color for bearish (close < open) candles.
     pub bearish_color: Color,
     /// Color for the institutional portion of a split candle body.
     pub institutional_color: Color,
+    /// Wick (high-low line) color.
     pub wick_color: Color,
+    /// Color for axis border lines.
     pub axis_color: Color,
+    /// Color for background grid lines.
     pub grid_color: Color,
+    /// Color for axis labels and legend text.
     pub text_color: Color,
+    /// Candle body width as a fraction of bar spacing (0.0..1.0).
     pub body_ratio: f64,
+    /// Margins around the chart area.
     pub margin: ChartMargin,
+    /// Font size in pixels for axis labels and legends.
     pub font_size: f64,
+    /// Rotating palette of colors assigned to indicator series.
     pub indicator_colors: Vec<Color>,
     /// Y-axis scale factor (1.0 = auto-fit, <1.0 = zoom in, >1.0 = zoom out).
     pub price_scale: f64,
@@ -37,14 +50,21 @@ pub struct ChartConfig {
     pub visible_bar_slots: Option<usize>,
     /// Offset of the visible data in the full dataset (for annotation coordinate mapping).
     pub visible_offset: usize,
+    /// Use logarithmic Y-axis for the price panel.
+    /// Volume and indicator sub-panels always use linear scale.
+    pub log_y: bool,
 }
 
 /// Margins around the chart area.
 #[derive(Debug, Clone, Copy)]
 pub struct ChartMargin {
+    /// Top margin in pixels.
     pub top: f64,
+    /// Right margin in pixels (houses Y-axis labels).
     pub right: f64,
+    /// Bottom margin in pixels (houses X-axis labels).
     pub bottom: f64,
+    /// Left margin in pixels.
     pub left: f64,
 }
 
@@ -73,6 +93,7 @@ impl Default for ChartConfig {
             panel_weights: None,
             visible_bar_slots: None,
             visible_offset: 0,
+            log_y: false,
             indicator_colors: vec![
                 Color::rgb(255, 235, 59), // yellow
                 Color::rgb(0, 188, 212),  // cyan
@@ -121,7 +142,6 @@ impl ChartConfig {
 }
 
 /// Render a candlestick chart into the given renderer.
-#[allow(clippy::cast_precision_loss)]
 pub fn render_candlestick_chart(renderer: &mut dyn Renderer, data: &[Ohlcv], config: &ChartConfig) {
     if data.is_empty() {
         return;
@@ -149,7 +169,12 @@ pub fn render_candlestick_chart(renderer: &mut dyn Renderer, data: &[Ohlcv], con
         time_range,
         price_range,
     };
-    let transform = Transform::from_viewport(&viewport);
+    let y_mode = if config.log_y {
+        YScaleMode::Logarithmic
+    } else {
+        YScaleMode::Linear
+    };
+    let transform = Transform::from_viewport_with_mode(&viewport, y_mode);
 
     // Grid lines + Y-axis labels
     draw_y_axis(renderer, &chart_rect, &price_range, &transform, config);
@@ -232,7 +257,6 @@ fn draw_candles(renderer: &mut dyn Renderer, candles: &[CandleGeometry], config:
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn draw_y_axis(
     renderer: &mut dyn Renderer,
     chart_rect: &Rect,
@@ -250,12 +274,25 @@ fn draw_y_axis(
         width: 1.0,
     };
 
-    let num_labels: i32 = 8;
-    let step = price_range.span() / f64::from(num_labels);
+    let tick_prices = if transform.y_mode() == YScaleMode::Logarithmic && price_range.min > 0.0 {
+        // Log mode: distribute ticks evenly in log-space
+        let log_min = price_range.min.ln();
+        let log_max = price_range.max.ln();
+        let num_labels: i32 = 8;
+        let step = (log_max - log_min) / f64::from(num_labels);
+        (1..num_labels)
+            .map(|i| (log_min + step * f64::from(i)).exp())
+            .collect::<Vec<_>>()
+    } else {
+        // Linear mode
+        let num_labels: i32 = 8;
+        let step = price_range.span() / f64::from(num_labels);
+        (1..num_labels)
+            .map(|i| price_range.min + step * f64::from(i))
+            .collect::<Vec<_>>()
+    };
 
-    // Skip first and last to keep spacing from panel edges
-    for i in 1..num_labels {
-        let price = price_range.min + step * f64::from(i);
+    for price in tick_prices {
         let y = transform.price_y(price);
 
         // Grid line
@@ -281,7 +318,6 @@ fn draw_y_axis(
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn draw_x_axis(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -330,7 +366,6 @@ fn draw_x_axis(
 }
 
 /// Draw date labels for intraday data (one per day, centered).
-#[allow(clippy::cast_precision_loss)]
 fn draw_date_labels(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -377,7 +412,6 @@ fn draw_date_labels(
 }
 
 /// Draw month/year labels centered below each month's range of bars.
-#[allow(clippy::cast_precision_loss)]
 fn draw_month_labels(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -445,7 +479,6 @@ const fn month_abbrev(month: u32) -> &'static str {
 }
 
 /// Draw volume Y-axis labels and grid lines on the right side.
-#[allow(clippy::cast_precision_loss)]
 fn draw_volume_axis(
     renderer: &mut dyn Renderer,
     panel_rect: &Rect,
@@ -505,7 +538,6 @@ fn format_volume(vol: f64) -> String {
 }
 
 /// Inset a rect horizontally by half a bar width so bars don't clip the frame.
-#[allow(clippy::cast_precision_loss)]
 fn inset_rect_horizontal(rect: &Rect, num_bars: usize) -> Rect {
     // Estimate bar width, then inset by half of it
     let bar_width = if num_bars > 1 {
@@ -523,7 +555,6 @@ fn inset_rect_horizontal(rect: &Rect, num_bars: usize) -> Rect {
 }
 
 /// Detect the average interval between bars in seconds.
-#[allow(clippy::cast_possible_wrap)]
 fn detect_interval(data: &[Ohlcv]) -> i64 {
     if data.len() < 2 {
         return 86_400;
@@ -552,7 +583,6 @@ fn format_timestamp(ts: i64, interval: i64) -> String {
 }
 
 /// Convert days since epoch to (year, month, day).
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn days_to_ymd(days: i64) -> (i64, u32, u32) {
     // Algorithm from http://howardhinnant.github.io/date_algorithms.html
     let z = days + 719_468;
@@ -573,7 +603,6 @@ fn days_to_ymd(days: i64) -> (i64, u32, u32) {
 /// # Panics
 ///
 /// Panics if the internal panel layout cannot be constructed (should not happen).
-#[allow(clippy::cast_precision_loss)]
 pub fn render_with_volume(renderer: &mut dyn Renderer, data: &[Ohlcv], config: &ChartConfig) {
     if data.is_empty() {
         return;
@@ -605,7 +634,12 @@ pub fn render_with_volume(renderer: &mut dyn Renderer, data: &[Ohlcv], config: &
         time_range,
         price_range,
     };
-    let price_transform = Transform::from_viewport(&price_vp);
+    let y_mode = if config.log_y {
+        YScaleMode::Logarithmic
+    } else {
+        YScaleMode::Linear
+    };
+    let price_transform = Transform::from_viewport_with_mode(&price_vp, y_mode);
 
     draw_y_axis(
         renderer,
@@ -680,21 +714,27 @@ fn default_panel_weights(num_sub_panels: usize) -> Vec<f64> {
 /// Describes what a rendered panel contains.
 #[derive(Debug, Clone)]
 pub enum PanelKind {
+    /// Main candlestick price panel.
     Price,
+    /// Volume bar panel.
     Volume,
+    /// Sub-panel indicator identified by name.
     Indicator(String),
 }
 
 /// Info about a rendered panel (for hit-testing/tooltip).
 #[derive(Debug, Clone)]
 pub struct PanelInfo {
+    /// Bounding rectangle of this panel in pixel coordinates.
     pub rect: Rect,
+    /// What this panel displays.
     pub kind: PanelKind,
 }
 
 /// Result of rendering, containing panel layout info and transforms.
 #[derive(Debug, Clone, Default)]
 pub struct ChartLayoutInfo {
+    /// Ordered list of rendered panels and their bounding rectangles.
     pub panels: Vec<PanelInfo>,
     /// The price transform used for the main chart panel (for coordinate mapping).
     pub price_transform: Option<Transform>,
@@ -707,7 +747,6 @@ pub struct ChartLayoutInfo {
 /// # Panics
 ///
 /// Panics if the internal panel layout cannot be constructed.
-#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 pub fn render_full_chart(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -729,7 +768,6 @@ pub fn render_full_chart(
 /// # Panics
 ///
 /// Panics if the internal panel layout cannot be constructed.
-#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 pub fn render_full_chart_with_markers(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -815,7 +853,12 @@ pub fn render_full_chart_with_markers(
         time_range,
         price_range,
     };
-    let price_transform = Transform::from_viewport(&price_vp);
+    let y_mode = if config.log_y {
+        YScaleMode::Logarithmic
+    } else {
+        YScaleMode::Linear
+    };
+    let price_transform = Transform::from_viewport_with_mode(&price_vp, y_mode);
 
     // Clip to price panel + right margin for Y-axis labels
     let clip_rect = Rect::new(
@@ -975,7 +1018,6 @@ fn draw_indicator_overlay(
 }
 
 /// Draw a sub-panel indicator (RSI, MACD).
-#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 fn draw_indicator_sub_panel(
     renderer: &mut dyn Renderer,
     panel_rect: Rect,
@@ -1107,7 +1149,6 @@ fn draw_indicator_sub_panel(
 }
 
 /// Draw Y-axis labels and grid lines for a sub-panel.
-#[allow(clippy::cast_precision_loss)]
 fn draw_sub_panel_y_axis(
     renderer: &mut dyn Renderer,
     panel_rect: &Rect,
@@ -1154,7 +1195,6 @@ fn draw_sub_panel_y_axis(
 }
 
 /// Draw a line series, splitting at NaN gaps.
-#[allow(clippy::cast_precision_loss)]
 fn draw_series_line(
     renderer: &mut dyn Renderer,
     values: &[f64],
@@ -1180,7 +1220,6 @@ fn draw_series_line(
 }
 
 /// Draw a legend for overlay indicators in the top-left of a panel.
-#[allow(clippy::cast_precision_loss)]
 fn draw_panel_legend(
     renderer: &mut dyn Renderer,
     panel_rect: Rect,
@@ -1258,7 +1297,6 @@ fn draw_label_in_panel(
 }
 
 /// Draw trendlines and Fibonacci retracements on the price panel.
-#[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
 fn draw_annotations(
     renderer: &mut dyn Renderer,
     annotations: &Annotations,
@@ -1323,30 +1361,20 @@ fn draw_annotations(
         let p1_lower = line.start_price;
         let p2_lower = line.start_price + slope * (rel_end + offset - line.start_bar);
 
-        // Upper line
-        renderer.draw_line(
-            transform.to_pixel(rel_start, p1_upper),
-            transform.to_pixel(rel_end, p2_upper),
-            &style,
-        );
-        // Lower line
-        renderer.draw_line(
-            transform.to_pixel(rel_start, p1_lower),
-            transform.to_pixel(rel_end, p2_lower),
-            &style,
-        );
-        // Fill between
-        renderer.draw_rect(
-            Rect::new(
-                transform.to_pixel(rel_start, 0.0).x,
-                transform.price_y(p1_upper.max(p1_lower)),
-                transform.to_pixel(rel_end, 0.0).x - transform.to_pixel(rel_start, 0.0).x,
-                (transform.price_y(p1_upper.min(p1_lower))
-                    - transform.price_y(p1_upper.max(p1_lower)))
-                .abs(),
-            ),
+        let upper_start = transform.to_pixel(rel_start, p1_upper);
+        let upper_end = transform.to_pixel(rel_end, p2_upper);
+        let lower_start = transform.to_pixel(rel_start, p1_lower);
+        let lower_end = transform.to_pixel(rel_end, p2_lower);
+
+        // Fill between (polygon following the diagonal lines)
+        renderer.fill_polygon(
+            &[upper_start, upper_end, lower_end, lower_start],
             &FillStyle { color: fill_color },
         );
+        // Upper line
+        renderer.draw_line(upper_start, upper_end, &style);
+        // Lower line
+        renderer.draw_line(lower_start, lower_end, &style);
     }
 
     // Fibonacci retracements
@@ -1393,7 +1421,6 @@ fn draw_annotations(
 }
 
 /// Draw markers on the price panel.
-#[allow(clippy::cast_precision_loss)]
 fn draw_markers(
     renderer: &mut dyn Renderer,
     markers: &[&Marker],
@@ -1401,8 +1428,11 @@ fn draw_markers(
     transform: &Transform,
     config: &ChartConfig,
 ) {
-    let marker_size = 8.0;
-    let offset = 6.0; // distance from high/low
+    let bar_width = transform.bar_width();
+    // Marker radius = 25% of bar width (so diameter = 50% of candle width).
+    // Clamp to a reasonable minimum so markers stay visible when zoomed out.
+    let marker_radius = (bar_width * 0.25).max(3.0);
+    let offset = marker_radius * 0.75; // distance from high/low
 
     let text_style = TextStyle {
         color: Color::LIGHT_GRAY,
@@ -1419,12 +1449,12 @@ fn draw_markers(
 
         let (cy, label_y, label_anchor) = match marker.position {
             MarkerPosition::BelowBar => {
-                let y = transform.price_y(bar.low) + offset + marker_size;
-                (y, y + marker_size + 2.0, TextAnchor::Middle)
+                let y = transform.price_y(bar.low) + offset + marker_radius;
+                (y, y + marker_radius + 2.0, TextAnchor::Middle)
             }
             MarkerPosition::AboveBar => {
-                let y = transform.price_y(bar.high) - offset - marker_size;
-                (y, y - marker_size + 2.0, TextAnchor::Middle)
+                let y = transform.price_y(bar.high) - offset - marker_radius;
+                (y, y - marker_radius - 2.0, TextAnchor::Middle)
             }
         };
 
@@ -1437,17 +1467,16 @@ fn draw_markers(
 
         match marker.shape {
             MarkerShape::ArrowUp => {
-                // Triangle pointing up: 3 points
                 let top = Point {
                     x,
-                    y: cy - marker_size,
+                    y: cy - marker_radius,
                 };
                 let bl = Point {
-                    x: x - marker_size * 0.6,
+                    x: x - marker_radius * 0.6,
                     y: cy,
                 };
                 let br = Point {
-                    x: x + marker_size * 0.6,
+                    x: x + marker_radius * 0.6,
                     y: cy,
                 };
                 renderer.draw_path(&[top, br, bl, top], &LineStyle { color, width: 2.0 });
@@ -1455,33 +1484,24 @@ fn draw_markers(
             MarkerShape::ArrowDown => {
                 let bottom = Point {
                     x,
-                    y: cy + marker_size,
+                    y: cy + marker_radius,
                 };
                 let tl = Point {
-                    x: x - marker_size * 0.6,
+                    x: x - marker_radius * 0.6,
                     y: cy,
                 };
                 let tr = Point {
-                    x: x + marker_size * 0.6,
+                    x: x + marker_radius * 0.6,
                     y: cy,
                 };
                 renderer.draw_path(&[bottom, tl, tr, bottom], &LineStyle { color, width: 2.0 });
             }
             MarkerShape::Circle => {
-                // Approximate circle with 8-sided polygon
-                let steps = 8;
-                let mut pts = Vec::with_capacity(steps + 1);
-                for s in 0..=steps {
-                    let angle = std::f64::consts::TAU * s as f64 / steps as f64;
-                    pts.push(Point {
-                        x: x + angle.cos() * marker_size * 0.5,
-                        y: cy + angle.sin() * marker_size * 0.5,
-                    });
-                }
-                renderer.draw_path(&pts, &LineStyle { color, width: 2.0 });
+                // Filled circle (ball) marker
+                renderer.draw_circle(Point { x, y: cy }, marker_radius, &FillStyle { color });
             }
             MarkerShape::Diamond => {
-                let s = marker_size * 0.6;
+                let s = marker_radius * 0.6;
                 let pts = [
                     Point { x, y: cy - s },
                     Point { x: x + s, y: cy },
@@ -1539,6 +1559,7 @@ fn draw_series_histogram(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ferrochart_core::{Corridor, FibonacciRetracement, TrendLine};
 
     fn sample_data() -> Vec<Ohlcv> {
         vec![
@@ -1832,5 +1853,330 @@ mod tests {
             inst_count, 1,
             "expected 1 institutional rect, got {inst_count}"
         );
+    }
+
+    /// Generate 20 bars of synthetic uptrend data for annotation tests.
+    fn annotation_test_data() -> Vec<Ohlcv> {
+        (0..20)
+            .map(|i| {
+                let base = 100.0 + i as f64 * 2.0;
+                Ohlcv {
+                    timestamp: 1_700_000_000 + i * 86_400,
+                    open: base,
+                    high: base + 5.0,
+                    low: base - 3.0,
+                    close: base + 3.0,
+                    volume: 5000.0 + (i as f64 * 100.0),
+                    institutional_ratio: 0.0,
+                }
+            })
+            .collect()
+    }
+
+    /// Parse all `<line>` elements from SVG, returning (x1, y1, x2, y2, stroke).
+    fn parse_svg_lines(svg: &str) -> Vec<(f64, f64, f64, f64, String)> {
+        let mut results = Vec::new();
+        for segment in svg.split("<line ") {
+            if !segment.contains("x1=") {
+                continue;
+            }
+            let attr = |name: &str| -> Option<f64> {
+                let prefix = format!("{name}=\"");
+                let start = segment.find(&prefix)? + prefix.len();
+                let end = start + segment[start..].find('"')?;
+                segment[start..end].parse().ok()
+            };
+            let stroke = || -> Option<String> {
+                let prefix = "stroke=\"";
+                let start = segment.find(prefix)? + prefix.len();
+                let end = start + segment[start..].find('"')?;
+                Some(segment[start..end].to_string())
+            };
+            if let (Some(x1), Some(y1), Some(x2), Some(y2), Some(s)) =
+                (attr("x1"), attr("y1"), attr("x2"), attr("y2"), stroke())
+            {
+                results.push((x1, y1, x2, y2, s));
+            }
+        }
+        results
+    }
+
+    /// Render a chart with a trendline and verify the line appears at the correct
+    /// pixel coordinates in the SVG output.
+    #[test]
+    fn trendline_renders_at_correct_position() {
+        let data = annotation_test_data();
+        let config = ChartConfig::default();
+
+        // Use a distinctive color so we can find the trendline in SVG
+        let tl_color = (255, 100, 0); // orange – unique, not used elsewhere
+        let tl_css = Color::rgb(tl_color.0, tl_color.1, tl_color.2).to_css();
+
+        let mut annotations = Annotations::new();
+        annotations.add_trend_line(TrendLine {
+            start_bar: 3.0,
+            start_price: 106.0,
+            end_bar: 16.0,
+            end_price: 135.0,
+            color: tl_color,
+            width: 2.0,
+            extend_right: false,
+        });
+
+        let mut r = crate::SvgRenderer::new(config.width, config.height);
+        let layout = render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        let svg = String::from_utf8(r.finish()).unwrap();
+
+        // --- Trendline must exist in SVG ---
+        assert!(svg.contains(&tl_css), "trendline color missing from SVG");
+
+        // --- Find the trendline <line> by its unique stroke color ---
+        let lines = parse_svg_lines(&svg);
+        let tl_lines: Vec<_> = lines.iter().filter(|l| l.4 == tl_css).collect();
+        assert_eq!(
+            tl_lines.len(),
+            1,
+            "expected exactly 1 trendline line, found {}",
+            tl_lines.len()
+        );
+        let (x1, y1, x2, y2, _) = *tl_lines[0];
+
+        // --- Recompute expected pixel positions from the transform ---
+        let price_transform = layout
+            .price_transform
+            .expect("layout should have price_transform");
+
+        // Trendline bars are relative to visible_offset (0 here)
+        let expected_start = price_transform.to_pixel(3.0, 106.0);
+        let expected_end = price_transform.to_pixel(16.0, 135.0);
+
+        let tol = 0.1; // pixel tolerance for f64 rounding in SVG
+        assert!(
+            (x1 - expected_start.x).abs() < tol,
+            "start x: SVG={x1:.2}, expected={:.2}",
+            expected_start.x
+        );
+        assert!(
+            (y1 - expected_start.y).abs() < tol,
+            "start y: SVG={y1:.2}, expected={:.2}",
+            expected_start.y
+        );
+        assert!(
+            (x2 - expected_end.x).abs() < tol,
+            "end x: SVG={x2:.2}, expected={:.2}",
+            expected_end.x
+        );
+        assert!(
+            (y2 - expected_end.y).abs() < tol,
+            "end y: SVG={y2:.2}, expected={:.2}",
+            expected_end.y
+        );
+    }
+
+    /// Verify that `extend_right` causes the trendline to project beyond its
+    /// endpoint to the right edge of the chart.
+    #[test]
+    fn trendline_extend_right_reaches_chart_edge() {
+        let data = annotation_test_data();
+        let config = ChartConfig::default();
+
+        let tl_color = (0, 200, 255);
+        let tl_css = Color::rgb(tl_color.0, tl_color.1, tl_color.2).to_css();
+
+        let mut annotations = Annotations::new();
+        annotations.add_trend_line(TrendLine {
+            start_bar: 2.0,
+            start_price: 104.0,
+            end_bar: 10.0,
+            end_price: 124.0,
+            color: tl_color,
+            width: 1.5,
+            extend_right: true,
+        });
+
+        let mut r = crate::SvgRenderer::new(config.width, config.height);
+        let layout = render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        let svg = String::from_utf8(r.finish()).unwrap();
+
+        let lines = parse_svg_lines(&svg);
+        let tl_lines: Vec<_> = lines.iter().filter(|l| l.4 == tl_css).collect();
+        assert_eq!(tl_lines.len(), 1);
+        let (x1, _y1, x2, _y2, _) = *tl_lines[0];
+
+        let price_transform = layout.price_transform.unwrap();
+
+        // Start should match bar 2
+        let expected_start = price_transform.to_pixel(2.0, 104.0);
+        assert!(
+            (x1 - expected_start.x).abs() < 0.1,
+            "extend_right start x mismatch"
+        );
+
+        // End should extend to bar_slots (data.len() = 20)
+        let bar_slots = data.len();
+        let extended_x = price_transform.bar_x(bar_slots);
+        assert!(
+            (x2 - extended_x).abs() < 0.1,
+            "extend_right end x: SVG={x2:.2}, expected bar_slots edge={extended_x:.2}"
+        );
+    }
+
+    /// When `visible_offset > 0` (scrolled chart), trendline bar indices are
+    /// shifted so their absolute positions stay correct.
+    #[test]
+    fn trendline_with_visible_offset() {
+        let data = annotation_test_data();
+        // Show only bars 5..15 (10 visible bars)
+        let visible_data = &data[5..15];
+        let config = ChartConfig {
+            visible_offset: 5,
+            ..ChartConfig::default()
+        };
+
+        let tl_color = (200, 50, 200);
+        let tl_css = Color::rgb(tl_color.0, tl_color.1, tl_color.2).to_css();
+
+        // Trendline in absolute coordinates: bar 7 to bar 12
+        let mut annotations = Annotations::new();
+        annotations.add_trend_line(TrendLine {
+            start_bar: 7.0,
+            start_price: 114.0,
+            end_bar: 12.0,
+            end_price: 127.0,
+            color: tl_color,
+            width: 2.0,
+            extend_right: false,
+        });
+
+        let mut r = crate::SvgRenderer::new(config.width, config.height);
+        let layout =
+            render_full_chart_with_markers(&mut r, visible_data, &[], &[], &annotations, &config);
+        let svg = String::from_utf8(r.finish()).unwrap();
+
+        let lines = parse_svg_lines(&svg);
+        let tl_lines: Vec<_> = lines.iter().filter(|l| l.4 == tl_css).collect();
+        assert_eq!(tl_lines.len(), 1);
+        let (x1, y1, x2, y2, _) = *tl_lines[0];
+
+        let price_transform = layout.price_transform.unwrap();
+
+        // Relative bars: 7 - 5 = 2, 12 - 5 = 7
+        let expected_start = price_transform.to_pixel(2.0, 114.0);
+        let expected_end = price_transform.to_pixel(7.0, 127.0);
+
+        let tol = 0.1;
+        assert!(
+            (x1 - expected_start.x).abs() < tol,
+            "offset start x: SVG={x1:.2}, expected={:.2}",
+            expected_start.x
+        );
+        assert!(
+            (y1 - expected_start.y).abs() < tol,
+            "offset start y: SVG={y1:.2}, expected={:.2}",
+            expected_start.y
+        );
+        assert!(
+            (x2 - expected_end.x).abs() < tol,
+            "offset end x: SVG={x2:.2}, expected={:.2}",
+            expected_end.x
+        );
+        assert!(
+            (y2 - expected_end.y).abs() < tol,
+            "offset end y: SVG={y2:.2}, expected={:.2}",
+            expected_end.y
+        );
+    }
+
+    /// Corridor renders two parallel lines and a fill rectangle.
+    #[test]
+    fn corridor_renders_two_lines_and_fill() {
+        let data = annotation_test_data();
+        let config = ChartConfig::default();
+
+        let corr_color = (100, 255, 100);
+        let corr_css_rgba = Color::rgba(corr_color.0, corr_color.1, corr_color.2, 150).to_css();
+
+        let mut annotations = Annotations::new();
+        annotations.add_corridor(Corridor {
+            line: TrendLine {
+                start_bar: 2.0,
+                start_price: 104.0,
+                end_bar: 18.0,
+                end_price: 140.0,
+                color: corr_color,
+                width: 1.0,
+                extend_right: false,
+            },
+            offset: 5.0,
+        });
+
+        let mut r = crate::SvgRenderer::new(config.width, config.height);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        let svg = String::from_utf8(r.finish()).unwrap();
+
+        // Two lines with corridor color (alpha 150)
+        let lines = parse_svg_lines(&svg);
+        let corr_lines: Vec<_> = lines.iter().filter(|l| l.4 == corr_css_rgba).collect();
+        assert_eq!(
+            corr_lines.len(),
+            2,
+            "expected 2 corridor lines, found {}",
+            corr_lines.len()
+        );
+
+        // Fill rectangle with alpha 25
+        let fill_css = Color::rgba(corr_color.0, corr_color.1, corr_color.2, 25).to_css();
+        assert!(
+            svg.contains(&fill_css),
+            "expected corridor fill color {fill_css} in SVG"
+        );
+    }
+
+    /// Fibonacci retracement renders horizontal lines and level labels.
+    #[test]
+    fn fibonacci_renders_levels_and_labels() {
+        let data = annotation_test_data();
+        let config = ChartConfig::default();
+
+        let fib_color = (255, 165, 0);
+
+        let mut annotations = Annotations::new();
+        annotations.add_fibonacci(FibonacciRetracement {
+            high_bar: 15,
+            high_price: 135.0,
+            low_bar: 3,
+            low_price: 103.0,
+            color: fib_color,
+        });
+
+        let mut r = crate::SvgRenderer::new(config.width, config.height);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        let svg = String::from_utf8(r.finish()).unwrap();
+
+        // 7 Fibonacci levels → 7 horizontal lines
+        // Check labels exist
+        assert!(svg.contains("0.0%"), "missing 0.0% fib label");
+        assert!(svg.contains("50.0%"), "missing 50.0% fib label");
+        assert!(svg.contains("100.0%"), "missing 100.0% fib label");
+        assert!(svg.contains("61.8%"), "missing 61.8% fib label");
+
+        // Check the 50% level price label (midpoint = 135 - 32*0.5 = 119.0)
+        assert!(svg.contains("119.00"), "missing 50% price value 119.00");
+    }
+
+    #[test]
+    fn render_log_y_produces_valid_svg() {
+        let data = annotation_test_data();
+        let config = ChartConfig {
+            log_y: true,
+            ..ChartConfig::default()
+        };
+        let mut r = crate::SvgRenderer::new(config.width, config.height);
+        render_full_chart(&mut r, &data, &[], &config);
+        let out = String::from_utf8(r.finish()).unwrap();
+        assert!(out.starts_with("<svg"));
+        assert!(out.contains("<rect")); // candle bodies
+        assert!(out.contains("<line")); // wicks + grid
+        assert!(out.contains("<text")); // axis labels
     }
 }

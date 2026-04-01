@@ -1,168 +1,152 @@
-# FerroChart — Roadmap & Todo
+# FerroChart -- Roadmap & Todo
 
-## Phase 1 — Repo & Workspace ✅
+> **Stand:** 2026-04-01 17:00 CEST
+> **Tests:** 191 (151 core + 40 render), Clippy-pedantic clean
 
-### GitHub Setup
-- [x] GitHub-Repo erstellen: `ferrochart`
-- [x] README.md mit Vision + API-Preview
-- [x] MIT-Lizenz hinzufügen
-- [x] `.gitignore` für Rust/Node
+---
 
-### Cargo Workspace
-- [x] Cargo-Workspace anlegen mit Crates: `core`, `render`, `wasm`, `examples`
+## Phase 1 -- Fundament ✅
+
+### Repo & Workspace
+- [x] GitHub-Repo, README, Lizenz, `.gitignore`
+- [x] Cargo-Workspace: `core`, `render`, `wasm`, `examples`
 - [x] CI via GitHub Actions (`cargo test` + `clippy` + WASM build)
 
----
+### Core-Datenstrukturen (`ferrochart-core`)
+- [x] `Ohlcv`, `Series<T>`, `PriceRange`, `TimeRange`
+- [x] `Viewport`, `Rect`, `Point`, `Transform` (lineares Koordinaten-Mapping)
+- [x] `PanelLayout` -- Multi-Panel mit Gewichtung
+- [x] `ZoomPanState` -- Zoom-Level, sichtbarer Range, Offset, Future Space
+- [x] `CandleGeometry` -- Pixel-Koordinaten pro Kerze (inkl. `institutional_ratio`)
+- [x] `interaction` -- `compute_zoom()`, `compute_pan()`, `is_in_chart_area()` (pure functions)
+- [x] `indicator` -- SMA, EMA, Bollinger Bands, RSI, MACD, VolumeSMA (alle `Indicator`-Trait)
 
-## Phase 2 — Core-Datenstrukturen ✅
-
-### ferrochart-core
-> Keine I/O, keine externen Dependencies (nur opt-in serde)
-
-- [x] `Ohlcv`, `Series<T>`, `PriceRange`, `TimeRange` Typen
-- [x] `Viewport`, `Rect`, `Point`, `Transform` (Koordinaten-Mapping)
-- [x] `PanelLayout` — Multi-Panel mit Gewichtung
-- [x] `ZoomPanState` — Zoom-Level, sichtbarer Index-Range, Offset, Future Space
-- [x] `CandleGeometry` — Pixel-Koordinaten pro Kerze
-- [x] `interaction` — testbare Zoom/Pan/Hit-Test Logik
-- [x] `indicator` — SMA, EMA, Bollinger Bands, RSI, MACD, VolumeSMA mit Indicator-Trait
-- [x] `marker` — MarkerShape, MarkerPosition, MarkerSet
-- [x] Serde-Support (opt-in Feature) für Ohlcv, Marker-Typen
-
----
-
-## Phase 3 — Renderer-Trait + SVG-Backend ✅
-
-### Renderer Abstraction
-- [x] `Renderer`-Trait: `draw_line`, `draw_rect`, `draw_text`, `draw_path`, `clip`, `restore_clip`, `finish`
+### Renderer-Trait + SVG-Backend (`ferrochart-render`)
+- [x] `Renderer`-Trait: `draw_line`, `draw_rect`, `draw_text`, `draw_path`, `draw_circle`, `fill_polygon`, `clip`, `restore_clip`, `finish`
 - [x] Style-Typen: `Color`, `LineStyle`, `FillStyle`, `TextStyle`, `TextAnchor`
-
-### SVG Renderer (Test-Backend)
 - [x] `SvgRenderer` implementiert `Renderer`-Trait (inkl. Clipping via `clipPath`)
-- [x] Candlestick-Rendering via SVG (inkl. Volume-Panel)
-- [x] Unit-Tests für SVG-Output
-- [x] Achsen-Labels: X-Achse (Tag + Monat/Jahr), Y-Achse (Preis)
+- [x] Achsen-Labels: X-Achse (Tag + Monat/Jahr, auto-detect Daily/Hourly/Minute), Y-Achse (Preis)
 
----
+### WASM Canvas-Renderer (`ferrochart-wasm`)
+- [x] `FerroChart` WASM-Klasse mit `new(canvas)`, `setData()`, `resize()`
+- [x] `CanvasRenderer` via `web-sys`: 2D Context API
+- [x] `RequestAnimationFrame`-Loop (dirty-flag, nur bei Aenderung rendern)
 
-## Phase 4 — WASM Canvas-Renderer ✅
-
-### WASM Setup
-- [x] `wasm-pack` in Workspace integrieren
-- [x] `FerroChart` WASM-Klasse: `new FerroChart(canvas)`
-- [x] `setData(timestamps, opens, highs, lows, closes, volumes)`
-- [x] `addIndicator(name, period)`, `removeIndicator(name)`, `clearIndicators()`
-- [x] `addMarker(...)`, `clearMarkers()`
-- [x] `resize(width, height)` für dynamische Größenanpassung
-
-### Canvas Renderer
-- [x] `CanvasRenderer` via `web-sys`: 2D Context API (inkl. `clip`/`restore`)
-- [x] `RequestAnimationFrame`-Loop (dirty-flag, nur bei Änderung rendern)
-- [x] Console-Error-Panic-Hook für WASM-Debugging
-
-### Interaktivität
-- [x] Mouse-Events: Zoom (Scroll, zentriert auf Maus), Pan (Drag)
+### Interaktivitaet (WASM)
+- [x] Mouse-Events: Zoom (Scroll, zentriert auf Maus), Pan (Drag), Keyboard (+/-/Pfeile/Home/End)
 - [x] Touch-Events: Pinch-Zoom, Drag-Pan
-- [x] Crosshair: vertikale + horizontale Linie, folgt Maus (DPR-sync)
+- [x] Crosshair: vertikale + horizontale Linie, synchronisiert ueber alle Panels
+- [x] Panel-spezifischer Hover-Tooltip (OHLCV / Volume / Indikator-Werte)
 - [x] Y-Achse Drag-Skalierung (rechter Rand ziehen, Doppelklick = Reset)
 - [x] Panel-Splitter: Drag auf Grenzlinie zwischen Panels
-- [x] Responsive Canvas: skaliert mit Fenstergröße + devicePixelRatio
-- [x] WASM-Package bauen: `wasm-pack build --target web`
+- [x] Future Space: Rechts-Scroll 33% ueber Daten hinaus
 
----
-
-## Phase 5 — Multi-Panel + Indikatoren ✅
-
-### Multi-Panel Layout
-- [x] Synchronisierter X-Zoom über alle Panels
-- [x] Volume-Panel (Balken, grün/rot) mit Grid-Linien
-- [x] Separate Y-Achse pro Panel mit Labels
-- [x] Dynamische Panel-Gewichtung je nach Anzahl Sub-Panels
-- [x] Custom Panel-Weights über ChartConfig
-- [x] Panel-Legende (farbige Linien + Namen) im Preis-Panel
-- [x] Panel-Labels in Volume/RSI/MACD
-- [x] Panel-Clipping (Inhalte bluten nicht in andere Panels)
-
-### Indikatoren
-- [x] `Indicator`-Trait: berechnet aus `&[Ohlcv]`, gibt `IndicatorOutput` zurück
-- [x] Overlay-Indikatoren: SMA, EMA, Bollinger Bands (auf Preis-Panel)
-- [x] Sub-Panel: RSI (0–100, Overbought/Oversold-Linien, Grid)
-- [x] Sub-Panel: MACD (Linie + Signal + Histogramm, Grid)
-- [x] Preis-Panel Y-Range berücksichtigt Overlay-Indikator-Werte
+### Multi-Panel + Indikatoren
+- [x] Synchronisierter X-Zoom ueber alle Panels
+- [x] Volume-Panel (Balken gruen/rot), separate Y-Achse
+- [x] Overlay: SMA, EMA, Bollinger (Preis-Panel Y-Range beruecksichtigt Overlay-Werte)
+- [x] Sub-Panel: RSI (0-100, Overbought/Oversold-Linien), MACD (Signal + Histogramm)
 - [x] Indikator-Berechnung einmal auf Gesamtdaten (Warmup), Cache + Slice
-- [x] 8-Farben-Palette für Indikatoren
-- [x] `IndicatorOutput::slice()` für sichtbaren Bereich
+- [x] 8-Farben-Palette, Panel-Legenden, Panel-Clipping
 
-### Tooltip
-- [x] Hover-Tooltip: panel-spezifisch (nur relevante Daten pro Panel)
-- [x] Tooltip-Positionierung (kein Clipping am Rand)
+### Marker & Annotations
+- [x] `MarkerShape`: ArrowUp, ArrowDown, Circle (filled), Diamond
+- [x] `MarkerSet` mit `in_range()` und `nearest()`, Marker-Info im Tooltip
+- [x] `TrendLine` -- Linie zwischen zwei Punkten, `extend_right`
+- [x] `Corridor` -- parallele Trendlinien mit Polygon-Fill
+- [x] `FibonacciRetracement` -- 7 Standard-Levels mit Labels
+- [x] Interaktives Zeichnen (2 Klicks TL/Fib, 3 Klicks Corridor)
+- [x] `exportAnnotations()` / `importAnnotations(json)` -- JSON-Persistierung
+- [x] Serde-Support (opt-in Feature) fuer alle Annotation-Typen
 
----
+### Split Candles
+- [x] `institutional_ratio` im `Ohlcv`-Typ (0.0-1.0)
+- [x] Renderer zeichnet geteilte Bodies (institutional + retail Farbbereich)
 
-## Phase 6 — Pattern-Marker & Annotations ✅
-
-### Marker-System
-- [x] `MarkerShape`: ArrowUp, ArrowDown, Circle, Diamond
-- [x] `addMarker(barIndex, shape, position, r, g, b, label)`
-- [x] `clearMarkers()`
-- [x] `MarkerSet` mit `in_range()` und `nearest()` (9 Tests)
-- [x] Marker-Rendering: Shapes auf Price-Panel, Labels darunter/darüber
-- [x] Marker-Info im Hover-Tooltip
-
----
-
-## Phase 7 — SMR-Integration & JS-API ✅
-
-### TypeScript-Typen & Build
-- [x] TypeScript-Typen generiert (automatisch via `wasm-bindgen`)
-- [x] ES-Module Build (`--target web`)
-- [x] `package.json` mit Build-Scripts (web, bundler, node)
-
-### SMR-Backend-Anbindung
-- [x] `Ohlcv`, `Marker`, `MarkerShape`, `MarkerPosition` serde-fähig (opt-in Feature)
-- [x] Git-Dependency Doku: `ferrochart-core = { git = "...", features = ["serde"] }`
-- [x] Axum-Endpoint Beispiel (`docs/integration/axum-endpoint.md`)
-
-### SMR-Frontend-Integration
-- [x] React-Wrapper-Komponente dokumentiert (`docs/integration/react-wrapper.md`)
-- [x] Vanilla-JS Demo-Seite (`examples/web/`)
-- [ ] npm-publish workflow (GitHub Actions)
-
----
-
-## Phase 8 — Polish & Extras ✅
-
-### Mobile
-- [x] Touch-Events: Pinch-Zoom, Drag-Pan
-
-### UI-Verfeinerungen
-- [x] Panel-Splitter: Drag zum Resize (Gewichte live anpassen)
-- [x] Rechts-Scroll über Daten hinaus (Future Space, 33% vom Datenbereich)
-- [x] Y-Achse Drag-Skalierung (Drag im rechten Rand, Doppelklick = Reset)
-- [x] Panel-Clipping (Inhalte bleiben in ihrem Panel)
-- [x] `removeIndicator(name)` API
-
-### Dokumentation
-- [x] README: Quick Start, API Reference, Interactions, Build-Anleitung
-- [x] Integration Guides: Axum, React
-
----
-
-## Backlog — Zukünftige Features
-
-### Native Desktop (optional)
-- [ ] `winit`-Fenster als Host für den Chart
-- [ ] `tiny-skia` als CPU-Renderer (Default), `wgpu` optional per Feature-Flag
-- [ ] Keyboard-Shortcuts: `+`/`-` Zoom, Pfeiltasten Pan
-- [ ] `examples/desktop/` — standalone Binary
-
-### Weitere Verbesserungen
-- [x] npm-publish workflow (GitHub Actions, auf Release)
-- [ ] SMR Pattern-Signale als Marker durchschleifen
-- [x] Trendlinien-Zeichnung (Linie zwischen zwei Punkten, extend_right)
-- [x] Fibonacci-Retracement (7 Standard-Levels, Labels + Linien)
-- [x] Zeitachse: Stunden/Minuten-Ticks für Intraday-Daten (auto-detect)
+### Themes & Build
 - [x] Dark/Light Theme Presets (`setTheme("dark"/"light")`)
+- [x] TypeScript-Typen (automatisch via `wasm-bindgen`)
+- [x] ES-Module Build (`--target web`)
+- [x] Vanilla-JS Demo (`examples/web/`)
+
+---
+
+### Logarithmische Y-Achse ✅
+- [x] `YScaleMode` Enum (`Linear` / `Logarithmic`) in `Transform`
+- [x] `from_viewport_with_mode()` -- Log-Mapping via `ln(price)`, Fallback auf Linear bei `min <= 0`
+- [x] `log_y: bool` in `ChartConfig` -- nur Preis-Panel, Volume/Indikatoren bleiben linear
+- [x] Y-Achsen-Labels gleichmaessig in Log-Space verteilt
+- [x] `setLogScale(enabled)` WASM-API + Web-Demo Toggle
+- [x] Round-Trip-Tests (`to_pixel` -> `to_data`), geometrischer Mittelwert = Bildmitte
+
+### Realtime-API ✅
+- [x] `updateLastCandle(timestamp, o, h, l, c, v)` -- in-place Update, kein Viewport-Reset
+- [x] `pushCandle(timestamp, o, h, l, c, v)` -- neue Kerze, Auto-Scroll wenn am Ende
+
+### DirtyFlags ✅
+- [x] Layer-granulares Bitfield: `CANDLES | INDICATORS | ANNOTATIONS | OVERLAY`
+- [x] Crosshair-Bewegung markiert nur `OVERLAY` (haeufigster Event)
+- [x] Annotation-Edits markieren nur `ANNOTATIONS`
+- [x] Indikator-Changes markieren `INDICATORS | CANDLES`
+
+## Phase 1 -- Offen
+
+| Feature | Beschreibung | Blockiert |
+|---|---|---|
+| Session-Separation | Pre/Regular/Post-Market Erkennung + visuelle Trennung | -- |
+| Non-Uniform X-Achse | Fuer Alt-Bars (Renko, Heikin-Ashi etc.) | -- |
+
+### API-Alignment (siehe `docs/wasm-api.md` fuer Details)
+
+| Feature | Beschreibung | Prioritaet |
+|---|---|---|
+| `set_config(json)` | ChartConfig per JSON setzen | Mittel |
+| Canvas2dRenderer verschieben | von `wasm/canvas.rs` nach `render/canvas2d.rs` + Feature-Flag | Mittel |
+| JSON-basierte Daten-API | `set_data(json)` parallel zu Float64Array-Methode | Niedrig |
+| `@ferrochart/web` TS-Wrapper | NPM-Package mit `FerroChart.create()` Factory + rAF-Loop | Niedrig |
+| Externe Event-Handler | `on_wheel()`/`on_pan()` als Alternative zu internen Handlern | Niedrig |
+
+---
+
+## Phase 2 -- SMR-Kern (nicht begonnen)
+
+| Feature | Beschreibung | Abhaengigkeit |
+|---|---|---|
+| Volume Profile Histogram | Horizontales Volumen-Profil (z.B. rechter Rand oder Overlay) | Neuer Indikator-Typ |
+| Anchored VWAP | Click-to-Anchor VWAP-Linie, live berechnet ab Ankerpunkt | Interaction Layer (vorhanden) |
+| Triple Barrier Overlay | Take-Profit / Stop-Loss / Time-Barrier Visualisierung | Annotation-System (vorhanden) |
+| CUSUM Event Marker | CUSUM-State als Marker + eigenes Sub-Pane | Marker-System (vorhanden), neuer Indikator |
+| Imbalance Bar Coloring | Farb-Encoding basierend auf Order-Flow-Imbalance | Split-Candle-Infrastruktur (vorhanden) |
+
+---
+
+## Phase 3 -- ML-Integration (nicht begonnen)
+
+| Feature | Beschreibung | Abhaengigkeit |
+|---|---|---|
+| ONNX Confidence Overlay | ML-Confidence als Band/Overlay auf Preis-Panel | Neuer Overlay-Typ |
+| Walk-Forward Boundary Zones | Zeitbereiche fuer Train/Test-Splits markieren | Annotation-System (vorhanden) |
+| News Event Overlay | Zeitpunkt-Marker fuer Nachrichten/Events | Marker-System (vorhanden) |
+
+---
+
+## Phase 4 -- Erweitert (nicht begonnen)
+
+| Feature | Beschreibung | Abhaengigkeit |
+|---|---|---|
+| GEX Profile | Gamma Exposure Profil (horizontales Histogramm) | Aehnlich Volume Profile |
+| Max Pain | Options Max-Pain Level als horizontale Linie | Einfaches Overlay |
+| Multi-Chart Sync | Synchronisierter Zoom/Pan ueber mehrere Chart-Instanzen | JS-Layer / Event-Bus |
+| Backtest Equity Curve | Equity-Kurve als Sub-Panel | Neuer Panel-Typ |
+
+---
+
+## Backlog
+
+- [ ] npm-publish workflow (GitHub Actions, auf Release)
+- [ ] SMR Pattern-Signale als Marker durchschleifen
+- [ ] `winit` Desktop-Fenster + `tiny-skia` CPU-Renderer (optional)
+- [ ] `wgpu` GPU-Renderer (optional per Feature-Flag)
 
 ---
 
@@ -170,13 +154,15 @@
 
 | Phase | Inhalt | Status |
 |---|---|---|
-| 1 | Repo & Workspace | ✅ |
-| 2 | Core-Datenstrukturen | ✅ |
-| 3 | Renderer-Trait + SVG | ✅ |
-| 4 | WASM Canvas-Renderer | ✅ |
-| 5 | Multi-Panel + Indikatoren | ✅ |
-| 6 | Pattern-Marker | ✅ |
-| 7 | SMR-Integration & JS-API | ✅ |
-| 8 | Polish & Extras | ✅ |
+| 1 | Fundament (Core + Render + WASM + Interaktion + Annotations) | ✅ (3 offene Punkte) |
+| 2 | SMR-Kern (Volume Profile, VWAP, Triple Barrier, CUSUM) | -- |
+| 3 | ML-Integration (ONNX, Walk-Forward, News) | -- |
+| 4 | Erweitert (GEX, Max Pain, Multi-Chart, Backtest) | -- |
 
-**160 Tests** (133 core + 27 render), Clippy-pedantic clean.
+### Strukturelle Basis fuer Phase 2+
+
+Zwei Voraussetzungen die Phase 2 braucht sind bereits implementiert:
+
+1. **Interaction Layer** -- `compute_zoom()`, `compute_pan()`, `is_in_chart_area()` existieren als pure Functions. WASM nutzt sie fuer Mouse/Touch/Keyboard. Anchored VWAP (Click-to-Anchor) kann darauf aufbauen.
+
+2. **Marker/Annotation System** -- `TrendLine`, `Corridor`, `FibonacciRetracement`, `MarkerSet` sind vorhanden. Triple Barrier, CUSUM, Walk-Forward Zones und News Events koennen als neue Annotation/Marker-Typen hinzugefuegt werden.

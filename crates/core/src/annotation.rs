@@ -64,36 +64,46 @@ pub struct Corridor {
 
 /// Collection of annotations on a chart.
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Annotations {
+    /// All trend lines on the chart.
     pub trend_lines: Vec<TrendLine>,
+    /// All corridors (parallel channel pairs) on the chart.
     pub corridors: Vec<Corridor>,
+    /// All Fibonacci retracement overlays on the chart.
     pub fibonaccis: Vec<FibonacciRetracement>,
 }
 
 impl Annotations {
+    /// Creates an empty annotations collection.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Adds a trend line to the collection.
     pub fn add_trend_line(&mut self, line: TrendLine) {
         self.trend_lines.push(line);
     }
 
+    /// Adds a corridor to the collection.
     pub fn add_corridor(&mut self, corridor: Corridor) {
         self.corridors.push(corridor);
     }
 
+    /// Adds a Fibonacci retracement to the collection.
     pub fn add_fibonacci(&mut self, fib: FibonacciRetracement) {
         self.fibonaccis.push(fib);
     }
 
+    /// Removes all annotations.
     pub fn clear(&mut self) {
         self.trend_lines.clear();
         self.corridors.clear();
         self.fibonaccis.clear();
     }
 
+    /// Returns `true` if there are no annotations of any kind.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.trend_lines.is_empty() && self.corridors.is_empty() && self.fibonaccis.is_empty()
@@ -197,5 +207,50 @@ mod tests {
         // At bar 25: 120 + 2*(25-15) = 140
         let projected = line.end_price + slope * (25.0 - line.end_bar);
         assert!((projected - 140.0).abs() < 1e-9);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn annotations_serde_roundtrip() {
+        let mut ann = Annotations::new();
+        ann.add_trend_line(TrendLine {
+            start_bar: 5.0,
+            start_price: 100.0,
+            end_bar: 15.0,
+            end_price: 120.0,
+            color: (255, 255, 0),
+            width: 2.0,
+            extend_right: true,
+        });
+        ann.add_corridor(Corridor {
+            line: TrendLine {
+                start_bar: 2.0,
+                start_price: 90.0,
+                end_bar: 20.0,
+                end_price: 130.0,
+                color: (0, 200, 255),
+                width: 1.0,
+                extend_right: false,
+            },
+            offset: 5.0,
+        });
+        ann.add_fibonacci(FibonacciRetracement {
+            high_bar: 10,
+            high_price: 200.0,
+            low_bar: 3,
+            low_price: 100.0,
+            color: (255, 165, 0),
+        });
+
+        let json = serde_json::to_string(&ann).unwrap();
+        let restored: Annotations = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(restored.trend_lines.len(), 1);
+        assert_eq!(restored.corridors.len(), 1);
+        assert_eq!(restored.fibonaccis.len(), 1);
+        assert!((restored.trend_lines[0].start_price - 100.0).abs() < 1e-9);
+        assert!(restored.trend_lines[0].extend_right);
+        assert!((restored.corridors[0].offset - 5.0).abs() < 1e-9);
+        assert_eq!(restored.fibonaccis[0].high_bar, 10);
     }
 }
