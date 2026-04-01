@@ -188,7 +188,6 @@ impl FerroChart {
         let len = timestamps.len();
         let data: Vec<Ohlcv> = (0..len)
             .map(|i| Ohlcv {
-                #[allow(clippy::cast_possible_truncation)]
                 timestamp: timestamps[i] as i64,
                 open: opens[i],
                 high: highs[i],
@@ -227,7 +226,6 @@ impl FerroChart {
         let len = timestamps.len();
         let data: Vec<Ohlcv> = (0..len)
             .map(|i| Ohlcv {
-                #[allow(clippy::cast_possible_truncation)]
                 timestamp: timestamps[i] as i64,
                 open: opens[i],
                 high: highs[i],
@@ -568,7 +566,6 @@ fn attach_mouse_events(
                         st.draw_mode = DrawMode::None;
                     }
                     DrawMode::Fibonacci => {
-                        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                         let (high_bar, high_price, low_bar, low_price) =
                             if start.start_price >= data_pos.1 {
                                 (
@@ -711,7 +708,6 @@ fn attach_mouse_events(
     Ok(())
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn attach_wheel_event(
     canvas: &HtmlCanvasElement,
     state: &Rc<RefCell<ChartState>>,
@@ -762,7 +758,6 @@ fn touch_distance(a: &web_sys::Touch, b: &web_sys::Touch) -> f64 {
     dx.hypot(dy)
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn attach_touch_events(
     canvas: &HtmlCanvasElement,
     state: &Rc<RefCell<ChartState>>,
@@ -825,7 +820,6 @@ fn attach_touch_events(
                 let dist = touch_distance(&a, &b);
                 if st.pinch_start_dist > 1.0 {
                     let scale = dist / st.pinch_start_dist;
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                     let new_visible = (st.pinch_start_visible as f64 / scale)
                         .round()
                         .clamp(5.0, st.zoom_pan.total_bars as f64)
@@ -970,7 +964,6 @@ fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {
 
 /// Convert a pixel position to data coordinates (bar index in full dataset, price).
 /// Uses the cached transform from the last render for exact coordinate match.
-#[allow(clippy::cast_precision_loss)]
 fn pixel_to_data(st: &ChartState, pos: Point) -> Option<(f64, f64)> {
     let transform = st.last_layout.price_transform?;
     let range = st.zoom_pan.visible_range();
@@ -1139,7 +1132,6 @@ fn render_frame(st: &mut ChartState) {
 }
 
 /// Draw a preview line/fibonacci while the user is placing the second point.
-#[allow(clippy::cast_precision_loss)]
 fn draw_preview(
     renderer: &mut CanvasRenderer,
     drawing: &DrawingInProgress,

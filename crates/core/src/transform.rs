@@ -28,7 +28,6 @@ impl Transform {
     /// Maps `time_range.start` → left edge of `rect`, `time_range.end - 1` → right edge.
     /// Maps `price_range.max` → top of `rect`, `price_range.min` → bottom.
     #[must_use]
-    #[allow(clippy::cast_precision_loss)]
     pub fn from_viewport(vp: &Viewport) -> Self {
         let num_bars = vp.time_range.len();
         let x_scale = if num_bars > 1 {
@@ -84,7 +83,6 @@ impl Transform {
 
     /// Pixel X center for a given bar index.
     #[must_use]
-    #[allow(clippy::cast_precision_loss)]
     pub fn bar_x(&self, bar_index: usize) -> f64 {
         bar_index as f64 * self.x_scale + self.x_offset
     }
@@ -161,7 +159,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::cast_precision_loss)]
     fn bar_x_matches_to_pixel() {
         let t = Transform::from_viewport(&test_viewport());
         for i in 0..10 {

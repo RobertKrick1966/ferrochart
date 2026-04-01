@@ -100,7 +100,6 @@ fn closes(data: &[Ohlcv]) -> Vec<f64> {
 
 /// Compute a simple moving average over `values` with the given `period`.
 /// Returns a `Vec<f64>` of the same length; first `period - 1` entries are `NAN`.
-#[allow(clippy::cast_precision_loss)]
 fn compute_sma(values: &[f64], period: usize) -> Vec<f64> {
     let n = values.len();
     let mut result = vec![f64::NAN; n];
@@ -120,7 +119,6 @@ fn compute_sma(values: &[f64], period: usize) -> Vec<f64> {
 
 /// Compute an exponential moving average over `values` with the given `period`.
 /// First `period - 1` entries are `NAN`, entry at `period - 1` is the seed SMA.
-#[allow(clippy::cast_precision_loss)]
 fn compute_ema(values: &[f64], period: usize) -> Vec<f64> {
     let n = values.len();
     let mut result = vec![f64::NAN; n];

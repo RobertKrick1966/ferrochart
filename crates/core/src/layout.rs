@@ -35,7 +35,6 @@ impl PanelLayout {
         assert!(weight_sum > f64::EPSILON, "sum of weights must be positive");
 
         let num_gaps = weights.len().saturating_sub(1);
-        #[allow(clippy::cast_precision_loss)]
         let total_gap = gap * num_gaps as f64;
         let available_height = (total_rect.height - total_gap).max(0.0);
 

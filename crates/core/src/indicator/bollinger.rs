@@ -23,7 +23,6 @@ impl Indicator for BollingerBands {
         IndicatorPlacement::Overlay
     }
 
-    #[allow(clippy::cast_precision_loss)]
     fn compute(&self, data: &[Ohlcv]) -> IndicatorOutput {
         let c = closes(data);
         let middle = compute_sma(&c, self.period);

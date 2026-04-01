@@ -121,7 +121,6 @@ impl ChartConfig {
 }
 
 /// Render a candlestick chart into the given renderer.
-#[allow(clippy::cast_precision_loss)]
 pub fn render_candlestick_chart(renderer: &mut dyn Renderer, data: &[Ohlcv], config: &ChartConfig) {
     if data.is_empty() {
         return;
@@ -232,7 +231,6 @@ fn draw_candles(renderer: &mut dyn Renderer, candles: &[CandleGeometry], config:
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn draw_y_axis(
     renderer: &mut dyn Renderer,
     chart_rect: &Rect,
@@ -281,7 +279,6 @@ fn draw_y_axis(
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn draw_x_axis(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -330,7 +327,6 @@ fn draw_x_axis(
 }
 
 /// Draw date labels for intraday data (one per day, centered).
-#[allow(clippy::cast_precision_loss)]
 fn draw_date_labels(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -377,7 +373,6 @@ fn draw_date_labels(
 }
 
 /// Draw month/year labels centered below each month's range of bars.
-#[allow(clippy::cast_precision_loss)]
 fn draw_month_labels(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -445,7 +440,6 @@ const fn month_abbrev(month: u32) -> &'static str {
 }
 
 /// Draw volume Y-axis labels and grid lines on the right side.
-#[allow(clippy::cast_precision_loss)]
 fn draw_volume_axis(
     renderer: &mut dyn Renderer,
     panel_rect: &Rect,
@@ -505,7 +499,6 @@ fn format_volume(vol: f64) -> String {
 }
 
 /// Inset a rect horizontally by half a bar width so bars don't clip the frame.
-#[allow(clippy::cast_precision_loss)]
 fn inset_rect_horizontal(rect: &Rect, num_bars: usize) -> Rect {
     // Estimate bar width, then inset by half of it
     let bar_width = if num_bars > 1 {
@@ -523,7 +516,6 @@ fn inset_rect_horizontal(rect: &Rect, num_bars: usize) -> Rect {
 }
 
 /// Detect the average interval between bars in seconds.
-#[allow(clippy::cast_possible_wrap)]
 fn detect_interval(data: &[Ohlcv]) -> i64 {
     if data.len() < 2 {
         return 86_400;
@@ -552,7 +544,6 @@ fn format_timestamp(ts: i64, interval: i64) -> String {
 }
 
 /// Convert days since epoch to (year, month, day).
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn days_to_ymd(days: i64) -> (i64, u32, u32) {
     // Algorithm from http://howardhinnant.github.io/date_algorithms.html
     let z = days + 719_468;
@@ -573,7 +564,6 @@ fn days_to_ymd(days: i64) -> (i64, u32, u32) {
 /// # Panics
 ///
 /// Panics if the internal panel layout cannot be constructed (should not happen).
-#[allow(clippy::cast_precision_loss)]
 pub fn render_with_volume(renderer: &mut dyn Renderer, data: &[Ohlcv], config: &ChartConfig) {
     if data.is_empty() {
         return;
@@ -707,7 +697,6 @@ pub struct ChartLayoutInfo {
 /// # Panics
 ///
 /// Panics if the internal panel layout cannot be constructed.
-#[allow(clippy::cast_precision_loss)]
 pub fn render_full_chart(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -729,7 +718,6 @@ pub fn render_full_chart(
 /// # Panics
 ///
 /// Panics if the internal panel layout cannot be constructed.
-#[allow(clippy::cast_precision_loss)]
 pub fn render_full_chart_with_markers(
     renderer: &mut dyn Renderer,
     data: &[Ohlcv],
@@ -975,7 +963,6 @@ fn draw_indicator_overlay(
 }
 
 /// Draw a sub-panel indicator (RSI, MACD).
-#[allow(clippy::cast_precision_loss)]
 fn draw_indicator_sub_panel(
     renderer: &mut dyn Renderer,
     panel_rect: Rect,
@@ -1107,7 +1094,6 @@ fn draw_indicator_sub_panel(
 }
 
 /// Draw Y-axis labels and grid lines for a sub-panel.
-#[allow(clippy::cast_precision_loss)]
 fn draw_sub_panel_y_axis(
     renderer: &mut dyn Renderer,
     panel_rect: &Rect,
@@ -1154,7 +1140,6 @@ fn draw_sub_panel_y_axis(
 }
 
 /// Draw a line series, splitting at NaN gaps.
-#[allow(clippy::cast_precision_loss)]
 fn draw_series_line(
     renderer: &mut dyn Renderer,
     values: &[f64],
@@ -1180,7 +1165,6 @@ fn draw_series_line(
 }
 
 /// Draw a legend for overlay indicators in the top-left of a panel.
-#[allow(clippy::cast_precision_loss)]
 fn draw_panel_legend(
     renderer: &mut dyn Renderer,
     panel_rect: Rect,
@@ -1258,7 +1242,6 @@ fn draw_label_in_panel(
 }
 
 /// Draw trendlines and Fibonacci retracements on the price panel.
-#[allow(clippy::cast_precision_loss)]
 fn draw_annotations(
     renderer: &mut dyn Renderer,
     annotations: &Annotations,
@@ -1393,7 +1376,6 @@ fn draw_annotations(
 }
 
 /// Draw markers on the price panel.
-#[allow(clippy::cast_precision_loss)]
 fn draw_markers(
     renderer: &mut dyn Renderer,
     markers: &[&Marker],

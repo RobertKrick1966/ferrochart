@@ -104,7 +104,6 @@ fn generate_svg(
 }
 
 /// Generate realistic-looking OHLCV sample data (30 daily bars).
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_wrap)]
 fn sample_ohlcv() -> Vec<Ohlcv> {
     let base_timestamp: i64 = 1_700_000_000; // ~2023-11-14
     let day: i64 = 86_400;
@@ -140,7 +139,6 @@ fn sample_ohlcv() -> Vec<Ohlcv> {
 }
 
 /// OHLCV data with institutional activity for split-candle rendering.
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_wrap)]
 fn sample_ohlcv_with_institutional() -> Vec<Ohlcv> {
     let mut data = sample_ohlcv();
     // Add institutional ratios to some bars

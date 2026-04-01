@@ -22,7 +22,6 @@ impl Indicator for Rsi {
         }
     }
 
-    #[allow(clippy::cast_precision_loss)]
     fn compute(&self, data: &[Ohlcv]) -> IndicatorOutput {
         let c = closes(data);
         let n = c.len();
