@@ -1,6 +1,6 @@
 # FerroChart -- Roadmap & Todo
 
-> **Stand:** 2026-04-01 19:15 CEST
+> **Stand:** 2026-04-01 19:45 CEST
 > **Tests:** 220 (177 core + 43 render), Clippy-pedantic clean
 
 ---
@@ -96,15 +96,13 @@
 | Session-Separation | Pre/Regular/Post-Market Erkennung + visuelle Trennung | -- |
 | Non-Uniform X-Achse | Fuer Alt-Bars (Renko, Heikin-Ashi etc.) | -- |
 
-### API-Alignment (siehe `docs/wasm-api.md` fuer Details)
+### API-Alignment ✅
 
-| Feature | Beschreibung | Prioritaet |
-|---|---|---|
-| `set_config(json)` | ChartConfig per JSON setzen | Mittel |
-| Canvas2dRenderer verschieben | von `wasm/canvas.rs` nach `render/canvas2d.rs` + Feature-Flag | Mittel |
-| JSON-basierte Daten-API | `set_data(json)` parallel zu Float64Array-Methode | Niedrig |
-| `@ferrochart/web` TS-Wrapper | NPM-Package mit `FerroChart.create()` Factory + rAF-Loop | Niedrig |
-| Externe Event-Handler | `on_wheel()`/`on_pan()` als Alternative zu internen Handlern | Niedrig |
+- [x] `setConfig(json)` -- ChartConfig per JSON setzen (serde auf ChartConfig/Color/ChartMargin)
+- [x] `setDataJson(json)` -- OHLCV-Daten als JSON-Array parallel zu Float64Array-Methode
+- [x] `onWheel(deltaY, mouseX)` / `onPan(dx)` -- externe Event-Handler fuer Framework-Integration
+- [x] `@ferrochart/web` TS-Wrapper -- NPM-Package mit `FerroChart.create()` Factory + rAF-Loop (`packages/web/`)
+- [ ] Canvas2dRenderer verschieben -- bewusst in `wasm/` belassen (web-sys Dependency wuerde render-Crate WASM-abhaengig machen)
 
 ---
 

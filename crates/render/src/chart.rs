@@ -12,6 +12,7 @@ use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 
 /// Configuration for chart rendering.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChartConfig {
     /// Total chart width in pixels.
     pub width: f64,
@@ -57,6 +58,7 @@ pub struct ChartConfig {
 
 /// Margins around the chart area.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChartMargin {
     /// Top margin in pixels.
     pub top: f64,

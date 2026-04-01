@@ -818,6 +818,82 @@ impl FerroChart {
         st.zoom_pan.offset = offset as usize;
         st.dirty.mark_all();
     }
+
+    /// Set chart configuration from a JSON string.
+    ///
+    /// Accepts a partial config — only provided fields are updated.
+    /// Width and height are preserved from current state.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `JsValue` error if the JSON is invalid.
+    #[wasm_bindgen(js_name = setConfig)]
+    pub fn set_config(&self, json: &str) -> Result<(), JsValue> {
+        let new_config: ChartConfig = serde_json::from_str(json)
+            .map_err(|e| JsValue::from_str(&format!("config parse error: {e}")))?;
+        let mut st = self.state.borrow_mut();
+        // Preserve runtime dimensions
+        let w = st.config.width;
+        let h = st.config.height;
+        st.config = new_config;
+        st.config.width = w;
+        st.config.height = h;
+        st.dirty.mark_all();
+        Ok(())
+    }
+
+    /// Set OHLCV data from a JSON array of objects.
+    ///
+    /// Each object must have: `timestamp`, `open`, `high`, `low`, `close`, `volume`.
+    /// Optional: `institutional_ratio` (defaults to 0.0).
+    ///
+    /// # Errors
+    ///
+    /// Returns a `JsValue` error if the JSON is invalid.
+    #[wasm_bindgen(js_name = setDataJson)]
+    pub fn set_data_json(&self, json: &str) -> Result<(), JsValue> {
+        let data: Vec<Ohlcv> = serde_json::from_str(json)
+            .map_err(|e| JsValue::from_str(&format!("data parse error: {e}")))?;
+        let mut st = self.state.borrow_mut();
+        let total = data.len();
+        st.data = data;
+        let future = total / 3;
+        st.zoom_pan = ZoomPanState::new(total, 100.min(total)).with_future_bars(future);
+        st.recompute_indicators();
+        st.dirty.mark_all();
+        Ok(())
+    }
+
+    /// Handle a wheel event externally (for framework integration).
+    ///
+    /// `delta_y`: scroll amount (positive = zoom out, negative = zoom in).
+    /// `mouse_x`: cursor X position in canvas-pixel coordinates.
+    #[wasm_bindgen(js_name = onWheel)]
+    pub fn on_wheel(&self, delta_y: f64, mouse_x: f64) {
+        let mut st = self.state.borrow_mut();
+        if st.data.is_empty() {
+            return;
+        }
+        let chart_left = st.config.margin.left;
+        let chart_width = st.config.width - chart_left - st.config.margin.right;
+        st.zoom_pan = compute_zoom(st.zoom_pan, mouse_x, chart_left, chart_width, delta_y);
+        st.dirty.mark_all();
+    }
+
+    /// Handle a pan event externally (for framework integration).
+    ///
+    /// `dx`: horizontal pixel distance dragged since pan start.
+    #[wasm_bindgen(js_name = onPan)]
+    pub fn on_pan(&self, dx: f64) {
+        let mut st = self.state.borrow_mut();
+        if st.data.is_empty() {
+            return;
+        }
+        let chart_width = st.config.width - st.config.margin.left - st.config.margin.right;
+        let drag_start = st.zoom_pan.offset;
+        st.zoom_pan = compute_pan(st.zoom_pan, dx, chart_width, drag_start);
+        st.dirty.mark_all();
+    }
 }
 
 /// Helper: get mouse position relative to canvas in canvas-pixel coordinates.
