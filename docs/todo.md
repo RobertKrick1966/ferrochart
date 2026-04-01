@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
-> **Stand:** 2026-04-01 17:00 CEST
-> **Tests:** 191 (151 core + 40 render), Clippy-pedantic clean
+> **Stand:** 2026-04-01 18:50 CEST
+> **Tests:** 216 (173 core + 43 render), Clippy-pedantic clean
 
 ---
 
@@ -108,25 +108,24 @@
 
 ---
 
-## Phase 2 -- SMR-Kern (nicht begonnen)
+## Phase 2 -- SMR-Kern
 
-| Feature | Beschreibung | Abhaengigkeit |
-|---|---|---|
-| Volume Profile Histogram | Horizontales Volumen-Profil (z.B. rechter Rand oder Overlay) | Neuer Indikator-Typ |
-| Anchored VWAP | Click-to-Anchor VWAP-Linie, live berechnet ab Ankerpunkt | Interaction Layer (vorhanden) |
-| Triple Barrier Overlay | Take-Profit / Stop-Loss / Time-Barrier Visualisierung | Annotation-System (vorhanden) |
-| CUSUM Event Marker | CUSUM-State als Marker + eigenes Sub-Pane | Marker-System (vorhanden), neuer Indikator |
-| Imbalance Bar Coloring | Farb-Encoding basierend auf Order-Flow-Imbalance | Split-Candle-Infrastruktur (vorhanden) |
+### Implementiert ✅
+- [x] **CUSUM Indikator** -- `Cusum { threshold }` als Sub-Panel (S+, S-, Event-Histogramm)
+- [x] **Triple Barrier Overlay** -- `TripleBarrier` Annotation mit TP/SL-Linien, Time-Barrier, Polygon-Fill, Exit-Marker
+- [x] **Imbalance Bar Coloring** -- Split-Candles via `institutional_ratio` (seit Phase 1)
+- [x] **Anchored VWAP** -- `AnchoredVwap { anchor_bar }` Overlay, WASM: `addAnchoredVwap(bar)`
+- [x] **Volume Profile** -- `VolumeProfile::compute(data, buckets)` mit proportionaler Volumen-Verteilung, horizontale Bars am rechten Rand des Preis-Panels
+- [x] WASM-API: `addIndicator("cusum", period)`, `addTripleBarrier(...)`, `addAnchoredVwap(bar)`, `showVolumeProfile(buckets)`
 
 ---
 
-## Phase 3 -- ML-Integration (nicht begonnen)
+## Phase 3 -- ML-Integration ✅
 
-| Feature | Beschreibung | Abhaengigkeit |
-|---|---|---|
-| ONNX Confidence Overlay | ML-Confidence als Band/Overlay auf Preis-Panel | Neuer Overlay-Typ |
-| Walk-Forward Boundary Zones | Zeitbereiche fuer Train/Test-Splits markieren | Annotation-System (vorhanden) |
-| News Event Overlay | Zeitpunkt-Marker fuer Nachrichten/Events | Marker-System (vorhanden) |
+- [x] **Confidence Band** -- `ConfidenceBand { upper, lower, color, alpha }` Polygon-Fill auf Preis-Panel
+- [x] **Walk-Forward Zones** -- `WalkForwardZone { start_bar, end_bar, is_train, label }` vertikale Farbzonen (blau=Train, orange=Val)
+- [x] **News Event Overlay** -- `NewsEvent { bar_index, label, impact, urgency }` vertikale Linien + Labels, Farbe nach Impact, Alpha nach Urgency
+- [x] WASM-API: `addConfidenceBand(upper, lower, r, g, b, alpha)`, `addWalkForwardZone(start, end, isTrain, label)`, `addNewsEvent(bar, label, impact, urgency)`
 
 ---
 
@@ -155,8 +154,8 @@
 | Phase | Inhalt | Status |
 |---|---|---|
 | 1 | Fundament (Core + Render + WASM + Interaktion + Annotations) | ✅ (3 offene Punkte) |
-| 2 | SMR-Kern (Volume Profile, VWAP, Triple Barrier, CUSUM) | -- |
-| 3 | ML-Integration (ONNX, Walk-Forward, News) | -- |
+| 2 | SMR-Kern (CUSUM, Triple Barrier, VWAP, Volume Profile, Imbalance) | ✅ |
+| 3 | ML-Integration (Confidence Band, Walk-Forward, News Events) | ✅ |
 | 4 | Erweitert (GEX, Max Pain, Multi-Chart, Backtest) | -- |
 
 ### Strukturelle Basis fuer Phase 2+

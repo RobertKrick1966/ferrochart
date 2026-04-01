@@ -2,9 +2,9 @@
 // Copyright (C) 2025 Robert Krick
 
 use ferrochart_core::{
-    Annotations, CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition,
-    MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform,
-    Viewport, YScaleMode,
+    Annotations, BarrierOutcome, CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker,
+    MarkerPosition, MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle,
+    TimeRange, Transform, Viewport, YScaleMode, indicator::VolumeProfile,
 };
 
 use crate::Renderer;
@@ -759,6 +759,7 @@ pub fn render_full_chart(
         indicators,
         &[],
         &Annotations::default(),
+        None,
         config,
     )
 }
@@ -774,6 +775,7 @@ pub fn render_full_chart_with_markers(
     indicators: &[IndicatorOutput],
     markers: &[&Marker],
     annotations: &Annotations,
+    volume_profile: Option<&VolumeProfile>,
     config: &ChartConfig,
 ) -> ChartLayoutInfo {
     if data.is_empty() {
@@ -878,6 +880,11 @@ pub fn render_full_chart_with_markers(
     );
     let candles = CandleGeometry::compute_all(data, 0, &price_transform, config.body_ratio);
     draw_candles(renderer, &candles, config);
+
+    // Draw volume profile on price panel (behind overlays)
+    if let Some(vp) = volume_profile {
+        draw_volume_profile(renderer, vp, &price_panel.rect, &price_transform, config);
+    }
 
     // Draw overlay indicators on price panel
     let mut color_idx = 0;
@@ -1418,6 +1425,294 @@ fn draw_annotations(
             );
         }
     }
+
+    // Triple barriers
+    for tb in &annotations.triple_barriers {
+        let entry_rel = tb.entry_bar as f64 - offset;
+        let end_bar = tb.entry_bar + tb.horizon;
+        let end_rel = end_bar as f64 - offset;
+
+        let entry_x = transform.bar_x(entry_rel.round().max(0.0) as usize);
+        let end_x = transform.bar_x(end_rel.round().max(0.0) as usize);
+        let tp_y = transform.price_y(tb.tp_price);
+        let sl_y = transform.price_y(tb.sl_price);
+        let entry_y = transform.price_y(tb.entry_price);
+
+        let tp_color = Color::rgba(0, 200, 0, 180);
+        let sl_color = Color::rgba(220, 0, 0, 180);
+        let time_color = Color::rgba(tb.color.0, tb.color.1, tb.color.2, 120);
+        let fill_color = Color::rgba(tb.color.0, tb.color.1, tb.color.2, 15);
+
+        // Semi-transparent fill between TP and SL
+        renderer.fill_polygon(
+            &[
+                Point {
+                    x: entry_x,
+                    y: tp_y,
+                },
+                Point { x: end_x, y: tp_y },
+                Point { x: end_x, y: sl_y },
+                Point {
+                    x: entry_x,
+                    y: sl_y,
+                },
+            ],
+            &FillStyle { color: fill_color },
+        );
+
+        // TP line (green, dashed effect via thinner width)
+        renderer.draw_line(
+            Point {
+                x: entry_x,
+                y: tp_y,
+            },
+            Point { x: end_x, y: tp_y },
+            &LineStyle {
+                color: tp_color,
+                width: 1.0,
+            },
+        );
+
+        // SL line (red)
+        renderer.draw_line(
+            Point {
+                x: entry_x,
+                y: sl_y,
+            },
+            Point { x: end_x, y: sl_y },
+            &LineStyle {
+                color: sl_color,
+                width: 1.0,
+            },
+        );
+
+        // Time barrier (vertical right edge)
+        renderer.draw_line(
+            Point { x: end_x, y: tp_y },
+            Point { x: end_x, y: sl_y },
+            &LineStyle {
+                color: time_color,
+                width: 1.0,
+            },
+        );
+
+        // Entry marker (vertical left edge)
+        renderer.draw_line(
+            Point {
+                x: entry_x,
+                y: tp_y,
+            },
+            Point {
+                x: entry_x,
+                y: sl_y,
+            },
+            &LineStyle {
+                color: time_color,
+                width: 0.5,
+            },
+        );
+
+        // Entry price horizontal line (thin)
+        renderer.draw_line(
+            Point {
+                x: entry_x,
+                y: entry_y,
+            },
+            Point {
+                x: end_x,
+                y: entry_y,
+            },
+            &LineStyle {
+                color: Color::rgba(tb.color.0, tb.color.1, tb.color.2, 60),
+                width: 0.5,
+            },
+        );
+
+        // If exit is known, draw exit marker
+        if let (Some(exit_bar), Some(outcome)) = (tb.exit_bar, tb.outcome) {
+            let exit_rel = exit_bar as f64 - offset;
+            let exit_x = transform.bar_x(exit_rel.round().max(0.0) as usize);
+            let exit_price = match outcome {
+                BarrierOutcome::TakeProfit => tb.tp_price,
+                BarrierOutcome::StopLoss => tb.sl_price,
+                BarrierOutcome::TimeExpired => tb.entry_price,
+            };
+            let exit_y = transform.price_y(exit_price);
+            let exit_color = match outcome {
+                BarrierOutcome::TakeProfit => tp_color,
+                BarrierOutcome::StopLoss => sl_color,
+                BarrierOutcome::TimeExpired => time_color,
+            };
+            renderer.draw_circle(
+                Point {
+                    x: exit_x,
+                    y: exit_y,
+                },
+                4.0,
+                &FillStyle { color: exit_color },
+            );
+        }
+    }
+
+    // Confidence bands
+    for band in &annotations.confidence_bands {
+        let color = Color::rgba(band.color.0, band.color.1, band.color.2, band.alpha);
+        let n = band.upper.len().min(band.lower.len());
+
+        // Draw band as connected polygon segments
+        let mut top_points = Vec::new();
+        let mut bot_points = Vec::new();
+        for i in 0..n {
+            if band.upper[i].is_nan() || band.lower[i].is_nan() {
+                // Flush segment if we have points
+                if top_points.len() >= 2 {
+                    bot_points.reverse();
+                    top_points.append(&mut bot_points);
+                    renderer.fill_polygon(&top_points, &FillStyle { color });
+                    top_points.clear();
+                }
+                bot_points.clear();
+                continue;
+            }
+            let rel = i as f64 - offset;
+            top_points.push(transform.to_pixel(rel, band.upper[i]));
+            bot_points.push(transform.to_pixel(rel, band.lower[i]));
+        }
+        if top_points.len() >= 2 {
+            bot_points.reverse();
+            top_points.append(&mut bot_points);
+            renderer.fill_polygon(&top_points, &FillStyle { color });
+        }
+    }
+
+    // Walk-forward zones (vertical shaded regions across full panel height)
+    for zone in &annotations.walk_forward_zones {
+        let start_rel = zone.start_bar as f64 - offset;
+        let end_rel = zone.end_bar as f64 - offset;
+        let x1 = transform.bar_x(start_rel.round().max(0.0) as usize);
+        let x2 = transform.bar_x(end_rel.round().max(0.0) as usize);
+        let width = (x2 - x1).max(1.0);
+
+        let (r, g, b) = zone.color.unwrap_or(if zone.is_train {
+            (50, 100, 200) // blue for train
+        } else {
+            (255, 165, 0) // orange for validation
+        });
+
+        renderer.draw_rect(
+            Rect::new(x1, panel_rect.y, width, panel_rect.height),
+            &FillStyle {
+                color: Color::rgba(r, g, b, 20),
+            },
+        );
+
+        // Label at top
+        if !zone.label.is_empty() {
+            let text_style = TextStyle {
+                color: Color::rgba(r, g, b, 180),
+                size: config.font_size - 1.0,
+                font_family: "monospace".to_string(),
+            };
+            renderer.draw_text(
+                &zone.label,
+                Point {
+                    x: x1 + 3.0,
+                    y: panel_rect.y + config.font_size,
+                },
+                &text_style,
+                TextAnchor::Start,
+            );
+        }
+    }
+
+    // News event markers (vertical line + label at top of panel)
+    for event in &annotations.news_events {
+        let rel = event.bar_index as f64 - offset;
+        let x = transform.bar_x(rel.round().max(0.0) as usize);
+
+        let (r, g, b) = event.color.unwrap_or_else(|| {
+            if event.impact > 0.2 {
+                (0, 200, 0) // green = bullish
+            } else if event.impact < -0.2 {
+                (220, 0, 0) // red = bearish
+            } else {
+                (180, 180, 0) // yellow = neutral
+            }
+        });
+
+        let alpha = match event.urgency {
+            3 => 200, // critical
+            2 => 150, // high
+            1 => 100, // medium
+            _ => 60,  // low
+        };
+
+        // Vertical line spanning panel
+        renderer.draw_line(
+            Point { x, y: panel_rect.y },
+            Point {
+                x,
+                y: panel_rect.bottom(),
+            },
+            &LineStyle {
+                color: Color::rgba(r, g, b, alpha),
+                width: 1.0,
+            },
+        );
+
+        // Label at top
+        if !event.label.is_empty() {
+            let text_style = TextStyle {
+                color: Color::rgba(r, g, b, alpha.min(220)),
+                size: config.font_size - 2.0,
+                font_family: "monospace".to_string(),
+            };
+            renderer.draw_text(
+                &event.label,
+                Point {
+                    x: x + 2.0,
+                    y: panel_rect.y + config.font_size - 1.0,
+                },
+                &text_style,
+                TextAnchor::Start,
+            );
+        }
+    }
+}
+
+/// Draw volume profile histogram on the price panel (horizontal bars from right edge).
+fn draw_volume_profile(
+    renderer: &mut dyn Renderer,
+    profile: &VolumeProfile,
+    panel_rect: &Rect,
+    transform: &Transform,
+    config: &ChartConfig,
+) {
+    if profile.buckets.is_empty() || profile.max_volume < f64::EPSILON {
+        return;
+    }
+
+    let max_bar_width = panel_rect.width * 0.20;
+    let color = Color::rgba(100, 149, 237, 50); // cornflower blue, semi-transparent
+
+    // Suppress unused variable warning for config
+    let _ = config;
+
+    for bucket in &profile.buckets {
+        let y_top = transform.price_y(bucket.price_high);
+        let y_bottom = transform.price_y(bucket.price_low);
+        let height = (y_bottom - y_top).max(1.0);
+        let width = (bucket.volume / profile.max_volume) * max_bar_width;
+
+        if width < 0.5 {
+            continue;
+        }
+
+        renderer.draw_rect(
+            Rect::new(panel_rect.right() - width, y_top, width, height),
+            &FillStyle { color },
+        );
+    }
 }
 
 /// Draw markers on the price panel.
@@ -1559,7 +1854,9 @@ fn draw_series_histogram(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ferrochart_core::{Corridor, FibonacciRetracement, TrendLine};
+    use ferrochart_core::{
+        BarrierOutcome, Corridor, FibonacciRetracement, TrendLine, TripleBarrier,
+    };
 
     fn sample_data() -> Vec<Ohlcv> {
         vec![
@@ -1924,7 +2221,8 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        let layout = render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        let layout =
+            render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // --- Trendline must exist in SVG ---
@@ -1995,7 +2293,8 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        let layout = render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        let layout =
+            render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         let lines = parse_svg_lines(&svg);
@@ -2049,8 +2348,15 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        let layout =
-            render_full_chart_with_markers(&mut r, visible_data, &[], &[], &annotations, &config);
+        let layout = render_full_chart_with_markers(
+            &mut r,
+            visible_data,
+            &[],
+            &[],
+            &annotations,
+            None,
+            &config,
+        );
         let svg = String::from_utf8(r.finish()).unwrap();
 
         let lines = parse_svg_lines(&svg);
@@ -2111,7 +2417,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // Two lines with corridor color (alpha 150)
@@ -2150,7 +2456,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // 7 Fibonacci levels → 7 horizontal lines
@@ -2178,5 +2484,102 @@ mod tests {
         assert!(out.contains("<rect")); // candle bodies
         assert!(out.contains("<line")); // wicks + grid
         assert!(out.contains("<text")); // axis labels
+    }
+
+    /// Triple barrier renders TP/SL lines, time barrier, fill polygon, and exit marker.
+    #[test]
+    fn triple_barrier_renders_box_and_exit() {
+        let data = annotation_test_data();
+        let config = ChartConfig::default();
+
+        let mut annotations = Annotations::new();
+        annotations.add_triple_barrier(TripleBarrier {
+            entry_bar: 5,
+            entry_price: 110.0,
+            tp_price: 120.0,
+            sl_price: 105.0,
+            horizon: 8,
+            exit_bar: Some(10),
+            outcome: Some(BarrierOutcome::TakeProfit),
+            color: (100, 150, 255),
+        });
+
+        let mut r = crate::SvgRenderer::new(config.width, config.height);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
+        let svg = String::from_utf8(r.finish()).unwrap();
+
+        // TP line (green)
+        assert!(
+            svg.contains("rgba(0,200,0,"),
+            "expected TP line color in SVG"
+        );
+        // SL line (red)
+        assert!(
+            svg.contains("rgba(220,0,0,"),
+            "expected SL line color in SVG"
+        );
+        // Fill polygon between TP and SL
+        assert!(svg.contains("<polygon"), "expected fill polygon in SVG");
+        // Exit marker (circle)
+        assert!(
+            svg.contains("<circle"),
+            "expected exit marker circle in SVG"
+        );
+    }
+
+    /// Triple barrier without exit renders box only (no circle).
+    #[test]
+    fn triple_barrier_no_exit_renders_box_only() {
+        let data = annotation_test_data();
+        let config = ChartConfig::default();
+
+        let mut annotations = Annotations::new();
+        annotations.add_triple_barrier(TripleBarrier {
+            entry_bar: 3,
+            entry_price: 106.0,
+            tp_price: 115.0,
+            sl_price: 100.0,
+            horizon: 10,
+            exit_bar: None,
+            outcome: None,
+            color: (200, 200, 0),
+        });
+
+        let mut r = crate::SvgRenderer::new(config.width, config.height);
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, None, &config);
+        let svg = String::from_utf8(r.finish()).unwrap();
+
+        // Should have TP and SL lines but no exit circle
+        assert!(svg.contains("rgba(0,200,0,"));
+        assert!(svg.contains("rgba(220,0,0,"));
+        // No circle from TB (markers panel might have circles, but TB shouldn't)
+        // Just verify the polygon fill exists
+        assert!(svg.contains("<polygon"));
+    }
+
+    /// CUSUM indicator produces sub-panel with S+, S-, Event series.
+    #[test]
+    fn cusum_renders_as_sub_panel() {
+        use ferrochart_core::Indicator;
+        use ferrochart_core::indicator::Cusum;
+
+        let data = annotation_test_data();
+        let cusum = Cusum { threshold: 0.02 };
+        let output = cusum.compute(&data);
+
+        assert_eq!(output.series.len(), 3);
+        assert_eq!(output.series[0].name, "S+");
+        assert_eq!(output.series[1].name, "S\u{2212}");
+        assert_eq!(output.series[2].name, "Event");
+
+        let mut r = crate::SvgRenderer::new(900.0, 600.0);
+        let config = ChartConfig {
+            height: 600.0,
+            ..ChartConfig::default()
+        };
+        render_full_chart(&mut r, &data, &[output], &config);
+        let svg = String::from_utf8(r.finish()).unwrap();
+
+        assert!(svg.contains("CUSUM"), "expected CUSUM label in sub-panel");
     }
 }

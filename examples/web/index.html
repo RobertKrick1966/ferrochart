@@ -76,6 +76,7 @@
             <span class="separator">|</span>
             <button id="theme-toggle">Light/Dark</button>
             <button id="log-toggle">Log Y</button>
+            <button id="vp-toggle">Vol Profile</button>
             <span class="status" id="draw-status"></span>
         </div>
         <canvas id="chart"></canvas>
@@ -151,6 +152,7 @@
             chart.addIndicator('bollinger', 20);
             chart.addIndicator('rsi', 14);
             chart.addIndicator('macd', 26);
+            chart.addIndicator('cusum', 30); // threshold = 30/1000 = 3%
 
             // Add sample pattern markers
             chart.addMarker(15, 'arrow_up', 'below', 0, 200, 0, 'Hammer');
@@ -165,6 +167,31 @@
 
             // Fibonacci retracement example
             chart.addFibonacci(40, Math.max(...highs.slice(35, 50)), 60, Math.min(...lows.slice(55, 65)), 255, 165, 0);
+
+            // Triple barrier examples
+            chart.addTripleBarrier(30, closes[30], closes[30]*1.04, closes[30]*0.97, 15, 38, 'tp', 100, 180, 255);
+            chart.addTripleBarrier(80, closes[80], closes[80]*1.05, closes[80]*0.96, 20, 95, 'sl', 255, 150, 50);
+            chart.addTripleBarrier(130, closes[130], closes[130]*1.03, closes[130]*0.98, 12, null, '', 180, 180, 180);
+
+            // Anchored VWAP from bar 50
+            chart.addAnchoredVwap(50);
+
+            // ML confidence band (fake: close +/- spread)
+            const upper = closes.map((c, i) => i < 40 ? NaN : c * 1.02);
+            const lower = closes.map((c, i) => i < 40 ? NaN : c * 0.98);
+            chart.addConfidenceBand(new Float64Array(upper), new Float64Array(lower), 100, 200, 255, 35);
+
+            // Walk-forward zones
+            chart.addWalkForwardZone(0, 60, true, 'Train 1');
+            chart.addWalkForwardZone(60, 90, false, 'Val 1');
+            chart.addWalkForwardZone(90, 150, true, 'Train 2');
+            chart.addWalkForwardZone(150, 180, false, 'Val 2');
+
+            // News events
+            chart.addNewsEvent(25, 'Earnings', 0.8, 3);
+            chart.addNewsEvent(70, 'FDA', -0.6, 2);
+            chart.addNewsEvent(110, 'FOMC', 0.1, 1);
+            chart.addNewsEvent(160, 'Guidance', -0.9, 3);
 
             // Drawing tool dropdown
             const drawSelect = document.getElementById('draw-tool');
@@ -217,6 +244,15 @@
                 isLog = !isLog;
                 chart.setLogScale(isLog);
                 document.getElementById('log-toggle').textContent = isLog ? 'Linear Y' : 'Log Y';
+                canvas.focus();
+            });
+
+            // Volume Profile toggle
+            let vpOn = false;
+            document.getElementById('vp-toggle').addEventListener('click', () => {
+                vpOn = !vpOn;
+                chart.showVolumeProfile(vpOn ? 50 : 0);
+                document.getElementById('vp-toggle').textContent = vpOn ? 'Hide VP' : 'Vol Profile';
                 canvas.focus();
             });
 

@@ -7,12 +7,15 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
-use ferrochart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma, VolumeSma};
+use ferrochart_core::indicator::{
+    AnchoredVwap, BollingerBands, Cusum, Ema, Macd, Rsi, Sma, VolumeSma,
+};
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
-    Annotations, Corridor, FibonacciRetracement, Indicator, IndicatorOutput, IndicatorPlacement,
-    Marker, MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
-    TimeRange, Transform, TrendLine, Viewport, ZoomPanState,
+    Annotations, BarrierOutcome, ConfidenceBand, Corridor, FibonacciRetracement, Indicator,
+    IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape, NewsEvent,
+    Ohlcv, Point, PriceRange, Rect, SeriesStyle, TimeRange, Transform, TrendLine, TripleBarrier,
+    Viewport, WalkForwardZone, ZoomPanState,
 };
 use ferrochart_render::Renderer;
 use ferrochart_render::chart::{
@@ -115,6 +118,8 @@ struct ChartState {
     /// For pinch-zoom: distance between two touches at start.
     pinch_start_dist: f64,
     pinch_start_visible: usize,
+    /// Number of price buckets for volume profile (0 = disabled).
+    volume_profile_buckets: usize,
     dirty: DirtyFlags,
 }
 
@@ -184,6 +189,7 @@ impl FerroChart {
             splitter_drag: None,
             pinch_start_dist: 0.0,
             pinch_start_visible: 100,
+            volume_profile_buckets: 0,
             dirty: DirtyFlags(DirtyFlags::ALL),
         }));
 
@@ -373,6 +379,9 @@ impl FerroChart {
             "volsma" => Box::new(VolumeSma {
                 period: period.unwrap_or(20) as usize,
             }),
+            "cusum" => Box::new(Cusum {
+                threshold: period.map_or(0.03, |p| f64::from(p) / 1000.0),
+            }),
             _ => return Err(JsValue::from_str(&format!("unknown indicator: {name}"))),
         };
 
@@ -381,6 +390,17 @@ impl FerroChart {
         st.recompute_indicators();
         st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
         Ok(())
+    }
+
+    /// Add an anchored VWAP overlay starting from the given bar index.
+    #[wasm_bindgen(js_name = addAnchoredVwap)]
+    pub fn add_anchored_vwap(&self, anchor_bar: u32) {
+        let mut st = self.state.borrow_mut();
+        st.indicators.push(Box::new(AnchoredVwap {
+            anchor_bar: anchor_bar as usize,
+        }));
+        st.recompute_indicators();
+        st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
     }
 
     /// Remove an indicator by name (e.g. `"sma"`, `"rsi"`).
@@ -510,6 +530,100 @@ impl FerroChart {
         st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
+    /// Add a triple barrier overlay (take-profit, stop-loss, time limit).
+    ///
+    /// `outcome`: `"tp"`, `"sl"`, `"time"`, or empty string if unknown.
+    #[wasm_bindgen(js_name = addTripleBarrier)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_triple_barrier(
+        &self,
+        entry_bar: u32,
+        entry_price: f64,
+        tp_price: f64,
+        sl_price: f64,
+        horizon: u32,
+        exit_bar: Option<u32>,
+        outcome: &str,
+        r: u8,
+        g: u8,
+        b: u8,
+    ) {
+        let outcome_enum = match outcome {
+            "tp" => Some(BarrierOutcome::TakeProfit),
+            "sl" => Some(BarrierOutcome::StopLoss),
+            "time" => Some(BarrierOutcome::TimeExpired),
+            _ => None,
+        };
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_triple_barrier(TripleBarrier {
+            entry_bar: entry_bar as usize,
+            entry_price,
+            tp_price,
+            sl_price,
+            horizon: horizon as usize,
+            exit_bar: exit_bar.map(|b| b as usize),
+            outcome: outcome_enum,
+            color: (r, g, b),
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add an ML confidence band overlay on the price panel.
+    ///
+    /// `upper` and `lower` are parallel arrays of prices (one per bar).
+    #[wasm_bindgen(js_name = addConfidenceBand)]
+    pub fn add_confidence_band(
+        &self,
+        upper: &[f64],
+        lower: &[f64],
+        r: u8,
+        g: u8,
+        b: u8,
+        alpha: u8,
+    ) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_confidence_band(ConfidenceBand {
+            upper: upper.to_vec(),
+            lower: lower.to_vec(),
+            color: (r, g, b),
+            alpha,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a walk-forward train/validation zone.
+    #[wasm_bindgen(js_name = addWalkForwardZone)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_walk_forward_zone(&self, start_bar: u32, end_bar: u32, is_train: bool, label: &str) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_walk_forward_zone(WalkForwardZone {
+            start_bar: start_bar as usize,
+            end_bar: end_bar as usize,
+            is_train,
+            label: label.to_string(),
+            color: None,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a news/event marker at a specific bar.
+    ///
+    /// `impact`: -1.0 (bearish) to +1.0 (bullish).
+    /// `urgency`: 0=low, 1=medium, 2=high, 3=critical.
+    #[wasm_bindgen(js_name = addNewsEvent)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_news_event(&self, bar_index: u32, label: &str, impact: f64, urgency: u8) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_news_event(NewsEvent {
+            bar_index: bar_index as usize,
+            label: label.to_string(),
+            impact,
+            urgency,
+            color: None,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
     /// Set the interactive drawing mode.
     ///
     /// `"trendline"` — click two points to draw a trendline.
@@ -611,6 +725,17 @@ impl FerroChart {
     pub fn set_log_scale(&self, enabled: bool) {
         let mut st = self.state.borrow_mut();
         st.config.log_y = enabled;
+        st.dirty.mark_all();
+    }
+
+    /// Show volume profile histogram on the price panel.
+    ///
+    /// `num_buckets`: number of price-level buckets (e.g. 50).
+    /// Pass 0 to hide.
+    #[wasm_bindgen(js_name = showVolumeProfile)]
+    pub fn show_volume_profile(&self, num_buckets: u32) {
+        let mut st = self.state.borrow_mut();
+        st.volume_profile_buckets = num_buckets as usize;
         st.dirty.mark_all();
     }
 }
@@ -1202,12 +1327,23 @@ fn render_frame(st: &mut ChartState) {
         None
     };
 
+    // Compute volume profile on visible data if enabled
+    let vol_profile = if st.volume_profile_buckets > 0 {
+        Some(ferrochart_core::indicator::VolumeProfile::compute(
+            visible_data,
+            st.volume_profile_buckets,
+        ))
+    } else {
+        None
+    };
+
     let layout_info = render_full_chart_with_markers(
         &mut renderer,
         visible_data,
         &outputs,
         &marker_refs,
         &st.annotations,
+        vol_profile.as_ref(),
         &st.config,
     );
     st.last_layout = layout_info.clone();

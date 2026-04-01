@@ -6,15 +6,22 @@
 //! All indicators implement the [`Indicator`] trait and are pure functions
 //! (no I/O, no state between calls).
 
+mod anchored_vwap;
 mod bollinger;
+mod cusum;
 mod ema;
 mod macd;
 mod rsi;
 mod sma;
+mod volume_profile;
 mod volume_sma;
 
+/// Re-exported Anchored VWAP indicator.
+pub use anchored_vwap::AnchoredVwap;
 /// Re-exported Bollinger Bands indicator.
 pub use bollinger::BollingerBands;
+/// Re-exported CUSUM filter indicator.
+pub use cusum::Cusum;
 /// Re-exported Exponential Moving Average indicator.
 pub use ema::Ema;
 /// Re-exported MACD indicator.
@@ -23,6 +30,8 @@ pub use macd::Macd;
 pub use rsi::Rsi;
 /// Re-exported Simple Moving Average indicator.
 pub use sma::Sma;
+/// Re-exported Volume Profile types.
+pub use volume_profile::{VolumeProfile, VolumeProfileBucket};
 /// Re-exported Volume SMA indicator.
 pub use volume_sma::VolumeSma;
 
