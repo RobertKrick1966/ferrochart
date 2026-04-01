@@ -21,7 +21,9 @@ mod transform;
 mod zoom;
 
 /// Re-exported annotation types.
-pub use annotation::{Annotations, Corridor, FibonacciRetracement, TrendLine};
+pub use annotation::{
+    Annotations, BarrierOutcome, Corridor, FibonacciRetracement, TrendLine, TripleBarrier,
+};
 /// Re-exported candlestick geometry.
 pub use candle::CandleGeometry;
 /// Re-exported data primitives.

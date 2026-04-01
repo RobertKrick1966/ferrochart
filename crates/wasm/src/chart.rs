@@ -7,12 +7,12 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
-use ferrochart_core::indicator::{BollingerBands, Ema, Macd, Rsi, Sma, VolumeSma};
+use ferrochart_core::indicator::{BollingerBands, Cusum, Ema, Macd, Rsi, Sma, VolumeSma};
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
-    Annotations, Corridor, FibonacciRetracement, Indicator, IndicatorOutput, IndicatorPlacement,
-    Marker, MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
-    TimeRange, Transform, TrendLine, Viewport, ZoomPanState,
+    Annotations, BarrierOutcome, Corridor, FibonacciRetracement, Indicator, IndicatorOutput,
+    IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape, Ohlcv, Point, PriceRange,
+    Rect, SeriesStyle, TimeRange, Transform, TrendLine, TripleBarrier, Viewport, ZoomPanState,
 };
 use ferrochart_render::Renderer;
 use ferrochart_render::chart::{
@@ -373,6 +373,9 @@ impl FerroChart {
             "volsma" => Box::new(VolumeSma {
                 period: period.unwrap_or(20) as usize,
             }),
+            "cusum" => Box::new(Cusum {
+                threshold: period.map_or(0.03, |p| f64::from(p) / 1000.0),
+            }),
             _ => return Err(JsValue::from_str(&format!("unknown indicator: {name}"))),
         };
 
@@ -505,6 +508,44 @@ impl FerroChart {
             high_price,
             low_bar: low_bar as usize,
             low_price,
+            color: (r, g, b),
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a triple barrier overlay (take-profit, stop-loss, time limit).
+    ///
+    /// `outcome`: `"tp"`, `"sl"`, `"time"`, or empty string if unknown.
+    #[wasm_bindgen(js_name = addTripleBarrier)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_triple_barrier(
+        &self,
+        entry_bar: u32,
+        entry_price: f64,
+        tp_price: f64,
+        sl_price: f64,
+        horizon: u32,
+        exit_bar: Option<u32>,
+        outcome: &str,
+        r: u8,
+        g: u8,
+        b: u8,
+    ) {
+        let outcome_enum = match outcome {
+            "tp" => Some(BarrierOutcome::TakeProfit),
+            "sl" => Some(BarrierOutcome::StopLoss),
+            "time" => Some(BarrierOutcome::TimeExpired),
+            _ => None,
+        };
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_triple_barrier(TripleBarrier {
+            entry_bar: entry_bar as usize,
+            entry_price,
+            tp_price,
+            sl_price,
+            horizon: horizon as usize,
+            exit_bar: exit_bar.map(|b| b as usize),
+            outcome: outcome_enum,
             color: (r, g, b),
         });
         st.dirty.mark(DirtyFlags::ANNOTATIONS);

@@ -62,6 +62,42 @@ pub struct Corridor {
     pub offset: f64,
 }
 
+/// Which barrier was hit in a triple barrier label.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum BarrierOutcome {
+    /// Take-profit barrier was hit first.
+    TakeProfit,
+    /// Stop-loss barrier was hit first.
+    StopLoss,
+    /// Time horizon expired without hitting TP or SL.
+    TimeExpired,
+}
+
+/// Triple barrier overlay: visualises TP, SL and time-limit around an entry bar.
+///
+/// Based on López de Prado, *AFML* Ch. 3.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TripleBarrier {
+    /// Bar index of the trade entry.
+    pub entry_bar: usize,
+    /// Entry price (typically close of entry bar).
+    pub entry_price: f64,
+    /// Take-profit price level (above entry for long).
+    pub tp_price: f64,
+    /// Stop-loss price level (below entry for long).
+    pub sl_price: f64,
+    /// Maximum number of bars until time barrier.
+    pub horizon: usize,
+    /// Bar index where the trade exited (if known).
+    pub exit_bar: Option<usize>,
+    /// Which barrier was hit.
+    pub outcome: Option<BarrierOutcome>,
+    /// RGB color for the overlay.
+    pub color: (u8, u8, u8),
+}
+
 /// Collection of annotations on a chart.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -72,6 +108,8 @@ pub struct Annotations {
     pub corridors: Vec<Corridor>,
     /// All Fibonacci retracement overlays on the chart.
     pub fibonaccis: Vec<FibonacciRetracement>,
+    /// All triple barrier overlays on the chart.
+    pub triple_barriers: Vec<TripleBarrier>,
 }
 
 impl Annotations {
@@ -96,17 +134,26 @@ impl Annotations {
         self.fibonaccis.push(fib);
     }
 
+    /// Adds a triple barrier overlay to the collection.
+    pub fn add_triple_barrier(&mut self, tb: TripleBarrier) {
+        self.triple_barriers.push(tb);
+    }
+
     /// Removes all annotations.
     pub fn clear(&mut self) {
         self.trend_lines.clear();
         self.corridors.clear();
         self.fibonaccis.clear();
+        self.triple_barriers.clear();
     }
 
     /// Returns `true` if there are no annotations of any kind.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.trend_lines.is_empty() && self.corridors.is_empty() && self.fibonaccis.is_empty()
+        self.trend_lines.is_empty()
+            && self.corridors.is_empty()
+            && self.fibonaccis.is_empty()
+            && self.triple_barriers.is_empty()
     }
 }
 
