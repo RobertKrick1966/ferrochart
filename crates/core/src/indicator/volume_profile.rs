@@ -154,7 +154,7 @@ mod tests {
     fn empty_data_produces_empty_profile() {
         let vp = VolumeProfile::compute(&[], 10);
         assert!(vp.buckets.is_empty());
-        assert_eq!(vp.max_volume, 0.0);
+        assert!(vp.max_volume.abs() < f64::EPSILON);
     }
 
     #[test]

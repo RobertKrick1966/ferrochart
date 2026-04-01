@@ -119,7 +119,7 @@ mod tests {
         let cusum = Cusum { threshold: 0.05 };
         let output = cusum.compute(&data);
 
-        assert_eq!(output.series[2].values[1], 1.0); // upward event
+        assert!((output.series[2].values[1] - 1.0).abs() < f64::EPSILON); // upward event
     }
 
     #[test]
@@ -129,7 +129,7 @@ mod tests {
         let cusum = Cusum { threshold: 0.05 };
         let output = cusum.compute(&data);
 
-        assert_eq!(output.series[2].values[1], -1.0); // downward event
+        assert!((output.series[2].values[1] - (-1.0)).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -140,11 +140,11 @@ mod tests {
         let output = cusum.compute(&data);
 
         // Event at bar 1
-        assert_eq!(output.series[2].values[1], 1.0);
+        assert!((output.series[2].values[1] - 1.0).abs() < f64::EPSILON);
         // S+ resets, bar 2 has small cumulative
         assert!(output.series[0].values[2] < 0.05);
         // No event at bar 2
-        assert_eq!(output.series[2].values[2], 0.0);
+        assert!(output.series[2].values[2].abs() < f64::EPSILON);
     }
 
     #[test]
@@ -161,7 +161,7 @@ mod tests {
         // Bar 1: ~1%, bar 2: ~2%, bar 3: ~3% -> event
         assert!(s_pos[1] > 0.009);
         assert!(s_pos[2] > 0.019);
-        assert_eq!(events[3], 1.0);
+        assert!((events[3] - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -186,9 +186,9 @@ mod tests {
         let cusum = Cusum { threshold: 0.05 };
         let output = cusum.compute(&data);
 
-        assert_eq!(output.series[0].values[0], 0.0);
-        assert_eq!(output.series[1].values[0], 0.0);
-        assert_eq!(output.series[2].values[0], 0.0);
+        assert!(output.series[0].values[0].abs() < f64::EPSILON);
+        assert!(output.series[1].values[0].abs() < f64::EPSILON);
+        assert!(output.series[2].values[0].abs() < f64::EPSILON);
     }
 
     #[test]
