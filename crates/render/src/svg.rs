@@ -105,7 +105,10 @@ impl Renderer for SvgRenderer {
     fn draw_circle(&mut self, center: Point, radius: f64, fill: &FillStyle) {
         self.elements.push(format!(
             r#"<circle cx="{:.2}" cy="{:.2}" r="{:.2}" fill="{}" />"#,
-            center.x, center.y, radius, fill.color.to_css()
+            center.x,
+            center.y,
+            radius,
+            fill.color.to_css()
         ));
     }
 
@@ -284,9 +287,7 @@ mod tests {
         r.draw_circle(
             Point { x: 50.0, y: 50.0 },
             10.0,
-            &FillStyle {
-                color: Color::RED,
-            },
+            &FillStyle { color: Color::RED },
         );
         let out = String::from_utf8(r.finish()).unwrap();
         assert!(out.contains("<circle"));
@@ -321,9 +322,7 @@ mod tests {
         let mut r = SvgRenderer::new(100.0, 100.0);
         r.fill_polygon(
             &[Point { x: 0.0, y: 0.0 }, Point { x: 10.0, y: 10.0 }],
-            &FillStyle {
-                color: Color::RED,
-            },
+            &FillStyle { color: Color::RED },
         );
         let out = String::from_utf8(r.finish()).unwrap();
         assert!(!out.contains("<polygon"));

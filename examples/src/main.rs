@@ -22,9 +22,13 @@ fn main() {
     fs::create_dir_all("output").expect("failed to create output dir");
 
     // 1. Basic candlestick chart
-    generate_svg("output/01_candlestick.svg", &data, |renderer, data, config| {
-        render_candlestick_chart(renderer, data, config);
-    });
+    generate_svg(
+        "output/01_candlestick.svg",
+        &data,
+        |renderer, data, config| {
+            render_candlestick_chart(renderer, data, config);
+        },
+    );
 
     // 2. Candlestick with volume panel
     generate_svg("output/02_volume.svg", &data, |renderer, data, config| {
@@ -42,11 +46,15 @@ fn main() {
     );
 
     // 4. SMA overlay indicator
-    generate_svg("output/04_sma_overlay.svg", &data, |renderer, data, config| {
-        let sma = Sma { period: 7 };
-        let output = sma.compute(data);
-        render_full_chart(renderer, data, &[output], config);
-    });
+    generate_svg(
+        "output/04_sma_overlay.svg",
+        &data,
+        |renderer, data, config| {
+            let sma = Sma { period: 7 };
+            let output = sma.compute(data);
+            render_full_chart(renderer, data, &[output], config);
+        },
+    );
 
     // 5. Volume SMA sub-panel indicator
     generate_svg(
@@ -60,35 +68,85 @@ fn main() {
     );
 
     // 6. Circle markers (balls above/below candles)
-    generate_svg(
-        "output/06_markers.svg",
-        &data,
-        |renderer, data, config| {
-            let markers = vec![
-                // Green balls above bar (e.g., CUSUM event detected)
-                Marker { bar_index: 6, shape: MarkerShape::Circle, position: MarkerPosition::AboveBar, color: (0, 200, 0, 255), label: String::new() },
-                Marker { bar_index: 12, shape: MarkerShape::Circle, position: MarkerPosition::AboveBar, color: (0, 200, 0, 255), label: String::new() },
-                Marker { bar_index: 19, shape: MarkerShape::Circle, position: MarkerPosition::AboveBar, color: (0, 200, 0, 255), label: "CUSUM".to_string() },
-                // Red balls below bar
-                Marker { bar_index: 3, shape: MarkerShape::Circle, position: MarkerPosition::BelowBar, color: (220, 0, 0, 255), label: String::new() },
-                Marker { bar_index: 9, shape: MarkerShape::Circle, position: MarkerPosition::BelowBar, color: (220, 0, 0, 255), label: String::new() },
-                Marker { bar_index: 15, shape: MarkerShape::Circle, position: MarkerPosition::BelowBar, color: (220, 0, 0, 255), label: "Alert".to_string() },
-                // Other marker shapes for comparison
-                Marker { bar_index: 22, shape: MarkerShape::ArrowUp, position: MarkerPosition::BelowBar, color: (0, 200, 0, 255), label: String::new() },
-                Marker { bar_index: 25, shape: MarkerShape::ArrowDown, position: MarkerPosition::AboveBar, color: (220, 0, 0, 255), label: String::new() },
-                Marker { bar_index: 28, shape: MarkerShape::Diamond, position: MarkerPosition::AboveBar, color: (255, 200, 0, 255), label: String::new() },
-            ];
-            let marker_refs: Vec<&Marker> = markers.iter().collect();
-            render_full_chart_with_markers(
-                renderer,
-                data,
-                &[],
-                &marker_refs,
-                &Annotations::default(),
-                config,
-            );
-        },
-    );
+    generate_svg("output/06_markers.svg", &data, |renderer, data, config| {
+        let markers = vec![
+            // Green balls above bar (e.g., CUSUM event detected)
+            Marker {
+                bar_index: 6,
+                shape: MarkerShape::Circle,
+                position: MarkerPosition::AboveBar,
+                color: (0, 200, 0, 255),
+                label: String::new(),
+            },
+            Marker {
+                bar_index: 12,
+                shape: MarkerShape::Circle,
+                position: MarkerPosition::AboveBar,
+                color: (0, 200, 0, 255),
+                label: String::new(),
+            },
+            Marker {
+                bar_index: 19,
+                shape: MarkerShape::Circle,
+                position: MarkerPosition::AboveBar,
+                color: (0, 200, 0, 255),
+                label: "CUSUM".to_string(),
+            },
+            // Red balls below bar
+            Marker {
+                bar_index: 3,
+                shape: MarkerShape::Circle,
+                position: MarkerPosition::BelowBar,
+                color: (220, 0, 0, 255),
+                label: String::new(),
+            },
+            Marker {
+                bar_index: 9,
+                shape: MarkerShape::Circle,
+                position: MarkerPosition::BelowBar,
+                color: (220, 0, 0, 255),
+                label: String::new(),
+            },
+            Marker {
+                bar_index: 15,
+                shape: MarkerShape::Circle,
+                position: MarkerPosition::BelowBar,
+                color: (220, 0, 0, 255),
+                label: "Alert".to_string(),
+            },
+            // Other marker shapes for comparison
+            Marker {
+                bar_index: 22,
+                shape: MarkerShape::ArrowUp,
+                position: MarkerPosition::BelowBar,
+                color: (0, 200, 0, 255),
+                label: String::new(),
+            },
+            Marker {
+                bar_index: 25,
+                shape: MarkerShape::ArrowDown,
+                position: MarkerPosition::AboveBar,
+                color: (220, 0, 0, 255),
+                label: String::new(),
+            },
+            Marker {
+                bar_index: 28,
+                shape: MarkerShape::Diamond,
+                position: MarkerPosition::AboveBar,
+                color: (255, 200, 0, 255),
+                label: String::new(),
+            },
+        ];
+        let marker_refs: Vec<&Marker> = markers.iter().collect();
+        render_full_chart_with_markers(
+            renderer,
+            data,
+            &[],
+            &marker_refs,
+            &Annotations::default(),
+            config,
+        );
+    });
 
     // 7. Annotations: trendlines, corridor, Fibonacci retracement
     generate_svg(
@@ -145,14 +203,7 @@ fn main() {
             });
 
             let marker_refs: Vec<&Marker> = vec![];
-            render_full_chart_with_markers(
-                renderer,
-                data,
-                &[],
-                &marker_refs,
-                &annotations,
-                config,
-            );
+            render_full_chart_with_markers(renderer, data, &[], &marker_refs, &annotations, config);
         },
     );
 
@@ -212,8 +263,8 @@ fn sample_ohlcv_with_institutional() -> Vec<Ohlcv> {
     let mut data = sample_ohlcv();
     // Add institutional ratios to some bars
     let ratios = [
-        0.0, 0.0, 0.3, 0.0, 0.0, 0.6, 0.0, 0.45, 0.0, 0.0, 0.7, 0.0, 0.0, 0.5, 0.0, 0.0, 0.35,
-        0.0, 0.0, 0.8, 0.0, 0.0, 0.55, 0.0, 0.0, 0.4, 0.0, 0.0, 0.65, 0.0,
+        0.0, 0.0, 0.3, 0.0, 0.0, 0.6, 0.0, 0.45, 0.0, 0.0, 0.7, 0.0, 0.0, 0.5, 0.0, 0.0, 0.35, 0.0,
+        0.0, 0.8, 0.0, 0.0, 0.55, 0.0, 0.0, 0.4, 0.0, 0.0, 0.65, 0.0,
     ];
     for (bar, &ratio) in data.iter_mut().zip(ratios.iter()) {
         bar.institutional_ratio = ratio;

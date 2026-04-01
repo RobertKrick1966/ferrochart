@@ -331,8 +331,7 @@ impl FerroChart {
         });
         let total = st.data.len();
         let future = total / 3;
-        let was_at_end =
-            st.zoom_pan.offset + st.zoom_pan.visible_bars >= st.zoom_pan.total_bars;
+        let was_at_end = st.zoom_pan.offset + st.zoom_pan.visible_bars >= st.zoom_pan.total_bars;
         st.zoom_pan.total_bars = total;
         st.zoom_pan.future_bars = future;
         if was_at_end {

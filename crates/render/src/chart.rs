@@ -169,7 +169,11 @@ pub fn render_candlestick_chart(renderer: &mut dyn Renderer, data: &[Ohlcv], con
         time_range,
         price_range,
     };
-    let y_mode = if config.log_y { YScaleMode::Logarithmic } else { YScaleMode::Linear };
+    let y_mode = if config.log_y {
+        YScaleMode::Logarithmic
+    } else {
+        YScaleMode::Linear
+    };
     let transform = Transform::from_viewport_with_mode(&viewport, y_mode);
 
     // Grid lines + Y-axis labels
@@ -270,9 +274,7 @@ fn draw_y_axis(
         width: 1.0,
     };
 
-    let tick_prices = if transform.y_mode() == YScaleMode::Logarithmic
-        && price_range.min > 0.0
-    {
+    let tick_prices = if transform.y_mode() == YScaleMode::Logarithmic && price_range.min > 0.0 {
         // Log mode: distribute ticks evenly in log-space
         let log_min = price_range.min.ln();
         let log_max = price_range.max.ln();
@@ -632,7 +634,11 @@ pub fn render_with_volume(renderer: &mut dyn Renderer, data: &[Ohlcv], config: &
         time_range,
         price_range,
     };
-    let y_mode = if config.log_y { YScaleMode::Logarithmic } else { YScaleMode::Linear };
+    let y_mode = if config.log_y {
+        YScaleMode::Logarithmic
+    } else {
+        YScaleMode::Linear
+    };
     let price_transform = Transform::from_viewport_with_mode(&price_vp, y_mode);
 
     draw_y_axis(
@@ -847,7 +853,11 @@ pub fn render_full_chart_with_markers(
         time_range,
         price_range,
     };
-    let y_mode = if config.log_y { YScaleMode::Logarithmic } else { YScaleMode::Linear };
+    let y_mode = if config.log_y {
+        YScaleMode::Logarithmic
+    } else {
+        YScaleMode::Linear
+    };
     let price_transform = Transform::from_viewport_with_mode(&price_vp, y_mode);
 
     // Clip to price panel + right margin for Y-axis labels
@@ -1488,11 +1498,7 @@ fn draw_markers(
             }
             MarkerShape::Circle => {
                 // Filled circle (ball) marker
-                renderer.draw_circle(
-                    Point { x, y: cy },
-                    marker_radius,
-                    &FillStyle { color },
-                );
+                renderer.draw_circle(Point { x, y: cy }, marker_radius, &FillStyle { color });
             }
             MarkerShape::Diamond => {
                 let s = marker_radius * 0.6;
@@ -1918,14 +1924,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        let layout = render_full_chart_with_markers(
-            &mut r,
-            &data,
-            &[],
-            &[],
-            &annotations,
-            &config,
-        );
+        let layout = render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // --- Trendline must exist in SVG ---
@@ -1996,14 +1995,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        let layout = render_full_chart_with_markers(
-            &mut r,
-            &data,
-            &[],
-            &[],
-            &annotations,
-            &config,
-        );
+        let layout = render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         let lines = parse_svg_lines(&svg);
@@ -2057,14 +2049,8 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        let layout = render_full_chart_with_markers(
-            &mut r,
-            visible_data,
-            &[],
-            &[],
-            &annotations,
-            &config,
-        );
+        let layout =
+            render_full_chart_with_markers(&mut r, visible_data, &[], &[], &annotations, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         let lines = parse_svg_lines(&svg);
@@ -2108,8 +2094,7 @@ mod tests {
         let config = ChartConfig::default();
 
         let corr_color = (100, 255, 100);
-        let corr_css_rgba =
-            Color::rgba(corr_color.0, corr_color.1, corr_color.2, 150).to_css();
+        let corr_css_rgba = Color::rgba(corr_color.0, corr_color.1, corr_color.2, 150).to_css();
 
         let mut annotations = Annotations::new();
         annotations.add_corridor(Corridor {
@@ -2126,14 +2111,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        render_full_chart_with_markers(
-            &mut r,
-            &data,
-            &[],
-            &[],
-            &annotations,
-            &config,
-        );
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // Two lines with corridor color (alpha 150)
@@ -2147,8 +2125,7 @@ mod tests {
         );
 
         // Fill rectangle with alpha 25
-        let fill_css =
-            Color::rgba(corr_color.0, corr_color.1, corr_color.2, 25).to_css();
+        let fill_css = Color::rgba(corr_color.0, corr_color.1, corr_color.2, 25).to_css();
         assert!(
             svg.contains(&fill_css),
             "expected corridor fill color {fill_css} in SVG"
@@ -2173,14 +2150,7 @@ mod tests {
         });
 
         let mut r = crate::SvgRenderer::new(config.width, config.height);
-        render_full_chart_with_markers(
-            &mut r,
-            &data,
-            &[],
-            &[],
-            &annotations,
-            &config,
-        );
+        render_full_chart_with_markers(&mut r, &data, &[], &[], &annotations, &config);
         let svg = String::from_utf8(r.finish()).unwrap();
 
         // 7 Fibonacci levels → 7 horizontal lines

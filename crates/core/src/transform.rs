@@ -63,12 +63,11 @@ impl Transform {
         let x_offset = vp.rect.x - vp.time_range.start as f64 * x_scale;
 
         // Fall back to linear if prices are non-positive (log undefined)
-        let effective_mode =
-            if mode == YScaleMode::Logarithmic && vp.price_range.min > 0.0 {
-                YScaleMode::Logarithmic
-            } else {
-                YScaleMode::Linear
-            };
+        let effective_mode = if mode == YScaleMode::Logarithmic && vp.price_range.min > 0.0 {
+            YScaleMode::Logarithmic
+        } else {
+            YScaleMode::Linear
+        };
 
         let (y_scale, y_offset) = match effective_mode {
             YScaleMode::Linear => {
