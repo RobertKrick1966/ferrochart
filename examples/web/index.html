@@ -193,6 +193,23 @@
             chart.addNewsEvent(110, 'FOMC', 0.1, 1);
             chart.addNewsEvent(160, 'Guidance', -0.9, 3);
 
+            // Max Pain level
+            const avgClose = closes.reduce((a, b) => a + b) / closes.length;
+            chart.addHorizontalLevel(avgClose, `Max Pain ${avgClose.toFixed(1)}`, 255, 0, 255, 1.5);
+
+            // GEX profile (fake: gamma exposure at strike prices)
+            const strikes = [];
+            const gexValues = [];
+            for (let s = Math.floor(avgClose - 10); s <= Math.ceil(avgClose + 10); s += 1) {
+                strikes.push(s);
+                gexValues.push((Math.random() - 0.3) * 100);
+            }
+            chart.addHorizontalHistogram(new Float64Array(strikes), new Float64Array(gexValues), 'GEX', 0, 255, 100, 80);
+
+            // Equity curve (fake: cumulative random returns)
+            const rets = closes.map(() => (Math.random() - 0.48) * 2);
+            chart.addEquityCurve(new Float64Array(rets));
+
             // Drawing tool dropdown
             const drawSelect = document.getElementById('draw-tool');
             const status = document.getElementById('draw-status');

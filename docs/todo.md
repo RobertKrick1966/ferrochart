@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
-> **Stand:** 2026-04-01 18:50 CEST
-> **Tests:** 216 (173 core + 43 render), Clippy-pedantic clean
+> **Stand:** 2026-04-01 19:15 CEST
+> **Tests:** 220 (177 core + 43 render), Clippy-pedantic clean
 
 ---
 
@@ -129,14 +129,13 @@
 
 ---
 
-## Phase 4 -- Erweitert (nicht begonnen)
+## Phase 4 -- Erweitert ✅
 
-| Feature | Beschreibung | Abhaengigkeit |
-|---|---|---|
-| GEX Profile | Gamma Exposure Profil (horizontales Histogramm) | Aehnlich Volume Profile |
-| Max Pain | Options Max-Pain Level als horizontale Linie | Einfaches Overlay |
-| Multi-Chart Sync | Synchronisierter Zoom/Pan ueber mehrere Chart-Instanzen | JS-Layer / Event-Bus |
-| Backtest Equity Curve | Equity-Kurve als Sub-Panel | Neuer Panel-Typ |
+- [x] **GEX Profile** -- `HorizontalHistogram` Annotation, horizontale Bars am Preis-Panel (positive rechts, negative links)
+- [x] **Max Pain** -- `HorizontalLevel` Annotation, horizontale Linie mit Label
+- [x] **Multi-Chart Sync** -- `getZoomPanState()` / `setZoomPanState(visible, offset)` WASM-API fuer JS-seitige Synchronisierung
+- [x] **Backtest Equity Curve** -- `EquityCurve` Indicator (Sub-Panel, kumulative P&L aus per-Bar Returns)
+- [x] WASM-API: `addHorizontalHistogram(...)`, `addHorizontalLevel(...)`, `addEquityCurve(returns)`, `getZoomPanState()`, `setZoomPanState(visible, offset)`
 
 ---
 
@@ -156,7 +155,7 @@
 | 1 | Fundament (Core + Render + WASM + Interaktion + Annotations) | ✅ (3 offene Punkte) |
 | 2 | SMR-Kern (CUSUM, Triple Barrier, VWAP, Volume Profile, Imbalance) | ✅ |
 | 3 | ML-Integration (Confidence Band, Walk-Forward, News Events) | ✅ |
-| 4 | Erweitert (GEX, Max Pain, Multi-Chart, Backtest) | -- |
+| 4 | Erweitert (GEX, Max Pain, Multi-Chart Sync, Equity Curve) | ✅ |
 
 ### Strukturelle Basis fuer Phase 2+
 
