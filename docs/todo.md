@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
-> **Stand:** 2026-04-01 19:45 CEST
-> **Tests:** 220 (177 core + 43 render), Clippy-pedantic clean
+> **Stand:** 2026-04-01 20:15 CEST
+> **Tests:** 233 (190 core + 43 render), Clippy-pedantic clean
 
 ---
 
@@ -60,9 +60,9 @@
 
 | Feature | Beschreibung | Prioritaet |
 |---|---|---|
-| LOD / Decimation | Level-of-Detail-Rendering: bei 100k+ Candles automatisch aggregieren (LTTB oder Min/Max-Downsampling). Ohne das bricht Canvas bei Tick-Daten ein. | **Kritisch** |
-| WebGL/wgpu Renderer | GPU-beschleunigtes Rendering fuer Tick-Daten. Canvas 2D ist bei ~50k Candles am Limit. `wgpu` fuer Desktop, WebGL2 fuer Browser. | Hoch |
-| Virtualisiertes Rendering | Nur sichtbare Candles + kleiner Buffer rendern, nicht das gesamte Dataset. Zusammenspiel mit LOD. | Hoch |
+| LOD / Decimation | ✅ `min_max_decimate` (O(n), OHLCV-gruppierung), `lttb_decimate` (Indikator-Linien), `decimate_target` (Auto-Erkennung), thin-candle Fast-Path im Renderer | ✅ |
+| Virtualisiertes Rendering | ✅ Nur sichtbare Bars gerendert (Slice in render_frame), Decimation wenn sub-pixel. Skaliert bis ~200k Candles auf Canvas 2D. | ✅ |
+| WebGL/wgpu Renderer | GPU-beschleunigtes Rendering fuer Tick-Daten jenseits 200k. `wgpu` fuer Desktop, WebGL2 fuer Browser. | Offen |
 
 ---
 
@@ -160,7 +160,7 @@
 | 2 | SMR-Kern (CUSUM, Triple Barrier, VWAP, Volume Profile, Imbalance) | ✅ |
 | 3 | ML-Integration (Confidence Band, Walk-Forward, News Events) | ✅ |
 | 4 | Erweitert (GEX, Max Pain, Multi-Chart Sync, Equity Curve) | ✅ |
-| 5 | Performance & Skalierung (LOD, WebGL/wgpu, Virtualisierung) | -- |
+| 5 | Performance & Skalierung (LOD ✅, Virtualisierung ✅, WebGL offen) | teilweise ✅ |
 | 6 | Chart-Typen (Heikin-Ashi, OHLC, Line, Renko, P&F) | -- |
 | 7 | Drawing Tools (~15 Tools + Edit/Snap/Undo) | -- |
 | 8 | Indikator-Bibliothek (~25-30 + Plugin-System) | -- |

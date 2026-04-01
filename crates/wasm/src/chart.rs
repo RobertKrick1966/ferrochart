@@ -1451,12 +1451,46 @@ fn render_frame(st: &mut ChartState) {
         return;
     };
 
-    // Slice cached indicator outputs for visible range
-    let outputs: Vec<IndicatorOutput> = st
-        .cached_outputs
-        .iter()
-        .map(|out| out.slice(start..end))
-        .collect();
+    // LOD decimation: when bars are sub-pixel, aggregate for performance
+    let chart_width = st.config.width - st.config.margin.left - st.config.margin.right;
+    let decimation_target =
+        ferrochart_core::decimation::decimate_target(visible_data.len(), chart_width);
+
+    let (render_data, outputs) = if let Some(target) = decimation_target {
+        let decimated = ferrochart_core::decimation::min_max_decimate(visible_data, target);
+        let outputs: Vec<IndicatorOutput> = st
+            .cached_outputs
+            .iter()
+            .map(|out| {
+                let sliced = out.slice(start..end);
+                IndicatorOutput {
+                    name: sliced.name,
+                    placement: sliced.placement,
+                    series: sliced
+                        .series
+                        .iter()
+                        .map(|s| ferrochart_core::IndicatorSeries {
+                            name: s.name,
+                            values: ferrochart_core::decimation::decimate_series(
+                                &s.values,
+                                target,
+                                s.style_hint == ferrochart_core::SeriesStyle::Histogram,
+                            ),
+                            style_hint: s.style_hint,
+                        })
+                        .collect(),
+                }
+            })
+            .collect();
+        (decimated, outputs)
+    } else {
+        let outputs: Vec<IndicatorOutput> = st
+            .cached_outputs
+            .iter()
+            .map(|out| out.slice(start..end))
+            .collect();
+        (visible_data.to_vec(), outputs)
+    };
 
     // Get markers in visible range (adjust indices to be relative to visible slice)
     let visible_markers = st.markers.in_range(start, end);
@@ -1477,13 +1511,13 @@ fn render_frame(st: &mut ChartState) {
     st.config.panel_weights = st.panel_weights.clone();
     st.config.visible_offset = start;
     // If scrolled into future space, there are fewer data bars than visible slots
-    st.config.visible_bar_slots = if visible_data.len() < st.zoom_pan.visible_bars {
+    st.config.visible_bar_slots = if render_data.len() < st.zoom_pan.visible_bars {
         Some(st.zoom_pan.visible_bars)
     } else {
         None
     };
 
-    // Compute volume profile on visible data if enabled
+    // Compute volume profile on visible data (use original, not decimated)
     let vol_profile = if st.volume_profile_buckets > 0 {
         Some(ferrochart_core::indicator::VolumeProfile::compute(
             visible_data,
@@ -1495,7 +1529,7 @@ fn render_frame(st: &mut ChartState) {
 
     let layout_info = render_full_chart_with_markers(
         &mut renderer,
-        visible_data,
+        &render_data,
         &outputs,
         &marker_refs,
         &st.annotations,
