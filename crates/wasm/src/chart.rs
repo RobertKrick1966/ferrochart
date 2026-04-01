@@ -24,6 +24,37 @@ use crate::CanvasRenderer;
 
 type RafClosure = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
+/// Layer-granular dirty flags for selective redraw.
+///
+/// Most viewport changes (pan, zoom) mark all layers dirty.
+/// The real win is for frequent lightweight updates:
+/// - Crosshair movement: `OVERLAY` only
+/// - Realtime tick: `CANDLES | INDICATORS`
+/// - Annotation edits: `ANNOTATIONS`
+#[derive(Clone, Copy, Default)]
+struct DirtyFlags(u8);
+
+impl DirtyFlags {
+    const CANDLES: u8 = 0b0001;
+    const INDICATORS: u8 = 0b0010;
+    const ANNOTATIONS: u8 = 0b0100;
+    const OVERLAY: u8 = 0b1000;
+    const ALL: u8 = 0b1111;
+
+    fn mark(&mut self, layers: u8) {
+        self.0 |= layers;
+    }
+    fn mark_all(&mut self) {
+        self.0 = Self::ALL;
+    }
+    fn any(self) -> bool {
+        self.0 != 0
+    }
+    fn clear(&mut self) {
+        self.0 = 0;
+    }
+}
+
 /// Active drawing mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DrawMode {
@@ -84,7 +115,7 @@ struct ChartState {
     /// For pinch-zoom: distance between two touches at start.
     pinch_start_dist: f64,
     pinch_start_visible: usize,
-    dirty: bool,
+    dirty: DirtyFlags,
 }
 
 impl ChartState {
@@ -153,7 +184,7 @@ impl FerroChart {
             splitter_drag: None,
             pinch_start_dist: 0.0,
             pinch_start_visible: 100,
-            dirty: true,
+            dirty: DirtyFlags(DirtyFlags::ALL),
         }));
 
         let mut closures: Vec<Closure<dyn FnMut(web_sys::MouseEvent)>> = Vec::new();
@@ -204,7 +235,7 @@ impl FerroChart {
         let future = total / 3; // allow scrolling 33% past data
         st.zoom_pan = ZoomPanState::new(total, 100.min(total)).with_future_bars(future);
         st.recompute_indicators();
-        st.dirty = true;
+        st.dirty.mark_all();
     }
 
     /// Set OHLCV data with institutional activity ratios.
@@ -242,7 +273,73 @@ impl FerroChart {
         let future = total / 3;
         st.zoom_pan = ZoomPanState::new(total, 100.min(total)).with_future_bars(future);
         st.recompute_indicators();
-        st.dirty = true;
+        st.dirty.mark_all();
+    }
+
+    /// Update the last candle in-place (realtime tick).
+    ///
+    /// Does not change zoom/pan state. Recomputes indicators since the
+    /// last bar's values affect moving averages etc.
+    #[wasm_bindgen(js_name = updateLastCandle)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_last_candle(
+        &self,
+        timestamp: f64,
+        open: f64,
+        high: f64,
+        low: f64,
+        close: f64,
+        volume: f64,
+    ) {
+        let mut st = self.state.borrow_mut();
+        if let Some(last) = st.data.last_mut() {
+            last.timestamp = timestamp as i64;
+            last.open = open;
+            last.high = high;
+            last.low = low;
+            last.close = close;
+            last.volume = volume;
+        }
+        st.recompute_indicators();
+        st.dirty.mark(DirtyFlags::CANDLES | DirtyFlags::INDICATORS);
+    }
+
+    /// Append a new candle (new trading period).
+    ///
+    /// If the user was viewing the latest bar, the view auto-scrolls to follow.
+    /// If scrolled back into history, the view stays put.
+    #[wasm_bindgen(js_name = pushCandle)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn push_candle(
+        &self,
+        timestamp: f64,
+        open: f64,
+        high: f64,
+        low: f64,
+        close: f64,
+        volume: f64,
+    ) {
+        let mut st = self.state.borrow_mut();
+        st.data.push(Ohlcv {
+            timestamp: timestamp as i64,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            institutional_ratio: 0.0,
+        });
+        let total = st.data.len();
+        let future = total / 3;
+        let was_at_end =
+            st.zoom_pan.offset + st.zoom_pan.visible_bars >= st.zoom_pan.total_bars;
+        st.zoom_pan.total_bars = total;
+        st.zoom_pan.future_bars = future;
+        if was_at_end {
+            st.zoom_pan = st.zoom_pan.scroll_to_end();
+        }
+        st.recompute_indicators();
+        st.dirty.mark_all();
     }
 
     /// Add an indicator by name.
@@ -283,7 +380,7 @@ impl FerroChart {
         let mut st = self.state.borrow_mut();
         st.indicators.push(indicator);
         st.recompute_indicators();
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
         Ok(())
     }
 
@@ -298,7 +395,7 @@ impl FerroChart {
             ind_name != target
         });
         st.recompute_indicators();
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
     }
 
     /// Remove all indicators.
@@ -307,7 +404,7 @@ impl FerroChart {
         let mut st = self.state.borrow_mut();
         st.indicators.clear();
         st.cached_outputs.clear();
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
     }
 
     /// Add a marker at a specific bar index.
@@ -351,7 +448,7 @@ impl FerroChart {
             color: (r, g, b, 255),
             label: label.to_string(),
         });
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::CANDLES);
         Ok(())
     }
 
@@ -360,7 +457,7 @@ impl FerroChart {
     pub fn clear_markers(&self) {
         let mut st = self.state.borrow_mut();
         st.markers.clear();
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::CANDLES);
     }
 
     /// Add a trendline between two bar/price points.
@@ -387,7 +484,7 @@ impl FerroChart {
             width: 1.5,
             extend_right,
         });
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
     /// Add a Fibonacci retracement between a high and low point.
@@ -411,7 +508,7 @@ impl FerroChart {
             low_price,
             color: (r, g, b),
         });
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
     /// Set the interactive drawing mode.
@@ -434,7 +531,7 @@ impl FerroChart {
             _ => return Err(JsValue::from_str(&format!("unknown draw mode: {mode}"))),
         };
         st.drawing = None;
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::ANNOTATIONS | DirtyFlags::OVERLAY);
         Ok(())
     }
 
@@ -443,7 +540,26 @@ impl FerroChart {
     pub fn clear_annotations(&self) {
         let mut st = self.state.borrow_mut();
         st.annotations.clear();
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Export all annotations as a JSON string for persistence.
+    #[wasm_bindgen(js_name = exportAnnotations)]
+    pub fn export_annotations(&self) -> Result<String, JsValue> {
+        let st = self.state.borrow();
+        serde_json::to_string(&st.annotations)
+            .map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
+    }
+
+    /// Import annotations from a JSON string (replaces current annotations).
+    #[wasm_bindgen(js_name = importAnnotations)]
+    pub fn import_annotations(&self, json: &str) -> Result<(), JsValue> {
+        let annotations: Annotations = serde_json::from_str(json)
+            .map_err(|e| JsValue::from_str(&format!("deserialize error: {e}")))?;
+        let mut st = self.state.borrow_mut();
+        st.annotations = annotations;
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+        Ok(())
     }
 
     /// Set the color theme: `"dark"` (default) or `"light"`.
@@ -471,7 +587,7 @@ impl FerroChart {
         st.config.price_scale = scale;
         st.config.panel_weights = weights;
         st.config.visible_bar_slots = slots;
-        st.dirty = true;
+        st.dirty.mark_all();
         Ok(())
     }
 
@@ -480,7 +596,15 @@ impl FerroChart {
         let mut st = self.state.borrow_mut();
         st.config.width = f64::from(width);
         st.config.height = f64::from(height);
-        st.dirty = true;
+        st.dirty.mark_all();
+    }
+
+    /// Enable or disable logarithmic Y-axis for the price panel.
+    #[wasm_bindgen(js_name = setLogScale)]
+    pub fn set_log_scale(&self, enabled: bool) {
+        let mut st = self.state.borrow_mut();
+        st.config.log_y = enabled;
+        st.dirty.mark_all();
     }
 }
 
@@ -532,8 +656,11 @@ fn attach_mouse_events(
             let dx = pos.x - st.drag_start_x;
             let chart_width = st.config.width - st.config.margin.left - st.config.margin.right;
             st.zoom_pan = compute_pan(st.zoom_pan, dx, chart_width, st.drag_start_offset);
+            st.dirty.mark_all();
+            return;
         }
-        st.dirty = true;
+        // Crosshair/tooltip only (most frequent case)
+        st.dirty.mark(DirtyFlags::OVERLAY);
     }) as Box<dyn FnMut(web_sys::MouseEvent)>);
     canvas.add_event_listener_with_callback("mousemove", on_mousemove.as_ref().unchecked_ref())?;
     closures.push(on_mousemove);
@@ -631,7 +758,7 @@ fn attach_mouse_events(
                     end_price: None,
                 });
             }
-            st.dirty = true;
+            st.dirty.mark(DirtyFlags::ANNOTATIONS | DirtyFlags::OVERLAY);
             return;
         }
 
@@ -686,7 +813,7 @@ fn attach_mouse_events(
         let y_axis_left = st.config.width - st.config.margin.right;
         if pos.x >= y_axis_left {
             st.price_scale = 1.0;
-            st.dirty = true;
+            st.dirty.mark_all();
         }
     }) as Box<dyn FnMut(web_sys::MouseEvent)>);
     canvas.add_event_listener_with_callback("dblclick", on_dblclick.as_ref().unchecked_ref())?;
@@ -699,7 +826,7 @@ fn attach_mouse_events(
         st.mouse_pos = None;
         st.is_dragging = false;
         st.y_drag_active = false;
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::OVERLAY);
     }) as Box<dyn FnMut(web_sys::MouseEvent)>);
     canvas
         .add_event_listener_with_callback("mouseleave", on_mouseleave.as_ref().unchecked_ref())?;
@@ -726,7 +853,7 @@ fn attach_wheel_event(
         let chart_width = st.config.width - chart_left - st.config.margin.right;
 
         st.zoom_pan = compute_zoom(st.zoom_pan, mouse_x, chart_left, chart_width, e.delta_y());
-        st.dirty = true;
+        st.dirty.mark_all();
     }) as Box<dyn FnMut(web_sys::WheelEvent)>);
 
     let opts = web_sys::AddEventListenerOptions::new();
@@ -780,7 +907,7 @@ fn attach_touch_events(
                 st.drag_start_x = pos.x;
                 st.drag_start_offset = st.zoom_pan.offset;
                 st.mouse_pos = Some(pos);
-                st.dirty = true;
+                st.dirty.mark_all();
             }
         } else if touches.length() == 2 {
             // Two touches: start pinch-zoom
@@ -812,7 +939,7 @@ fn attach_touch_events(
                 let chart_width = st.config.width - st.config.margin.left - st.config.margin.right;
                 st.zoom_pan = compute_pan(st.zoom_pan, dx, chart_width, st.drag_start_offset);
                 st.mouse_pos = Some(pos);
-                st.dirty = true;
+                st.dirty.mark_all();
             }
         } else if touches.length() == 2 {
             // Pinch-zoom
@@ -835,7 +962,7 @@ fn attach_touch_events(
                     };
                     // Clamp
                     st.zoom_pan = st.zoom_pan.pan(0);
-                    st.dirty = true;
+                    st.dirty.mark_all();
                 }
             }
         }
@@ -853,7 +980,7 @@ fn attach_touch_events(
         let mut st = s.borrow_mut();
         st.is_dragging = false;
         st.mouse_pos = None;
-        st.dirty = true;
+        st.dirty.mark(DirtyFlags::OVERLAY);
     }) as Box<dyn FnMut(web_sys::TouchEvent)>);
     canvas.add_event_listener_with_callback("touchend", on_touchend.as_ref().unchecked_ref())?;
     canvas.add_event_listener_with_callback("touchcancel", on_touchend.as_ref().unchecked_ref())?;
@@ -877,40 +1004,40 @@ fn attach_keyboard_events(
             "ArrowLeft" => {
                 e.prevent_default();
                 st.zoom_pan = st.zoom_pan.pan(-3);
-                st.dirty = true;
+                st.dirty.mark_all();
             }
             "ArrowRight" => {
                 e.prevent_default();
                 st.zoom_pan = st.zoom_pan.pan(3);
-                st.dirty = true;
+                st.dirty.mark_all();
             }
             "ArrowUp" => {
                 e.prevent_default();
                 st.price_scale = (st.price_scale - 0.1).clamp(0.1, 10.0);
-                st.dirty = true;
+                st.dirty.mark_all();
             }
             "ArrowDown" => {
                 e.prevent_default();
                 st.price_scale = (st.price_scale + 0.1).clamp(0.1, 10.0);
-                st.dirty = true;
+                st.dirty.mark_all();
             }
             "+" | "=" => {
                 e.prevent_default();
                 let mid = st.zoom_pan.offset + st.zoom_pan.visible_bars / 2;
                 st.zoom_pan = st.zoom_pan.zoom(1.25, mid);
-                st.dirty = true;
+                st.dirty.mark_all();
             }
             "-" => {
                 e.prevent_default();
                 let mid = st.zoom_pan.offset + st.zoom_pan.visible_bars / 2;
                 st.zoom_pan = st.zoom_pan.zoom(0.8, mid);
-                st.dirty = true;
+                st.dirty.mark_all();
             }
             "Escape" => {
                 // Cancel drawing
                 st.draw_mode = DrawMode::None;
                 st.drawing = None;
-                st.dirty = true;
+                st.dirty.mark(DirtyFlags::ANNOTATIONS | DirtyFlags::OVERLAY);
             }
             "Home" => {
                 e.prevent_default();
@@ -918,12 +1045,12 @@ fn attach_keyboard_events(
                     offset: 0,
                     ..st.zoom_pan
                 };
-                st.dirty = true;
+                st.dirty.mark_all();
             }
             "End" => {
                 e.prevent_default();
                 st.zoom_pan = st.zoom_pan.scroll_to_end();
-                st.dirty = true;
+                st.dirty.mark_all();
             }
             _ => {}
         }
@@ -941,8 +1068,8 @@ fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {
     *raf_closure.borrow_mut() = Some(Closure::wrap(Box::new(move || {
         {
             let mut st = s.borrow_mut();
-            if st.dirty {
-                st.dirty = false;
+            if st.dirty.any() {
+                st.dirty.clear();
                 render_frame(&mut st);
             }
         }

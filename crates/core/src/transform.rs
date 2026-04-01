@@ -3,6 +3,17 @@
 
 use crate::{Point, PriceRange, Rect, TimeRange};
 
+/// Y-axis scale mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum YScaleMode {
+    /// Linear price-to-pixel mapping (default).
+    #[default]
+    Linear,
+    /// Logarithmic mapping: `ln(price)` is mapped linearly to pixels.
+    /// Requires `price_range.min > 0`.
+    Logarithmic,
+}
+
 /// Defines the visible data window and the pixel area it maps to.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
@@ -17,54 +28,92 @@ pub struct Viewport {
 /// Bidirectional mapping between data space (bar index, price) and pixel space.
 ///
 /// Precomputes scale and offset so repeated `to_pixel` calls are just multiply-add.
+/// In logarithmic mode, the Y mapping operates on `ln(price)`.
 #[derive(Debug, Clone, Copy)]
 pub struct Transform {
     x_scale: f64,
     y_scale: f64,
     x_offset: f64,
     y_offset: f64,
+    y_mode: YScaleMode,
 }
 
 impl Transform {
-    /// Build a transform from a [`Viewport`].
+    /// Build a linear transform from a [`Viewport`].
     ///
-    /// Maps `time_range.start` → left edge of `rect`, `time_range.end - 1` → right edge.
-    /// Maps `price_range.max` → top of `rect`, `price_range.min` → bottom.
+    /// Maps `time_range.start` -> left edge of `rect`, `time_range.end - 1` -> right edge.
+    /// Maps `price_range.max` -> top of `rect`, `price_range.min` -> bottom.
     #[must_use]
     pub fn from_viewport(vp: &Viewport) -> Self {
+        Self::from_viewport_with_mode(vp, YScaleMode::Linear)
+    }
+
+    /// Build a transform with a specific Y-axis scale mode.
+    ///
+    /// In [`YScaleMode::Logarithmic`] mode, prices are mapped through `ln()`.
+    /// Falls back to linear if `price_range.min <= 0`.
+    #[must_use]
+    pub fn from_viewport_with_mode(vp: &Viewport, mode: YScaleMode) -> Self {
         let num_bars = vp.time_range.len();
         let x_scale = if num_bars > 1 {
             vp.rect.width / (num_bars - 1) as f64
         } else {
             vp.rect.width
         };
-
-        let price_span = vp.price_range.span();
-        // Negative because pixel Y increases downward, but price increases upward.
-        let y_scale = if price_span.abs() > f64::EPSILON {
-            -vp.rect.height / price_span
-        } else {
-            0.0
-        };
-
         let x_offset = vp.rect.x - vp.time_range.start as f64 * x_scale;
-        // price_range.max maps to rect.y (top)
-        let y_offset = vp.rect.y - vp.price_range.max * y_scale;
+
+        // Fall back to linear if prices are non-positive (log undefined)
+        let effective_mode =
+            if mode == YScaleMode::Logarithmic && vp.price_range.min > 0.0 {
+                YScaleMode::Logarithmic
+            } else {
+                YScaleMode::Linear
+            };
+
+        let (y_scale, y_offset) = match effective_mode {
+            YScaleMode::Linear => {
+                let price_span = vp.price_range.span();
+                let ys = if price_span.abs() > f64::EPSILON {
+                    -vp.rect.height / price_span
+                } else {
+                    0.0
+                };
+                let yo = vp.rect.y - vp.price_range.max * ys;
+                (ys, yo)
+            }
+            YScaleMode::Logarithmic => {
+                let log_max = vp.price_range.max.ln();
+                let log_min = vp.price_range.min.ln();
+                let log_span = log_max - log_min;
+                let ys = if log_span.abs() > f64::EPSILON {
+                    -vp.rect.height / log_span
+                } else {
+                    0.0
+                };
+                let yo = vp.rect.y - log_max * ys;
+                (ys, yo)
+            }
+        };
 
         Self {
             x_scale,
             y_scale,
             x_offset,
             y_offset,
+            y_mode: effective_mode,
         }
     }
 
     /// Map a (`bar_index`, price) pair to pixel coordinates.
     #[must_use]
     pub fn to_pixel(&self, bar_index: f64, price: f64) -> Point {
+        let y_val = match self.y_mode {
+            YScaleMode::Linear => price,
+            YScaleMode::Logarithmic => price.max(f64::EPSILON).ln(),
+        };
         Point {
             x: bar_index * self.x_scale + self.x_offset,
-            y: price * self.y_scale + self.y_offset,
+            y: y_val * self.y_scale + self.y_offset,
         }
     }
 
@@ -76,10 +125,14 @@ impl Transform {
         } else {
             0.0
         };
-        let price = if self.y_scale.abs() > f64::EPSILON {
+        let raw_y = if self.y_scale.abs() > f64::EPSILON {
             (pixel.y - self.y_offset) / self.y_scale
         } else {
             0.0
+        };
+        let price = match self.y_mode {
+            YScaleMode::Linear => raw_y,
+            YScaleMode::Logarithmic => raw_y.exp(),
         };
         (bar_index, price)
     }
@@ -93,13 +146,23 @@ impl Transform {
     /// Pixel Y for a given price.
     #[must_use]
     pub fn price_y(&self, price: f64) -> f64 {
-        price * self.y_scale + self.y_offset
+        let y_val = match self.y_mode {
+            YScaleMode::Linear => price,
+            YScaleMode::Logarithmic => price.max(f64::EPSILON).ln(),
+        };
+        y_val * self.y_scale + self.y_offset
     }
 
     /// Width in pixels available per bar (for sizing candle bodies).
     #[must_use]
     pub fn bar_width(&self) -> f64 {
         self.x_scale
+    }
+
+    /// Returns the active Y-axis scale mode.
+    #[must_use]
+    pub fn y_mode(&self) -> YScaleMode {
+        self.y_mode
     }
 }
 
@@ -223,5 +286,67 @@ mod tests {
         // With zero span, y_scale is 0 → all prices map to y_offset
         let p = t.to_pixel(0.0, 100.0);
         assert!(p.y.is_finite());
+    }
+
+    fn log_viewport() -> Viewport {
+        Viewport {
+            rect: Rect::new(0.0, 0.0, 900.0, 600.0),
+            time_range: TimeRange::new(0, 10),
+            price_range: PriceRange::new(10.0, 1000.0),
+        }
+    }
+
+    #[test]
+    fn log_max_price_maps_to_top() {
+        let t = Transform::from_viewport_with_mode(&log_viewport(), YScaleMode::Logarithmic);
+        let p = t.to_pixel(5.0, 1000.0);
+        assert!((p.y - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn log_min_price_maps_to_bottom() {
+        let t = Transform::from_viewport_with_mode(&log_viewport(), YScaleMode::Logarithmic);
+        let p = t.to_pixel(5.0, 10.0);
+        assert!((p.y - 600.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn log_geometric_mean_maps_to_center() {
+        let t = Transform::from_viewport_with_mode(&log_viewport(), YScaleMode::Logarithmic);
+        // Geometric mean of 10 and 1000 = sqrt(10*1000) = 100
+        let p = t.to_pixel(5.0, 100.0);
+        assert!((p.y - 300.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn log_round_trip() {
+        let t = Transform::from_viewport_with_mode(&log_viewport(), YScaleMode::Logarithmic);
+        let bar = 3.5_f64;
+        let price = 42.0_f64;
+        let pixel = t.to_pixel(bar, price);
+        let (bar_back, price_back) = t.to_data(pixel);
+        assert!((bar_back - bar).abs() < 1e-9);
+        assert!((price_back - price).abs() < 1e-6);
+    }
+
+    #[test]
+    fn log_mode_falls_back_for_non_positive_prices() {
+        let vp = Viewport {
+            rect: Rect::new(0.0, 0.0, 800.0, 400.0),
+            time_range: TimeRange::new(0, 10),
+            price_range: PriceRange::new(-10.0, 100.0),
+        };
+        let t = Transform::from_viewport_with_mode(&vp, YScaleMode::Logarithmic);
+        // Falls back to linear since min <= 0
+        assert_eq!(t.y_mode(), YScaleMode::Linear);
+    }
+
+    #[test]
+    fn log_price_y_matches_to_pixel() {
+        let t = Transform::from_viewport_with_mode(&log_viewport(), YScaleMode::Logarithmic);
+        for price in [10.0, 50.0, 100.0, 500.0, 1000.0] {
+            let px = t.to_pixel(0.0, price);
+            assert!((t.price_y(price) - px.y).abs() < 1e-9);
+        }
     }
 }

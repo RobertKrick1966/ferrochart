@@ -28,6 +28,9 @@ pub trait Renderer {
     /// Draw a filled circle at `center` with the given `radius`.
     fn draw_circle(&mut self, center: Point, radius: f64, fill: &FillStyle);
 
+    /// Draw a filled polygon defined by its vertices.
+    fn fill_polygon(&mut self, points: &[Point], fill: &FillStyle);
+
     /// Set the background color.
     fn set_background(&mut self, color: Color);
 

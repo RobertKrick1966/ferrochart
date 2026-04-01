@@ -109,6 +109,21 @@ impl Renderer for SvgRenderer {
         ));
     }
 
+    fn fill_polygon(&mut self, points: &[Point], fill: &FillStyle) {
+        if points.len() < 3 {
+            return;
+        }
+        let pts: String = points
+            .iter()
+            .map(|p| format!("{:.2},{:.2}", p.x, p.y))
+            .collect::<Vec<_>>()
+            .join(" ");
+        self.elements.push(format!(
+            r#"<polygon points="{pts}" fill="{}" />"#,
+            fill.color.to_css()
+        ));
+    }
+
     fn set_background(&mut self, color: Color) {
         self.background = Some(color);
     }
@@ -279,5 +294,38 @@ mod tests {
         assert!(out.contains("cy=\"50.00\""));
         assert!(out.contains("r=\"10.00\""));
         assert!(out.contains("fill="));
+    }
+
+    #[test]
+    fn fill_polygon_produces_polygon_element() {
+        let mut r = SvgRenderer::new(100.0, 100.0);
+        r.fill_polygon(
+            &[
+                Point { x: 10.0, y: 20.0 },
+                Point { x: 90.0, y: 20.0 },
+                Point { x: 90.0, y: 80.0 },
+                Point { x: 10.0, y: 80.0 },
+            ],
+            &FillStyle {
+                color: Color::GREEN,
+            },
+        );
+        let out = String::from_utf8(r.finish()).unwrap();
+        assert!(out.contains("<polygon"));
+        assert!(out.contains("10.00,20.00"));
+        assert!(out.contains("90.00,80.00"));
+    }
+
+    #[test]
+    fn fill_polygon_fewer_than_three_points_does_nothing() {
+        let mut r = SvgRenderer::new(100.0, 100.0);
+        r.fill_polygon(
+            &[Point { x: 0.0, y: 0.0 }, Point { x: 10.0, y: 10.0 }],
+            &FillStyle {
+                color: Color::RED,
+            },
+        );
+        let out = String::from_utf8(r.finish()).unwrap();
+        assert!(!out.contains("<polygon"));
     }
 }

@@ -35,6 +35,6 @@ pub use layout::{Panel, PanelLayout};
 /// Re-exported marker types.
 pub use marker::{Marker, MarkerPosition, MarkerSet, MarkerShape};
 /// Re-exported coordinate transform types.
-pub use transform::{Transform, Viewport};
+pub use transform::{Transform, Viewport, YScaleMode};
 /// Re-exported zoom/pan state.
 pub use zoom::ZoomPanState;
