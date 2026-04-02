@@ -270,6 +270,7 @@
 
             drawSelect.addEventListener('change', () => {
                 const mode = drawSelect.value;
+                console.log('[FerroChart] setDrawMode:', mode);
                 chart.setDrawMode(mode);
                 const statusMap = {
                     'none': '',
@@ -440,7 +441,10 @@
             });
 
             // ── Focus / Resize ──
-            canvas.addEventListener('click', () => canvas.focus());
+            canvas.addEventListener('click', (e) => {
+                console.log('[FerroChart] canvas click at CSS:', e.offsetX, e.offsetY);
+                canvas.focus();
+            });
             window.addEventListener('resize', () => {
                 canvas.style.height = (container.clientWidth * 0.65) + 'px';
                 resizeCanvas(canvas);
