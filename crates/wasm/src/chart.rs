@@ -92,6 +92,21 @@ struct DrawingInProgress {
     end_price: Option<f64>,
 }
 
+/// State for bar-by-bar historical replay mode.
+///
+/// When active, only the first `cursor` bars of the dataset are rendered,
+/// allowing the user to step through data one bar at a time.
+struct ReplayState {
+    /// Number of bars to show (1-based).
+    cursor: usize,
+    /// Whether auto-play is running.
+    playing: bool,
+    /// Interval between steps in milliseconds.
+    speed_ms: u32,
+    /// Handle to the JS `setInterval` timer (for cleanup).
+    interval_handle: Option<i32>,
+}
+
 /// State for an active panel splitter drag.
 #[derive(Debug, Clone)]
 struct SplitterDrag {
@@ -136,6 +151,10 @@ struct ChartState {
     /// Active chart type (candlestick, line, area, etc.).
     chart_type: ChartType,
     dirty: DirtyFlags,
+    /// Bar-by-bar replay mode state.
+    replay_mode: Option<ReplayState>,
+    /// Shared tick flag set by the JS `setInterval` callback for auto-play.
+    replay_tick: Rc<RefCell<bool>>,
 }
 
 impl ChartState {
@@ -207,6 +226,8 @@ impl FerroChart {
             volume_profile_buckets: 0,
             chart_type: ChartType::Candlestick,
             dirty: DirtyFlags(DirtyFlags::ALL),
+            replay_mode: None,
+            replay_tick: Rc::new(RefCell::new(false)),
         }));
 
         let mut closures: Vec<Closure<dyn FnMut(web_sys::MouseEvent)>> = Vec::new();
@@ -1248,6 +1269,112 @@ impl FerroChart {
         st.zoom_pan = compute_pan(st.zoom_pan, dx, chart_width, drag_start);
         st.dirty.mark_all();
     }
+
+    // ── Replay Mode ────────────────────────────────────────────────
+
+    /// Start replay mode from a specific bar index (1-based, min 1).
+    ///
+    /// The chart will show only the first `start_bar` bars.
+    #[wasm_bindgen(js_name = replayStart)]
+    pub fn replay_start(&self, start_bar: u32) {
+        let mut st = self.state.borrow_mut();
+        let cursor = (start_bar as usize).max(1);
+        st.replay_mode = Some(ReplayState {
+            cursor,
+            playing: false,
+            speed_ms: 200,
+            interval_handle: None,
+        });
+        st.dirty.mark_all();
+    }
+
+    /// Advance replay by one bar. Returns the new cursor position, or 0 if not in replay mode.
+    #[must_use]
+    #[wasm_bindgen(js_name = replayStep)]
+    pub fn replay_step(&self) -> u32 {
+        let mut st = self.state.borrow_mut();
+        let data_len = st.data.len();
+        let cursor = if let Some(ref mut replay) = st.replay_mode {
+            if replay.cursor < data_len {
+                replay.cursor += 1;
+            }
+            replay.cursor as u32
+        } else {
+            return 0;
+        };
+        st.dirty.mark_all();
+        cursor
+    }
+
+    /// Start auto-playing at the given speed (milliseconds between bars).
+    ///
+    /// Uses `setInterval` internally; the render loop checks a shared tick flag.
+    #[wasm_bindgen(js_name = replayPlay)]
+    pub fn replay_play(&self, speed_ms: u32) {
+        let mut st = self.state.borrow_mut();
+        let tick_flag = Rc::clone(&st.replay_tick);
+        if let Some(ref mut replay) = st.replay_mode {
+            // Clear any existing interval
+            clear_replay_interval(replay);
+            replay.speed_ms = speed_ms;
+            replay.playing = true;
+
+            // Set up a JS interval that flips the shared tick flag
+            let cb = Closure::wrap(Box::new(move || {
+                *tick_flag.borrow_mut() = true;
+            }) as Box<dyn FnMut()>);
+
+            if let Some(window) = web_sys::window()
+                && let Ok(handle) = window.set_interval_with_callback_and_timeout_and_arguments_0(
+                    cb.as_ref().unchecked_ref(),
+                    speed_ms as i32,
+                )
+            {
+                replay.interval_handle = Some(handle);
+            }
+            // Leak the closure so it stays alive for the JS runtime
+            cb.forget();
+        }
+    }
+
+    /// Pause auto-play (keeps replay mode active at current position).
+    #[wasm_bindgen(js_name = replayPause)]
+    pub fn replay_pause(&self) {
+        let mut st = self.state.borrow_mut();
+        if let Some(ref mut replay) = st.replay_mode {
+            replay.playing = false;
+            clear_replay_interval(replay);
+        }
+    }
+
+    /// Exit replay mode entirely. Chart returns to showing all data.
+    #[wasm_bindgen(js_name = replayStop)]
+    pub fn replay_stop(&self) {
+        let mut st = self.state.borrow_mut();
+        if let Some(ref mut replay) = st.replay_mode {
+            clear_replay_interval(replay);
+        }
+        st.replay_mode = None;
+        st.recompute_indicators();
+        st.dirty.mark_all();
+    }
+
+    /// Returns the current replay cursor (1-based bar count shown), or 0 if not in replay mode.
+    #[must_use]
+    #[wasm_bindgen(js_name = replayPosition)]
+    pub fn replay_position(&self) -> u32 {
+        let st = self.state.borrow();
+        st.replay_mode.as_ref().map_or(0, |r| r.cursor as u32)
+    }
+}
+
+/// Clear the JS `setInterval` timer stored in a [`ReplayState`], if any.
+fn clear_replay_interval(replay: &mut ReplayState) {
+    if let Some(handle) = replay.interval_handle.take()
+        && let Some(window) = web_sys::window()
+    {
+        window.clear_interval_with_handle(handle);
+    }
 }
 
 /// Parse a `"#RRGGBB"` hex color string into `(r, g, b)`.
@@ -1802,6 +1929,28 @@ fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {
     *raf_closure.borrow_mut() = Some(Closure::wrap(Box::new(move || {
         {
             let mut st = s.borrow_mut();
+
+            // Check replay auto-play tick flag
+            let tick = {
+                let mut flag = st.replay_tick.borrow_mut();
+                let v = *flag;
+                *flag = false;
+                v
+            };
+            if tick {
+                let data_len = st.data.len();
+                if let Some(ref mut replay) = st.replay_mode {
+                    if replay.cursor < data_len {
+                        replay.cursor += 1;
+                        st.dirty.mark_all();
+                    } else {
+                        // Reached end — stop auto-play
+                        replay.playing = false;
+                        clear_replay_interval(replay);
+                    }
+                }
+            }
+
             if st.dirty.any() {
                 st.dirty.clear();
                 render_frame(&mut st);
@@ -1880,15 +2029,40 @@ fn render_frame(st: &mut ChartState) {
         return;
     }
 
-    // Ensure zoom_pan is consistent with current data length
-    if st.zoom_pan.total_bars != st.data.len() {
-        st.zoom_pan = ZoomPanState::new(st.data.len(), st.zoom_pan.visible_bars);
+    // Replay mode: slice the dataset to show only the first N bars
+    let replay_cursor = st.replay_mode.as_ref().map(|r| r.cursor.min(st.data.len()));
+    let effective_data: &[Ohlcv] = if let Some(cursor) = replay_cursor {
+        &st.data[..cursor]
+    } else {
+        &st.data
+    };
+
+    if effective_data.is_empty() {
+        return;
+    }
+
+    // Recompute indicators on the replay slice when in replay mode
+    let replay_outputs: Vec<IndicatorOutput>;
+    let indicator_outputs: &[IndicatorOutput] = if replay_cursor.is_some() {
+        replay_outputs = st
+            .indicators
+            .iter()
+            .map(|ind| ind.compute(effective_data))
+            .collect();
+        &replay_outputs
+    } else {
+        &st.cached_outputs
+    };
+
+    // Ensure zoom_pan is consistent with current effective data length
+    if st.zoom_pan.total_bars != effective_data.len() {
+        st.zoom_pan = ZoomPanState::new(effective_data.len(), st.zoom_pan.visible_bars);
     }
 
     let range = st.zoom_pan.visible_range();
-    let end = range.end.min(st.data.len());
+    let end = range.end.min(effective_data.len());
     let start = range.start.min(end);
-    let visible_data = &st.data[start..end];
+    let visible_data = &effective_data[start..end];
     if visible_data.is_empty() {
         return;
     }
@@ -1904,8 +2078,7 @@ fn render_frame(st: &mut ChartState) {
 
     let (render_data, outputs) = if let Some(target) = decimation_target {
         let decimated = ferrochart_core::decimation::min_max_decimate(visible_data, target);
-        let outputs: Vec<IndicatorOutput> = st
-            .cached_outputs
+        let outputs: Vec<IndicatorOutput> = indicator_outputs
             .iter()
             .map(|out| {
                 let sliced = out.slice(start..end);
@@ -1930,8 +2103,7 @@ fn render_frame(st: &mut ChartState) {
             .collect();
         (decimated, outputs)
     } else {
-        let outputs: Vec<IndicatorOutput> = st
-            .cached_outputs
+        let outputs: Vec<IndicatorOutput> = indicator_outputs
             .iter()
             .map(|out| out.slice(start..end))
             .collect();
