@@ -326,6 +326,30 @@ pub struct GannFan {
     pub color: (u8, u8, u8),
 }
 
+/// Price channel: two parallel trend lines through recent highs and lows.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PriceChannel {
+    /// Bar index of the channel start.
+    pub start_bar: f64,
+    /// Bar index of the channel end.
+    pub end_bar: f64,
+    /// Price at the upper boundary (start).
+    pub upper_start_price: f64,
+    /// Price at the upper boundary (end).
+    pub upper_end_price: f64,
+    /// Price at the lower boundary (start).
+    pub lower_start_price: f64,
+    /// Price at the lower boundary (end).
+    pub lower_end_price: f64,
+    /// Channel color.
+    pub color: (u8, u8, u8),
+    /// Fill color with alpha.
+    pub fill_color: (u8, u8, u8, u8),
+    /// Line width.
+    pub width: f64,
+}
+
 /// Collection of annotations on a chart.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -366,6 +390,8 @@ pub struct Annotations {
     pub pitchforks: Vec<AndrewsPitchfork>,
     /// Gann Fan annotations.
     pub gann_fans: Vec<GannFan>,
+    /// Price channel annotations.
+    pub price_channels: Vec<PriceChannel>,
 }
 
 impl Annotations {
@@ -465,6 +491,11 @@ impl Annotations {
         self.gann_fans.push(fan);
     }
 
+    /// Adds a price channel annotation.
+    pub fn add_price_channel(&mut self, channel: PriceChannel) {
+        self.price_channels.push(channel);
+    }
+
     /// Removes all annotations.
     pub fn clear(&mut self) {
         self.trend_lines.clear();
@@ -485,6 +516,7 @@ impl Annotations {
         self.ellipses.clear();
         self.pitchforks.clear();
         self.gann_fans.clear();
+        self.price_channels.clear();
     }
 
     /// Returns `true` if there are no annotations of any kind.
@@ -508,6 +540,7 @@ impl Annotations {
             && self.ellipses.is_empty()
             && self.pitchforks.is_empty()
             && self.gann_fans.is_empty()
+            && self.price_channels.is_empty()
     }
 }
 
@@ -847,6 +880,28 @@ mod tests {
         assert!(!ann.is_empty());
         ann.clear();
         assert!(ann.gann_fans.is_empty());
+        assert!(ann.is_empty());
+    }
+
+    #[test]
+    fn price_channel_add_and_clear() {
+        let mut ann = Annotations::new();
+        assert!(ann.price_channels.is_empty());
+        ann.add_price_channel(PriceChannel {
+            start_bar: 3.0,
+            end_bar: 25.0,
+            upper_start_price: 110.0,
+            upper_end_price: 120.0,
+            lower_start_price: 90.0,
+            lower_end_price: 95.0,
+            color: (0, 200, 255),
+            fill_color: (0, 200, 255, 20),
+            width: 1.5,
+        });
+        assert_eq!(ann.price_channels.len(), 1);
+        assert!(!ann.is_empty());
+        ann.clear();
+        assert!(ann.price_channels.is_empty());
         assert!(ann.is_empty());
     }
 

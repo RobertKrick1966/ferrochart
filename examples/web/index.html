@@ -97,6 +97,7 @@
                     <option value="ellipse">Ellipse</option>
                     <option value="pitchfork">Pitchfork (3pt)</option>
                     <option value="gann_fan">Gann Fan</option>
+                    <option value="price_channel">Price Channel</option>
                 </optgroup>
                 <optgroup label="Quick Add">
                     <option value="add_hline">H-Line @ crosshair</option>
@@ -137,6 +138,7 @@
                 </optgroup>
             </select>
             <button id="btn-clear-ind">Clear Indicators</button>
+            <button id="btn-custom-ind">+ Custom Ind</button>
 
             <span class="separator">|</span>
 
@@ -286,6 +288,7 @@
                         'ellipse': 'Click 2 points',
                         'pitchfork': 'Click 3 points',
                         'gann_fan': 'Click 2 points (anchor + scale)',
+                        'price_channel': 'Click 2 points (start + end)',
                     };
                     status.textContent = statusMap[mode] ?? 'Click 2 points';
                     if (mode === 'none') drawSelect.selectedIndex = 0;
@@ -331,6 +334,21 @@
             document.getElementById('btn-clear-ind').addEventListener('click', () => {
                 chart.clearIndicators();
                 status.textContent = 'Indicators cleared';
+                canvas.focus();
+            });
+
+            // Custom indicator from JS-computed values
+            document.getElementById('btn-custom-ind').addEventListener('click', () => {
+                const period = 10;
+                const ma = new Float64Array(closes.length);
+                for (let i = 0; i < closes.length; i++) {
+                    if (i < period - 1) { ma[i] = NaN; continue; }
+                    let sum = 0;
+                    for (let j = i - period + 1; j <= i; j++) sum += closes[j];
+                    ma[i] = sum / period;
+                }
+                chart.addCustomOverlay('JS MA(10)', ma, 1);
+                status.textContent = 'Added custom JS indicator';
                 canvas.focus();
             });
 
