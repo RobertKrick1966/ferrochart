@@ -125,22 +125,26 @@
 - [x] Ichimoku Cloud (5 Linien: Tenkan, Kijun, Senkou A/B, Chikou)
 
 ### Infrastruktur
-- [ ] Plugin-System: Custom Indicators von aussen registrieren (Trait-basiert)
+- [ ] **Plugin-System:** Custom Indicators von aussen registrieren (Trait-basiert).
+  Benoetigt fuer SMR-spezifische Signale (CUSUM-Varianten, Regime-Detector, ML-Scores)
+  direkt als Overlay/Sub-Panel Indikatoren ohne Core-Aenderung.
+  Design: `register_indicator(name, Box<dyn Indicator>)` in WASM; Indicator-Trait bleibt in Core.
 - [ ] Ichimoku Cloud-Fill (fill_polygon zwischen Senkou A/B)
 
 ---
 
 ## Phase 9 -- Erweiterte Konzepte
 
-| Feature | Beschreibung | Aufwand |
-|---|---|---|
-| Replay-Modus | Bar-by-Bar historisches Abspielen, Play/Pause/Speed. Unverzichtbar fuer Backtesting-Workflows und SMR-ML-Training-Visualisierung. | Mittel |
-| Multi-Symbol Overlay | Zweites Symbol als Overlay-Linie (relative Performance %). Braucht zweite Y-Achse oder Normalisierung. | Mittel |
-| Rechte + Linke Y-Achse | Zwei unabhaengige Preis-Achsen fuer Overlay-Vergleich | Mittel |
-| Chart-Template | Indikatoren + Zeichnungen + Layout als eine Einheit speichern/laden. `exportAnnotations` ist zu granular. | Klein |
-| Alert-Datenstruktur | Price/Indicator-Crossing Alerts als Core-Typ (nicht UI, nur Daten) | Klein |
-| Footprint Charts | Bid-Ask-Volumen pro Preisniveau pro Kerze (Order Flow) | Gross |
-| Market Profile / TPO | Time-Price-Opportunity, anders als Volume Profile (Buchstaben-Saeulen) | Gross |
+| Feature | Beschreibung | Aufwand | Prio |
+|---|---|---|---|
+| **Replay-Modus** | Bar-by-Bar historisches Abspielen mit Play/Pause/Speed/Step. Unverzichtbar fuer SMR-ML-Training-Visualisierung und Backtesting-Workflows -- TradingView bietet nichts Vergleichbares. Design: `replayStart(bar)`, `replayStep()`, `replayPlay(speed)`, `replayPause()`, `replayStop()` in WASM; intern: `replay_cursor: usize` + Timer ueber `setInterval`. | Mittel | **Hoch** |
+| **Plugin-System** (auch Phase 8) | Custom Indicators von aussen per WASM-Callback registrieren. Benoetigt sobald SMR-Signale (Regime-Detector, ML-Scores) als Indikatoren eingebunden werden sollen. | Mittel | **Hoch** |
+| Multi-Symbol Overlay | Zweites Symbol als Overlay-Linie (relative Performance %). Braucht zweite Y-Achse oder Normalisierung. | Mittel | Mittel |
+| Rechte + Linke Y-Achse | Zwei unabhaengige Preis-Achsen fuer Overlay-Vergleich | Mittel | Mittel |
+| Chart-Template | Indikatoren + Zeichnungen + Layout als eine Einheit speichern/laden. `exportAnnotations` ist zu granular. | Klein | Mittel |
+| Alert-Datenstruktur | Price/Indicator-Crossing Alerts als Core-Typ (nicht UI, nur Daten) | Klein | Niedrig |
+| Footprint Charts | Bid-Ask-Volumen pro Preisniveau pro Kerze (Order Flow) | Gross | Niedrig |
+| Market Profile / TPO | Time-Price-Opportunity, anders als Volume Profile (Buchstaben-Saeulen) | Gross | Niedrig |
 
 ---
 
@@ -174,8 +178,8 @@ Alleinstellungsmerkmal. TradingView hat nichts davon. Diese Staerke weiter ausba
 TradingView auf deren Terrain (50 Drawing Tools, Pine Script) zu kopieren.
 
 **Groesste Hebel fuer "besser als TradingView":**
-1. LOD/Decimation -- ohne das skaliert nichts bei Tick-Daten
-2. Chart-Typen -- Heikin-Ashi + Line/Area sind Haendler-Grundbeduerfnis
-3. Replay-Modus -- einzigartiger Vorteil fuer SMR/ML-Workflow
-4. Indikator-Bibliothek auf ~25 bringen
+1. ~~LOD/Decimation~~ ✅ -- ohne das skaliert nichts bei Tick-Daten
+2. ~~Chart-Typen~~ ✅ -- Heikin-Ashi + Line/Area + Renko + P&F fertig
+3. **Replay-Modus** -- einzigartiger Vorteil fuer SMR/ML-Workflow, TradingView hat das nicht
+4. **Plugin-System** -- Custom Indicators fuer SMR-Signale direkt einbinden
 5. Drawing Tools auf ~10-15 bringen
