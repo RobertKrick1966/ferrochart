@@ -81,6 +81,10 @@ enum DrawMode {
     GannFan,
     /// Price Channel: two clicks define start and end bars; highs/lows are computed.
     PriceChannel,
+    /// Horizontal line: single click places a full-width price line.
+    HorizontalLine,
+    /// Vertical line: single click places a full-height bar line.
+    VerticalLine,
 }
 
 /// In-progress drawing.
@@ -1105,6 +1109,8 @@ impl FerroChart {
             "pitchfork" => DrawMode::Pitchfork,
             "gann_fan" => DrawMode::GannFan,
             "price_channel" => DrawMode::PriceChannel,
+            "horizontal_line" => DrawMode::HorizontalLine,
+            "vertical_line" => DrawMode::VerticalLine,
             _ => return Err(JsValue::from_str(&format!("unknown draw mode: {mode}"))),
         };
         st.drawing = None;
@@ -1564,6 +1570,30 @@ fn attach_mouse_events(
             && pos.x < y_axis_left
             && let Some(data_pos) = pixel_to_data(&st, pos)
         {
+            // Single-click drawing modes (no start point needed)
+            match st.draw_mode {
+                DrawMode::HorizontalLine => {
+                    st.annotations.add_horizontal_ray(HorizontalRay {
+                        price: data_pos.1,
+                        color: (255, 215, 0),
+                        width: 1.5,
+                    });
+                    st.dirty.mark(DirtyFlags::ANNOTATIONS);
+                    // Stay in mode for rapid placement; user switches to "none" when done
+                    return;
+                }
+                DrawMode::VerticalLine => {
+                    st.annotations.add_vertical_line(VerticalLine {
+                        bar_index: data_pos.0,
+                        color: (100, 200, 255),
+                        width: 1.0,
+                    });
+                    st.dirty.mark(DirtyFlags::ANNOTATIONS);
+                    return;
+                }
+                _ => {}
+            }
+
             if let Some(start) = st.drawing {
                 match st.draw_mode {
                     DrawMode::TrendLine => {
@@ -1737,7 +1767,7 @@ fn attach_mouse_events(
                         st.drawing = None;
                         st.draw_mode = DrawMode::None;
                     }
-                    DrawMode::None => {}
+                    DrawMode::None | DrawMode::HorizontalLine | DrawMode::VerticalLine => {}
                 }
             } else {
                 // First click → start drawing
@@ -2541,7 +2571,7 @@ fn draw_preview(
                 },
             );
         }
-        DrawMode::None => {}
+        DrawMode::None | DrawMode::HorizontalLine | DrawMode::VerticalLine => {}
     }
 }
 

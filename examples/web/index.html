@@ -99,9 +99,9 @@
                     <option value="gann_fan">Gann Fan</option>
                     <option value="price_channel">Price Channel</option>
                 </optgroup>
-                <optgroup label="Quick Add">
-                    <option value="add_hline">H-Line @ crosshair</option>
-                    <option value="add_vline">V-Line @ crosshair</option>
+                <optgroup label="Single Click">
+                    <option value="horizontal_line">H-Line (click)</option>
+                    <option value="vertical_line">V-Line (click)</option>
                 </optgroup>
             </select>
             <button id="btn-clear-draw">Clear Drawings</button>
@@ -270,39 +270,23 @@
 
             drawSelect.addEventListener('change', () => {
                 const mode = drawSelect.value;
-                if (mode === 'add_hline') {
-                    if (crosshairPrice > 0) {
-                        try { chart.addHorizontalRay(crosshairPrice, '#ffd700', 1.5); } catch(e) { console.warn(e); }
-                        status.textContent = `H-Line @ ${crosshairPrice.toFixed(2)}`;
-                    } else {
-                        status.textContent = 'Move cursor over chart first';
-                    }
-                    drawSelect.selectedIndex = 0;
-                } else if (mode === 'add_vline') {
-                    if (crosshairBar >= 0) {
-                        try { chart.addVerticalLine(crosshairBar, '#64c8ff', 1.0); } catch(e) { console.warn(e); }
-                        status.textContent = `V-Line @ bar ${crosshairBar}`;
-                    } else {
-                        status.textContent = 'Move cursor over chart first';
-                    }
-                    drawSelect.selectedIndex = 0;
-                } else {
-                    chart.setDrawMode(mode);
-                    const statusMap = {
-                        'none': '',
-                        'trendline': 'Click 2 points',
-                        'fibonacci': 'Click 2 points',
-                        'corridor': 'Click 3 points: start, end, offset',
-                        'ray': 'Click 2 points',
-                        'measurement': 'Click 2 points',
-                        'ellipse': 'Click 2 points',
-                        'pitchfork': 'Click 3 points',
-                        'gann_fan': 'Click 2 points (anchor + scale)',
-                        'price_channel': 'Click 2 points (start + end)',
-                    };
-                    status.textContent = statusMap[mode] ?? 'Click 2 points';
-                    if (mode === 'none') drawSelect.selectedIndex = 0;
-                }
+                chart.setDrawMode(mode);
+                const statusMap = {
+                    'none': '',
+                    'trendline': 'Click 2 points',
+                    'fibonacci': 'Click 2 points',
+                    'corridor': 'Click 3 points: start, end, offset',
+                    'ray': 'Click 2 points',
+                    'measurement': 'Click 2 points',
+                    'ellipse': 'Click 2 points',
+                    'pitchfork': 'Click 3 points',
+                    'gann_fan': 'Click 2 points (anchor + scale)',
+                    'price_channel': 'Click 2 points (start + end)',
+                    'horizontal_line': 'Click to place H-Line',
+                    'vertical_line': 'Click to place V-Line',
+                };
+                status.textContent = statusMap[mode] ?? 'Click to draw';
+                if (mode === 'none') drawSelect.selectedIndex = 0;
                 canvas.focus();
             });
 
