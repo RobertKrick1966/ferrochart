@@ -1777,40 +1777,6 @@ fn draw_annotations(
 }
 
 /// Draw volume profile histogram on the price panel (horizontal bars from right edge).
-fn draw_volume_profile(
-    renderer: &mut dyn Renderer,
-    profile: &VolumeProfile,
-    panel_rect: &Rect,
-    transform: &Transform,
-    config: &ChartConfig,
-) {
-    if profile.buckets.is_empty() || profile.max_volume < f64::EPSILON {
-        return;
-    }
-
-    let max_bar_width = panel_rect.width * 0.20;
-    let color = Color::rgba(100, 149, 237, 50); // cornflower blue, semi-transparent
-
-    // Suppress unused variable warning for config
-    let _ = config;
-
-    for bucket in &profile.buckets {
-        let y_top = transform.price_y(bucket.price_high);
-        let y_bottom = transform.price_y(bucket.price_low);
-        let height = (y_bottom - y_top).max(1.0);
-        let width = (bucket.volume / profile.max_volume) * max_bar_width;
-
-        if width < 0.5 {
-            continue;
-        }
-
-        renderer.draw_rect(
-            Rect::new(panel_rect.right() - width, y_top, width, height),
-            &FillStyle { color },
-        );
-    }
-}
-
 /// Draw volume profile histogram on the price panel (horizontal bars from right edge).
 fn draw_volume_profile(
     renderer: &mut dyn Renderer,

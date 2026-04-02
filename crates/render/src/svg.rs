@@ -127,21 +127,6 @@ impl Renderer for SvgRenderer {
         ));
     }
 
-    fn fill_polygon(&mut self, points: &[Point], fill: &FillStyle) {
-        if points.len() < 3 {
-            return;
-        }
-        let pts: String = points
-            .iter()
-            .map(|p| format!("{:.2},{:.2}", p.x, p.y))
-            .collect::<Vec<_>>()
-            .join(" ");
-        self.elements.push(format!(
-            r#"<polygon points="{pts}" fill="{}" />"#,
-            fill.color.to_css()
-        ));
-    }
-
     fn set_background(&mut self, color: Color) {
         self.background = Some(color);
     }

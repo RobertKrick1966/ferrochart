@@ -115,20 +115,6 @@ impl Renderer for CanvasRenderer {
         self.ctx.fill();
     }
 
-    fn fill_polygon(&mut self, points: &[Point], fill: &FillStyle) {
-        if points.len() < 3 {
-            return;
-        }
-        self.set_fill(fill.color);
-        self.ctx.begin_path();
-        self.ctx.move_to(points[0].x, points[0].y);
-        for p in &points[1..] {
-            self.ctx.line_to(p.x, p.y);
-        }
-        self.ctx.close_path();
-        self.ctx.fill();
-    }
-
     fn set_background(&mut self, color: Color) {
         self.set_fill(color);
         self.ctx.fill_rect(0.0, 0.0, self.width, self.height);
