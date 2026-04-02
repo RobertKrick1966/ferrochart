@@ -298,26 +298,39 @@
 
             // ── Indicators ──
             const indSelect = document.getElementById('ind-select');
+            const indicatorMap = {
+                'sma_20':         ['sma', 20],
+                'ema_10':         ['ema', 10],
+                'bollinger_20':   ['bollinger', 20],
+                'anchored_vwap_50': [null, 50],  // special
+                'session_vwap':   ['session_vwap', null],
+                'donchian_20':    ['donchian', 20],
+                'keltner_20':     ['keltner', 20],
+                'parabolic_sar':  ['parabolic_sar', null],
+                'supertrend_10':  ['supertrend', 10],
+                'ichimoku':       ['ichimoku', 9],
+                'rsi_14':         ['rsi', 14],
+                'macd_26':        ['macd', 26],
+                'atr_14':         ['atr', 14],
+                'obv':            ['obv', null],
+                'stochastic_14':  ['stochastic', 14],
+                'williams_r_14':  ['williams_r', 14],
+                'cci_20':         ['cci', 20],
+                'adx_14':         ['adx', 14],
+                'volume_sma_20':  ['volume_sma', 20],
+                'cusum_30':       ['cusum', 30],
+            };
             indSelect.addEventListener('change', () => {
                 const val = indSelect.value;
                 if (!val) return;
-                const [name, period] = val.split('_');
-                const p = period ? parseInt(period) : null;
+                const entry = indicatorMap[val];
+                if (!entry) { status.textContent = `Unknown: ${val}`; return; }
+                const [name, period] = entry;
                 try {
                     if (val === 'anchored_vwap_50') {
-                        chart.addAnchoredVwap(50);
-                    } else if (val === 'session_vwap') {
-                        chart.addIndicator('session_vwap', 0);
-                    } else if (val === 'ichimoku') {
-                        chart.addIndicator('ichimoku', 9);
-                    } else if (val === 'parabolic_sar') {
-                        chart.addIndicator('parabolic_sar', 0);
-                    } else if (val === 'obv') {
-                        chart.addIndicator('obv', 0);
-                    } else if (val === 'macd_26') {
-                        chart.addIndicator('macd', 26);
+                        chart.addAnchoredVwap(period);
                     } else {
-                        chart.addIndicator(name, p || 14);
+                        chart.addIndicator(name, period);
                     }
                     status.textContent = `Added: ${val}`;
                 } catch(e) { console.error(e); status.textContent = `Error: ${e}`; }
