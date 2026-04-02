@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
-> **Stand:** 2026-04-01 20:15 CEST
-> **Tests:** 233 (190 core + 43 render), Clippy-pedantic clean
+> **Stand:** 2026-04-02 CEST
+> **Tests:** 319 (276 core + 43 render), Clippy-pedantic clean
 
 ---
 
@@ -66,30 +66,30 @@
 
 ---
 
-## Phase 6 -- Chart-Typen
+## Phase 6 -- Chart-Typen ✅ (teilweise)
 
-> Aktuell nur Candlesticks. Non-Uniform X-Achse ist Blocker fuer Renko/P&F.
+> Non-Uniform X-Achse ist Blocker fuer Renko/P&F.
 
-| Feature | Beschreibung | Abhaengigkeit |
+| Feature | Beschreibung | Status |
 |---|---|---|
-| Heikin-Ashi | Berechnete Candles (HA-Open/Close), gleiche X-Achse | Neuer CandleGeometry-Modus |
-| OHLC Bars | Klassische Balken statt Candles (Strich links=Open, rechts=Close) | Renderer-Variante |
-| Line / Area Chart | Close-only als Linie oder gefuellte Flaeche | Einfache Renderer-Variante |
-| Renko | Zeitunabhaengige Bricks basierend auf Preisbewegung | **Non-Uniform X-Achse** |
-| Point & Figure | X/O-Saeulen, zeitunabhaengig | **Non-Uniform X-Achse** |
-| Session-Separation | Pre/Regular/Post-Market Zonen | Timestamp-basierte Erkennung |
+| Heikin-Ashi | ✅ `compute_heikin_ashi()`, `setChartType("heikin_ashi")` | ✅ |
+| OHLC Bars | ✅ `draw_ohlc_bars()`, `setChartType("ohlc")` | ✅ |
+| Line / Area Chart | ✅ `draw_line_chart()`, `draw_area_chart()`, `setChartType("line"/"area")` | ✅ |
+| Renko | Zeitunabhaengige Bricks basierend auf Preisbewegung | **Non-Uniform X-Achse** offen |
+| Point & Figure | X/O-Saeulen, zeitunabhaengig | **Non-Uniform X-Achse** offen |
+| Session-Separation | Pre/Regular/Post-Market Zonen | offen |
 
 ---
 
-## Phase 7 -- Drawing Tools
+## Phase 7 -- Drawing Tools (teilweise ✅)
 
-> Aktuell 3 Tools (Trendline, Fibonacci, Corridor). TradingView hat ~50.
+> Aktuell 7 Tools (Trendline, Fibonacci, Corridor, HorizontalRay, VerticalLine, RectangleZone, TextLabel). TradingView hat ~50.
 
 ### Prioritaet 1 (Haendler-Grundbeduerfnis)
-- [ ] Horizontale Linie (Preis-Level, frei platzierbar)
-- [ ] Vertikale Linie (Zeitpunkt markieren)
-- [ ] Rechteck / Box (Preis x Zeit Zone)
-- [ ] Text-Label (frei platzierbar)
+- [x] Horizontale Linie (`HorizontalRay`, `addHorizontalRay()`)
+- [x] Vertikale Linie (`VerticalLine`, `addVerticalLine()`)
+- [x] Rechteck / Box (`RectangleZone`, `addRectangle()`)
+- [x] Text-Label (`TextLabel`, `addTextLabel()`)
 - [ ] Price Channel (parallele Trendlinien durch Highs/Lows)
 
 ### Prioritaet 2 (Advanced)
@@ -106,27 +106,29 @@
 
 ---
 
-## Phase 8 -- Indikator-Bibliothek
+## Phase 8 -- Indikator-Bibliothek ✅
 
-> Aktuell 9 Indikatoren. Ziel: ~25-30 Alltagswerkzeuge.
+> 22 Indikatoren implementiert.
 
-### Fehlende Standard-Indikatoren
-- [ ] ATR (Average True Range)
-- [ ] Stochastic Oscillator (%K, %D)
-- [ ] Williams %R
-- [ ] CCI (Commodity Channel Index)
-- [ ] ADX / DMI (Directional Movement)
-- [ ] Ichimoku Cloud (Tenkan, Kijun, Senkou A/B, Chikou)
-- [ ] Parabolic SAR
-- [ ] Session VWAP (Reset pro Handelstag, nicht anchored)
-- [ ] OBV (On-Balance Volume)
-- [ ] Donchian Channels
-- [ ] Keltner Channels
-- [ ] Supertrend
+### Standard-Indikatoren
+- [x] SMA, EMA, Bollinger Bands, RSI, MACD, VolumeSMA
+- [x] CUSUM, Triple Barrier, AnchoredVWAP, VolumeProfile, EquityCurve
+- [x] ATR (Average True Range, Wilder-Smoothing)
+- [x] OBV (On-Balance Volume)
+- [x] Session VWAP (Reset pro Handelstag)
+- [x] Stochastic Oscillator (%K, %D)
+- [x] Donchian Channels (Upper/Mid/Lower)
+- [x] Keltner Channels (EMA ± ATR-Multiplikator)
+- [x] Williams %R
+- [x] CCI (Commodity Channel Index)
+- [x] ADX / DMI (Wilder-Smoothing, +DI/-DI/ADX)
+- [x] Parabolic SAR (State Machine, AF-Step/Max konfigurierbar)
+- [x] Supertrend (ATR-basiert)
+- [x] Ichimoku Cloud (5 Linien: Tenkan, Kijun, Senkou A/B, Chikou)
 
 ### Infrastruktur
-- [ ] Plugin-System: Custom Indicators von aussen registrieren (Trait-basiert, kein Pine Script noetig)
-- [ ] Custom Renderer fuer Indicators (z.B. Ichimoku Cloud braucht fill_polygon zwischen Senkou A/B)
+- [ ] Plugin-System: Custom Indicators von aussen registrieren (Trait-basiert)
+- [ ] Ichimoku Cloud-Fill (fill_polygon zwischen Senkou A/B)
 
 ---
 
@@ -161,9 +163,9 @@
 | 3 | ML-Integration (Confidence Band, Walk-Forward, News Events) | ✅ |
 | 4 | Erweitert (GEX, Max Pain, Multi-Chart Sync, Equity Curve) | ✅ |
 | 5 | Performance & Skalierung (LOD ✅, Virtualisierung ✅, WebGL offen) | teilweise ✅ |
-| 6 | Chart-Typen (Heikin-Ashi, OHLC, Line, Renko, P&F) | -- |
-| 7 | Drawing Tools (~15 Tools + Edit/Snap/Undo) | -- |
-| 8 | Indikator-Bibliothek (~25-30 + Plugin-System) | -- |
+| 6 | Chart-Typen (HA ✅, OHLC ✅, Line ✅, Area ✅, Renko/P&F offen) | teilweise ✅ |
+| 7 | Drawing Tools (7 Tools ✅, Price Channel/Prio2/Edit/Snap/Undo offen) | teilweise ✅ |
+| 8 | Indikator-Bibliothek (22 Indikatoren ✅, Plugin-System offen) | teilweise ✅ |
 | 9 | Erweiterte Konzepte (Replay, Multi-Symbol, Templates, Footprint) | -- |
 
 ### Strategische Einordnung

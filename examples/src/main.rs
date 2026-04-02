@@ -6,9 +6,9 @@
 use std::fs;
 
 use ferrochart_core::{
-    Annotations, Corridor, FibonacciRetracement, Marker, MarkerPosition, MarkerShape, Ohlcv,
-    TrendLine,
-    indicator::{Indicator, Sma, VolumeSma},
+    Annotations, ChartType, Corridor, FibonacciRetracement, HorizontalRay, Marker, MarkerPosition,
+    MarkerShape, Ohlcv, RectangleZone, TrendLine, VerticalLine,
+    indicator::{Atr, Indicator, Rsi, Sma, Stochastic, VolumeSma},
 };
 use ferrochart_render::chart::{
     ChartConfig, render_candlestick_chart, render_full_chart, render_full_chart_with_markers,
@@ -213,6 +213,139 @@ fn main() {
                 None,
                 config,
             );
+        },
+    );
+
+    // 8. Heikin-Ashi chart
+    generate_svg(
+        "output/08_heikin_ashi.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::HeikinAshi;
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
+    // 9. Line chart
+    generate_svg(
+        "output/09_line_chart.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::Line;
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
+    // 10. Area chart
+    generate_svg(
+        "output/10_area_chart.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::Area;
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
+    // 11. OHLC Bars
+    generate_svg(
+        "output/11_ohlc_bars.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::OhlcBars;
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
+    // 12. ATR indicator (sub-panel)
+    generate_svg("output/12_atr.svg", &data, |renderer, data, config| {
+        let atr = Atr { period: 14 };
+        let output = atr.compute(data);
+        render_full_chart(renderer, data, &[output], config);
+    });
+
+    // 13. RSI indicator (sub-panel)
+    generate_svg("output/13_rsi.svg", &data, |renderer, data, config| {
+        let rsi = Rsi { period: 14 };
+        let output = rsi.compute(data);
+        render_full_chart(renderer, data, &[output], config);
+    });
+
+    // 14. Stochastic indicator (sub-panel)
+    generate_svg(
+        "output/14_stochastic.svg",
+        &data,
+        |renderer, data, config| {
+            let stoch = Stochastic {
+                k_period: 14,
+                d_period: 3,
+            };
+            let output = stoch.compute(data);
+            render_full_chart(renderer, data, &[output], config);
+        },
+    );
+
+    // 15. Drawing tools: HorizontalRay, VerticalLine, RectangleZone
+    generate_svg(
+        "output/15_drawing_tools.svg",
+        &data,
+        |renderer, data, config| {
+            let mut annotations = Annotations::new();
+            annotations.add_horizontal_ray(HorizontalRay {
+                price: data[15].high,
+                color: (255, 200, 0),
+                width: 1.5,
+            });
+            annotations.add_vertical_line(VerticalLine {
+                bar_index: 10.0,
+                color: (100, 200, 255),
+                width: 1.0,
+            });
+            annotations.add_rectangle_zone(RectangleZone {
+                start_bar: 5.0,
+                end_bar: 12.0,
+                top_price: data[8].high,
+                bottom_price: data[8].low,
+                border_color: (255, 100, 100),
+                fill_color: (255, 100, 100, 30),
+                width: 1.0,
+            });
+            render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
         },
     );
 
