@@ -93,10 +93,10 @@ mod tests {
     fn bar(high: f64, low: f64) -> Ohlcv {
         Ohlcv {
             timestamp: 0,
-            open: (high + low) / 2.0,
+            open: f64::midpoint(high, low),
             high,
             low,
-            close: (high + low) / 2.0,
+            close: f64::midpoint(high, low),
             volume: 0.0,
             institutional_ratio: 0.0,
         }

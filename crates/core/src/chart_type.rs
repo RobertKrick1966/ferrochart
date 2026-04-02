@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(ha.len(), 1);
 
         let expected_close = (100.0 + 110.0 + 90.0 + 105.0) / 4.0;
-        let expected_open = (100.0 + 105.0) / 2.0;
+        let expected_open = f64::midpoint(100.0, 105.0);
         assert!((ha[0].close - expected_close).abs() < 1e-9);
         assert!((ha[0].open - expected_open).abs() < 1e-9);
         // HA high >= both HA open and HA close
@@ -138,7 +138,7 @@ mod tests {
         let ha = compute_heikin_ashi(&data);
 
         // ha_open[1] = (ha_open[0] + ha_close[0]) / 2
-        let expected_open_1 = (ha[0].open + ha[0].close) / 2.0;
+        let expected_open_1 = f64::midpoint(ha[0].open, ha[0].close);
         assert!((ha[1].open - expected_open_1).abs() < 1e-9);
     }
 
