@@ -815,6 +815,25 @@ pub fn render_full_chart_with_markers(
     if data.is_empty() {
         return ChartLayoutInfo::default();
     }
+
+    // Non-uniform chart types have their own coordinate system and rendering pipeline.
+    // Dispatch early so the standard panel/volume/X-axis logic is not applied.
+    match config.chart_type {
+        ChartType::Renko { brick_size } => {
+            renderer.set_background(config.background);
+            let renko_bars = compute_renko(data, brick_size);
+            render_renko_chart(renderer, &renko_bars, config);
+            return ChartLayoutInfo::default();
+        }
+        ChartType::PointFigure { box_size, reversal } => {
+            renderer.set_background(config.background);
+            let columns = compute_point_figure(data, box_size, reversal);
+            render_point_figure_chart(renderer, &columns, box_size, config);
+            return ChartLayoutInfo::default();
+        }
+        _ => {}
+    }
+
     let mut layout_info = ChartLayoutInfo::default();
 
     renderer.set_background(config.background);
@@ -965,14 +984,8 @@ pub fn render_full_chart_with_markers(
         ChartType::OhlcBars => {
             draw_ohlc_bars(renderer, render_data, &price_transform, config);
         }
-        ChartType::Renko { brick_size } => {
-            let renko_bars = compute_renko(data, brick_size);
-            render_renko_chart(renderer, &renko_bars, config);
-        }
-        ChartType::PointFigure { box_size, reversal } => {
-            let columns = compute_point_figure(data, box_size, reversal);
-            render_point_figure_chart(renderer, &columns, box_size, config);
-        }
+        // Renko and PointFigure are handled by the early-return dispatch above.
+        ChartType::Renko { .. } | ChartType::PointFigure { .. } => {}
     }
 
     // Draw volume profile on price panel (behind overlays)
@@ -1580,7 +1593,8 @@ fn render_point_figure_chart(
 
     let n = columns.len();
     let raw_col_w = chart_rect.width / n as f64;
-    let col_width = raw_col_w.clamp(8.0, 30.0);
+    // Clamp column width: min 8 px, no upper bound so columns fill available space.
+    let col_width = raw_col_w.max(8.0);
 
     let text_style = TextStyle {
         color: config.text_color,
@@ -1592,8 +1606,10 @@ fn render_point_figure_chart(
         width: 1.0,
     };
 
-    // Horizontal price grid at each box interval
-    let mut price = y_min.ceil();
+    // Horizontal price grid at each box interval; label every Nth box so ~8 labels show.
+    let total_boxes = ((y_max - y_min) / box_size).ceil().max(1.0) as i64;
+    let label_step = (total_boxes / 8).max(1);
+    let mut price = (y_min / box_size).ceil() * box_size;
     while price <= y_max {
         let y = chart_rect.bottom() - ((price - y_min) / y_span) * chart_rect.height;
         renderer.draw_line(
@@ -1604,9 +1620,8 @@ fn render_point_figure_chart(
             },
             &grid_style,
         );
-        // Label every few boxes to avoid crowding
         let boxes_from_bottom = ((price - y_min) / box_size).round() as i64;
-        if boxes_from_bottom % 5 == 0 {
+        if boxes_from_bottom % label_step == 0 {
             renderer.draw_text(
                 &format!("{price:.2}"),
                 Point {

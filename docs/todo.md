@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
 > **Stand:** 2026-04-02 CEST
-> **Tests:** 348 (305 core + 43 render), Clippy-pedantic clean
+> **Tests:** 333 (290 core + 43 render), Clippy-pedantic clean
 
 ---
 
