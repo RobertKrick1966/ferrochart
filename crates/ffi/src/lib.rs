@@ -647,6 +647,7 @@ fn compute_indicator(name: &str, period: usize, data: &[Ohlcv]) -> Option<Indica
 // ===========================================================================
 
 #[cfg(test)]
+#[allow(clippy::many_single_char_names)]
 mod tests {
     use super::*;
 
