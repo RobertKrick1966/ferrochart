@@ -2,9 +2,9 @@
 // Copyright (C) 2025 Robert Krick
 
 use ferrochart_core::{
-    Annotations, BarrierOutcome, CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker,
-    MarkerPosition, MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle,
-    TimeRange, Transform, Viewport, YScaleMode, indicator::VolumeProfile,
+    Annotations, BarrierOutcome, CandleGeometry, ChartType, IndicatorOutput, IndicatorPlacement,
+    Marker, MarkerPosition, MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle,
+    TimeRange, Transform, Viewport, YScaleMode, compute_heikin_ashi, indicator::VolumeProfile,
 };
 
 use crate::Renderer;
@@ -54,6 +54,8 @@ pub struct ChartConfig {
     /// Use logarithmic Y-axis for the price panel.
     /// Volume and indicator sub-panels always use linear scale.
     pub log_y: bool,
+    /// Visual style used to render price bars.
+    pub chart_type: ChartType,
 }
 
 /// Margins around the chart area.
@@ -96,6 +98,7 @@ impl Default for ChartConfig {
             visible_bar_slots: None,
             visible_offset: 0,
             log_y: false,
+            chart_type: ChartType::Candlestick,
             indicator_colors: vec![
                 Color::rgb(255, 235, 59), // yellow
                 Color::rgb(0, 188, 212),  // cyan
@@ -851,9 +854,26 @@ pub fn render_full_chart_with_markers(
     let time_range = TimeRange::new(0, bar_slots);
     let price_data_rect = inset_rect_horizontal(&price_panel.rect, bar_slots);
 
+    // --- Determine render data (may be Heikin-Ashi transformed) ---
+    let ha_data: Vec<Ohlcv>;
+    let render_data: &[Ohlcv] = match config.chart_type {
+        ChartType::HeikinAshi => {
+            ha_data = compute_heikin_ashi(data);
+            &ha_data
+        }
+        _ => data,
+    };
+
     // --- Price panel ---
     // Extend price range to include overlay indicator values (BB bands, etc.)
-    let mut price_range = PriceRange::from_ohlcv(data).unwrap_or(PriceRange::new(0.0, 100.0));
+    // For Line/Area charts use close-only range; otherwise use full OHLC range.
+    let base_price_range = match config.chart_type {
+        ChartType::Line | ChartType::Area => {
+            PriceRange::from_closes(render_data).unwrap_or(PriceRange::new(0.0, 100.0))
+        }
+        _ => PriceRange::from_ohlcv(render_data).unwrap_or(PriceRange::new(0.0, 100.0)),
+    };
+    let mut price_range = base_price_range;
     for overlay in &overlays {
         for series in &overlay.series {
             if series.style_hint == SeriesStyle::Line {
@@ -907,8 +927,39 @@ pub fn render_full_chart_with_markers(
         &price_transform,
         config,
     );
-    let candles = CandleGeometry::compute_all(data, 0, &price_transform, config.body_ratio);
-    draw_candles(renderer, &candles, config);
+
+    // Render price bars according to chart type
+    match config.chart_type {
+        ChartType::Candlestick | ChartType::HeikinAshi => {
+            let candles =
+                CandleGeometry::compute_all(render_data, 0, &price_transform, config.body_ratio);
+            draw_candles(renderer, &candles, config);
+        }
+        ChartType::Line => {
+            let line_color = config.indicator_colors
+                .first()
+                .copied()
+                .unwrap_or(Color::LIGHT_GRAY);
+            draw_line_chart(renderer, render_data, &price_transform, config, line_color);
+        }
+        ChartType::Area => {
+            let area_color = config.indicator_colors
+                .first()
+                .copied()
+                .unwrap_or(Color::LIGHT_GRAY);
+            draw_area_chart(
+                renderer,
+                render_data,
+                &price_transform,
+                config,
+                &price_panel.rect,
+                area_color,
+            );
+        }
+        ChartType::OhlcBars => {
+            draw_ohlc_bars(renderer, render_data, &price_transform, config);
+        }
+    }
 
     // Draw volume profile on price panel (behind overlays)
     if let Some(vp) = volume_profile {
@@ -1252,6 +1303,113 @@ fn draw_series_line(
 
     if segment.len() >= 2 {
         renderer.draw_path(&segment, style);
+    }
+}
+
+/// Draw a line chart (close prices as a polyline).
+fn draw_line_chart(
+    renderer: &mut dyn Renderer,
+    data: &[Ohlcv],
+    transform: &Transform,
+    _config: &ChartConfig,
+    line_color: Color,
+) {
+    let values: Vec<f64> = data.iter().map(|b| b.close).collect();
+    let style = LineStyle {
+        color: line_color,
+        width: 1.5,
+    };
+    draw_series_line(renderer, &values, transform, &style);
+}
+
+/// Draw an area chart (filled polygon below close prices + line on top).
+fn draw_area_chart(
+    renderer: &mut dyn Renderer,
+    data: &[Ohlcv],
+    transform: &Transform,
+    config: &ChartConfig,
+    panel_rect: &Rect,
+    color: Color,
+) {
+    if data.is_empty() {
+        return;
+    }
+
+    // Build top edge of polygon (close prices) + bottom corners
+    let mut poly: Vec<Point> = data
+        .iter()
+        .enumerate()
+        .map(|(i, b)| transform.to_pixel(i as f64, b.close))
+        .collect();
+
+    // Close polygon: bottom-right, then bottom-left
+    let last_x = transform.bar_x(data.len() - 1);
+    let first_x = transform.bar_x(0);
+    let bottom_y = panel_rect.bottom();
+    poly.push(Point {
+        x: last_x,
+        y: bottom_y,
+    });
+    poly.push(Point {
+        x: first_x,
+        y: bottom_y,
+    });
+
+    let fill_color = Color::rgba(color.r, color.g, color.b, 40);
+    renderer.fill_polygon(&poly, &FillStyle { color: fill_color });
+
+    // Draw line on top
+    draw_line_chart(renderer, data, transform, config, color);
+}
+
+/// Draw OHLC bar chart (vertical bar + left tick for open, right tick for close).
+fn draw_ohlc_bars(
+    renderer: &mut dyn Renderer,
+    data: &[Ohlcv],
+    transform: &Transform,
+    config: &ChartConfig,
+) {
+    let bar_width = transform.bar_width();
+    let tick_len = (bar_width * config.body_ratio * 0.5).max(2.0);
+
+    for (i, bar) in data.iter().enumerate() {
+        let x = transform.bar_x(i);
+        let high_y = transform.price_y(bar.high);
+        let low_y = transform.price_y(bar.low);
+        let open_y = transform.price_y(bar.open);
+        let close_y = transform.price_y(bar.close);
+
+        let color = if bar.close >= bar.open {
+            config.bullish_color
+        } else {
+            config.bearish_color
+        };
+        let style = LineStyle { color, width: 1.0 };
+
+        // Vertical bar from high to low
+        renderer.draw_line(
+            Point { x, y: high_y },
+            Point { x, y: low_y },
+            &style,
+        );
+        // Open tick (left)
+        renderer.draw_line(
+            Point {
+                x: x - tick_len,
+                y: open_y,
+            },
+            Point { x, y: open_y },
+            &style,
+        );
+        // Close tick (right)
+        renderer.draw_line(
+            Point { x, y: close_y },
+            Point {
+                x: x + tick_len,
+                y: close_y,
+            },
+            &style,
+        );
     }
 }
 

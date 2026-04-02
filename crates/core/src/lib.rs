@@ -8,6 +8,7 @@
 /// Chart annotation types (trend lines, Fibonacci retracements, corridors).
 pub mod annotation;
 mod candle;
+mod chart_type;
 mod data;
 /// Level-of-Detail decimation for large datasets.
 pub mod decimation;
@@ -29,12 +30,17 @@ pub use annotation::{
 };
 /// Re-exported candlestick geometry.
 pub use candle::CandleGeometry;
+/// Re-exported chart type enum and Heikin-Ashi transform.
+pub use chart_type::{ChartType, compute_heikin_ashi};
 /// Re-exported data primitives.
 pub use data::{Ohlcv, PriceRange, Series, TimeRange};
 /// Re-exported geometry primitives.
 pub use geometry::{Point, Rect};
 /// Re-exported indicator types.
-pub use indicator::{Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, SeriesStyle};
+pub use indicator::{
+    Atr, Donchian, Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, Keltner, Obv,
+    SeriesStyle, SessionVwap, Stochastic,
+};
 /// Re-exported layout types.
 pub use layout::{Panel, PanelLayout};
 /// Re-exported marker types.

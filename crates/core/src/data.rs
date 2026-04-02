@@ -110,6 +110,26 @@ impl PriceRange {
         }
     }
 
+    /// Compute the price range from close prices only (used for line/area charts).
+    /// Returns `None` if the slice is empty.
+    #[must_use]
+    pub fn from_closes(data: &[Ohlcv]) -> Option<Self> {
+        if data.is_empty() {
+            return None;
+        }
+        let mut min = f64::MAX;
+        let mut max = f64::MIN;
+        for bar in data {
+            if bar.close < min {
+                min = bar.close;
+            }
+            if bar.close > max {
+                max = bar.close;
+            }
+        }
+        Some(Self { min, max })
+    }
+
     /// Compute the price range from a slice of OHLCV bars.
     /// Returns `None` if the slice is empty.
     #[must_use]
@@ -238,6 +258,20 @@ mod tests {
     }
 
     // --- PriceRange tests ---
+
+    #[test]
+    fn price_range_from_closes() {
+        let bars = sample_bars();
+        let range = PriceRange::from_closes(&bars).unwrap();
+        // closes are 105, 115, 92 → min=92, max=115
+        assert!((range.min - 92.0).abs() < f64::EPSILON);
+        assert!((range.max - 115.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn price_range_from_closes_empty() {
+        assert!(PriceRange::from_closes(&[]).is_none());
+    }
 
     #[test]
     fn price_range_from_ohlcv() {
