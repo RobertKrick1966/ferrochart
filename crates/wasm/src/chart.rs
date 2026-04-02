@@ -1044,16 +1044,17 @@ impl FerroChart {
 /// Falls back to `(128, 128, 128)` if the string is not in the expected format.
 fn parse_color(hex: &str) -> (u8, u8, u8) {
     let s = hex.trim().trim_start_matches('#');
-    if s.len() == 6 {
-        if let (Ok(r), Ok(g), Ok(b)) = (
-            u8::from_str_radix(&s[0..2], 16),
-            u8::from_str_radix(&s[2..4], 16),
-            u8::from_str_radix(&s[4..6], 16),
-        ) {
-            return (r, g, b);
+    let parse = || -> Option<(u8, u8, u8)> {
+        if s.len() != 6 {
+            return None;
         }
-    }
-    (128, 128, 128)
+        Some((
+            u8::from_str_radix(&s[0..2], 16).ok()?,
+            u8::from_str_radix(&s[2..4], 16).ok()?,
+            u8::from_str_radix(&s[4..6], 16).ok()?,
+        ))
+    };
+    parse().unwrap_or((128, 128, 128))
 }
 
 /// Helper: get mouse position relative to canvas in canvas-pixel coordinates.
