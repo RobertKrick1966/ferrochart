@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
 > **Stand:** 2026-04-02 CEST
-> **Tests:** 339 (296 core + 43 render), Clippy-pedantic clean
+> **Tests:** 340 (297 core + 43 render), Clippy-pedantic clean
 
 ---
 
@@ -81,14 +81,14 @@
 
 ## Phase 7 -- Drawing Tools (teilweise ✅)
 
-> Aktuell 12 Tools (Trendline, Fibonacci, Corridor, HorizontalRay, VerticalLine, RectangleZone, TextLabel, Ray, MeasurementTool, Ellipse, AndrewsPitchfork, GannFan). TradingView hat ~50.
+> Aktuell 13 Tools (Trendline, Fibonacci, Corridor, HorizontalRay, VerticalLine, RectangleZone, TextLabel, Ray, MeasurementTool, Ellipse, AndrewsPitchfork, GannFan, PriceChannel). TradingView hat ~50.
 
 ### Prioritaet 1 (Haendler-Grundbeduerfnis)
 - [x] Horizontale Linie (`HorizontalRay`, `addHorizontalRay()`)
 - [x] Vertikale Linie (`VerticalLine`, `addVerticalLine()`)
 - [x] Rechteck / Box (`RectangleZone`, `addRectangle()`)
 - [x] Text-Label (`TextLabel`, `addTextLabel()`)
-- [ ] Price Channel (parallele Trendlinien durch Highs/Lows)
+- [x] Price Channel (`PriceChannel`, `addPriceChannel()`)
 
 ### Prioritaet 2 (Advanced)
 - [x] Andrews Pitchfork
@@ -125,11 +125,9 @@
 - [x] Ichimoku Cloud (5 Linien: Tenkan, Kijun, Senkou A/B, Chikou)
 
 ### Infrastruktur
-- [ ] **Plugin-System:** Custom Indicators von aussen registrieren (Trait-basiert).
-  Benoetigt fuer SMR-spezifische Signale (CUSUM-Varianten, Regime-Detector, ML-Scores)
-  direkt als Overlay/Sub-Panel Indikatoren ohne Core-Aenderung.
-  Design: `register_indicator(name, Box<dyn Indicator>)` in WASM; Indicator-Trait bleibt in Core.
-- [ ] Ichimoku Cloud-Fill (fill_polygon zwischen Senkou A/B)
+- [x] **Plugin-System:** `addCustomOverlay(name, values, series_count)` und `addCustomSubPanel()` --
+  JS-berechnete Indikatoren als First-Class Overlays/Sub-Panels. Kein Core-Change noetig.
+- [x] Ichimoku Cloud-Fill (gruen/rot fill_polygon zwischen Senkou A/B mit Crossover-Handling)
 
 ---
 
@@ -137,8 +135,8 @@
 
 | Feature | Beschreibung | Aufwand | Prio |
 |---|---|---|---|
-| **Replay-Modus** | Bar-by-Bar historisches Abspielen mit Play/Pause/Speed/Step. Unverzichtbar fuer SMR-ML-Training-Visualisierung und Backtesting-Workflows -- TradingView bietet nichts Vergleichbares. Design: `replayStart(bar)`, `replayStep()`, `replayPlay(speed)`, `replayPause()`, `replayStop()` in WASM; intern: `replay_cursor: usize` + Timer ueber `setInterval`. | Mittel | **Hoch** |
-| **Plugin-System** (auch Phase 8) | Custom Indicators von aussen per WASM-Callback registrieren. Benoetigt sobald SMR-Signale (Regime-Detector, ML-Scores) als Indikatoren eingebunden werden sollen. | Mittel | **Hoch** |
+| ~~**Replay-Modus**~~ | ✅ `replayStart(bar)`, `replayStep()`, `replayPlay(speed_ms)`, `replayPause()`, `replayStop()`, `replayPosition()`. Slices data to `[0..cursor]`, recomputes indicators, auto-play via setInterval. | ✅ | ✅ |
+| ~~**Plugin-System**~~ | ✅ `addCustomOverlay(name, values, series_count)`, `addCustomSubPanel()`. JS-berechnete Werte als First-Class Indikatoren. | ✅ | ✅ |
 | Multi-Symbol Overlay | Zweites Symbol als Overlay-Linie (relative Performance %). Braucht zweite Y-Achse oder Normalisierung. | Mittel | Mittel |
 | Rechte + Linke Y-Achse | Zwei unabhaengige Preis-Achsen fuer Overlay-Vergleich | Mittel | Mittel |
 | Chart-Template | Indikatoren + Zeichnungen + Layout als eine Einheit speichern/laden. `exportAnnotations` ist zu granular. | Klein | Mittel |
@@ -166,9 +164,9 @@
 | 4 | Erweitert (GEX, Max Pain, Multi-Chart Sync, Equity Curve) | ✅ |
 | 5 | Performance & Skalierung (LOD ✅, Virtualisierung ✅, WebGL offen) | teilweise ✅ |
 | 6 | Chart-Typen (HA ✅, OHLC ✅, Line ✅, Area ✅, Renko ✅, P&F ✅) | ✅ |
-| 7 | Drawing Tools (12 Tools ✅, Price Channel/Edit/Snap/Undo offen) | teilweise ✅ |
-| 8 | Indikator-Bibliothek (22 Indikatoren ✅, Plugin-System offen) | teilweise ✅ |
-| 9 | Erweiterte Konzepte (Replay, Multi-Symbol, Templates, Footprint) | -- |
+| 7 | Drawing Tools (13 Tools ✅, Edit/Snap/Undo offen) | teilweise ✅ |
+| 8 | Indikator-Bibliothek (22 Indikatoren ✅, Plugin-System ✅, Cloud-Fill ✅) | ✅ |
+| 9 | Erweiterte Konzepte (Replay ✅, Plugin ✅, Multi-Symbol/Templates/Footprint offen) | teilweise ✅ |
 
 ### Strategische Einordnung
 
@@ -178,8 +176,9 @@ Alleinstellungsmerkmal. TradingView hat nichts davon. Diese Staerke weiter ausba
 TradingView auf deren Terrain (50 Drawing Tools, Pine Script) zu kopieren.
 
 **Groesste Hebel fuer "besser als TradingView":**
-1. ~~LOD/Decimation~~ ✅ -- ohne das skaliert nichts bei Tick-Daten
-2. ~~Chart-Typen~~ ✅ -- Heikin-Ashi + Line/Area + Renko + P&F fertig
-3. **Replay-Modus** -- einzigartiger Vorteil fuer SMR/ML-Workflow, TradingView hat das nicht
-4. **Plugin-System** -- Custom Indicators fuer SMR-Signale direkt einbinden
-5. Drawing Tools auf ~10-15 bringen
+1. ~~LOD/Decimation~~ ✅
+2. ~~Chart-Typen~~ ✅ -- 7 Typen inkl. Renko + P&F
+3. ~~**Replay-Modus**~~ ✅ -- einzigartiger Vorteil fuer SMR/ML-Workflow
+4. ~~**Plugin-System**~~ ✅ -- JS-berechnete Indikatoren als First-Class Overlays
+5. ~~Drawing Tools auf ~10-15~~ ✅ -- 13 Tools
+6. Edit-Modus / Snap / Undo fuer Zeichnungen
