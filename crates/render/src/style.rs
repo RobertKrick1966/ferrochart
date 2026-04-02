@@ -3,6 +3,7 @@
 
 /// RGBA color (0–255 per channel).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Color {
     /// Red channel.
     pub r: u8,

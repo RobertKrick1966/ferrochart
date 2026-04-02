@@ -9,6 +9,8 @@
 pub mod annotation;
 mod candle;
 mod data;
+/// Level-of-Detail decimation for large datasets.
+pub mod decimation;
 mod geometry;
 /// Technical indicator computations (SMA, EMA, RSI, MACD, Bollinger Bands).
 pub mod indicator;

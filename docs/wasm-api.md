@@ -1,16 +1,35 @@
 # ferrochart-wasm -- API Design & Ist/Soll-Abgleich
 
-> **Stand:** 2026-04-01 16:30 CEST
+> **Stand:** 2026-04-01 19:45 CEST
 
 ## Crate-Struktur
 
 ```
 ferrochart/
-├── ferrochart-core/       ← rein, kein WASM-Bezug
-├── ferrochart-render/     ← SvgRenderer (vorhanden), Canvas2dRenderer (Soll: hierher, Ist: in wasm)
-├── ferrochart-wasm/       ← WASM-Bindings + JS-API + CanvasRenderer (Ist)
-└── ferrochart-examples/   ← SVG-Beispiele + Web-Demo
+├── ferrochart-core/       ← rein, kein WASM-Bezug, kein I/O
+├── ferrochart-render/     ← Renderer-Trait, SvgRenderer, ChartConfig (serde hinter Feature-Flag)
+├── ferrochart-wasm/       ← WASM-Bindings + JS-API + CanvasRenderer
+├── ferrochart-examples/   ← SVG-Beispiele + Web-Demo
+└── packages/web/          ← @ferrochart/web TS-Wrapper (NPM)
 ```
+
+### Warum CanvasRenderer in wasm bleibt
+
+Der `CanvasRenderer` lebt bewusst in `ferrochart-wasm`, nicht in `ferrochart-render`.
+Grund: Er haengt von `web-sys::CanvasRenderingContext2d` ab, was eine WASM-only
+Dependency ist. Wuerde man ihn nach `ferrochart-render` verschieben, muesste das
+render-Crate `web-sys` + `wasm-bindgen` als optionale Dependencies aufnehmen.
+Das wuerde:
+
+1. Die Kompilierzeit fuer Nicht-WASM-Nutzer erhoehen (Feature-Flag hin oder her,
+   Cargo laedt die Crates trotzdem)
+2. Die saubere Trennung aufbrechen: `ferrochart-render` ist heute rein
+   plattformunabhaengig (nur `ferrochart-core` als Dependency)
+3. Keinen praktischen Nutzen bringen — es gibt keinen zweiten Consumer des
+   CanvasRenderers ausserhalb von `ferrochart-wasm`
+
+Falls ein zweites WASM-Crate den CanvasRenderer braucht, kann es ihn direkt aus
+`ferrochart-wasm` importieren (`pub use` ist gesetzt).
 
 ---
 

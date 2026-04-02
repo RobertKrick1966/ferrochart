@@ -12,6 +12,7 @@ use crate::style::{Color, FillStyle, LineStyle, TextAnchor, TextStyle};
 
 /// Configuration for chart rendering.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChartConfig {
     /// Total chart width in pixels.
     pub width: f64,
@@ -57,6 +58,7 @@ pub struct ChartConfig {
 
 /// Margins around the chart area.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChartMargin {
     /// Top margin in pixels.
     pub top: f64,
@@ -197,6 +199,36 @@ pub fn render_candlestick_chart(renderer: &mut dyn Renderer, data: &[Ohlcv], con
 }
 
 fn draw_candles(renderer: &mut dyn Renderer, candles: &[CandleGeometry], config: &ChartConfig) {
+    if candles.is_empty() {
+        return;
+    }
+
+    // Fast path: when many candles are sub-pixel, draw single colored line per bar
+    // Skip for small datasets (<=2 bars) where zero width is a viewport edge case
+    let thin = candles.len() > 2 && candles[0].body_width < 2.0;
+
+    if thin {
+        for c in candles {
+            let color = if c.bullish {
+                config.bullish_color
+            } else {
+                config.bearish_color
+            };
+            renderer.draw_line(
+                Point {
+                    x: c.x,
+                    y: c.wick_top,
+                },
+                Point {
+                    x: c.x,
+                    y: c.wick_bottom,
+                },
+                &LineStyle { color, width: 1.0 },
+            );
+        }
+        return;
+    }
+
     let wick_style = LineStyle {
         color: config.wick_color,
         width: 1.0,
@@ -227,16 +259,13 @@ fn draw_candles(renderer: &mut dyn Renderer, candles: &[CandleGeometry], config:
         let body_x = c.x - c.body_width / 2.0;
 
         if c.institutional_ratio > 0.0 {
-            // Bottom portion: institutional color
             let inst_height = body_height * c.institutional_ratio;
             let retail_height = body_height - inst_height;
 
-            // Top part: regular bull/bear color
             renderer.draw_rect(
                 Rect::new(body_x, c.body_top, c.body_width, retail_height),
                 &FillStyle { color: body_color },
             );
-            // Bottom part: institutional color
             renderer.draw_rect(
                 Rect::new(
                     body_x,
@@ -1747,6 +1776,7 @@ fn draw_annotations(
     }
 }
 
+/// Draw volume profile histogram on the price panel (horizontal bars from right edge).
 /// Draw volume profile histogram on the price panel (horizontal bars from right edge).
 fn draw_volume_profile(
     renderer: &mut dyn Renderer,

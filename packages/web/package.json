@@ -1,0 +1,19 @@
+{
+  "name": "@ferrochart/web",
+  "version": "0.1.0",
+  "description": "FerroChart — interactive candlestick chart for the browser",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/RobertKrick1966/ferrochart"
+}

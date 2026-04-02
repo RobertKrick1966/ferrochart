@@ -69,74 +69,7 @@ fn main() {
 
     // 6. Circle markers (balls above/below candles)
     generate_svg("output/06_markers.svg", &data, |renderer, data, config| {
-        let markers = vec![
-            // Green balls above bar (e.g., CUSUM event detected)
-            Marker {
-                bar_index: 6,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::AboveBar,
-                color: (0, 200, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 12,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::AboveBar,
-                color: (0, 200, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 19,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::AboveBar,
-                color: (0, 200, 0, 255),
-                label: "CUSUM".to_string(),
-            },
-            // Red balls below bar
-            Marker {
-                bar_index: 3,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::BelowBar,
-                color: (220, 0, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 9,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::BelowBar,
-                color: (220, 0, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 15,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::BelowBar,
-                color: (220, 0, 0, 255),
-                label: "Alert".to_string(),
-            },
-            // Other marker shapes for comparison
-            Marker {
-                bar_index: 22,
-                shape: MarkerShape::ArrowUp,
-                position: MarkerPosition::BelowBar,
-                color: (0, 200, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 25,
-                shape: MarkerShape::ArrowDown,
-                position: MarkerPosition::AboveBar,
-                color: (220, 0, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 28,
-                shape: MarkerShape::Diamond,
-                position: MarkerPosition::AboveBar,
-                color: (255, 200, 0, 255),
-                label: String::new(),
-            },
-        ];
+        let markers = sample_markers();
         let marker_refs: Vec<&Marker> = markers.iter().collect();
         render_full_chart_with_markers(
             renderer,
@@ -148,6 +81,73 @@ fn main() {
             config,
         );
     });
+
+    // 7. Annotations: trendlines, corridor, Fibonacci retracement
+    generate_svg(
+        "output/07_annotations.svg",
+        &data,
+        |renderer, data, config| {
+            let mut annotations = Annotations::new();
+
+            // Rising trendline (yellow)
+            annotations.add_trend_line(TrendLine {
+                start_bar: 2.0,
+                start_price: data[2].low,
+                end_bar: 20.0,
+                end_price: data[20].low,
+                color: (255, 235, 59),
+                width: 2.0,
+                extend_right: true,
+            });
+
+            // Falling trendline (red, not extended)
+            annotations.add_trend_line(TrendLine {
+                start_bar: 6.0,
+                start_price: data[6].high,
+                end_bar: 19.0,
+                end_price: data[19].high,
+                color: (255, 60, 60),
+                width: 1.5,
+                extend_right: false,
+            });
+
+            // Corridor / channel (cyan)
+            annotations.add_corridor(Corridor {
+                line: TrendLine {
+                    start_bar: 10.0,
+                    start_price: data[10].low,
+                    end_bar: 25.0,
+                    end_price: data[25].low,
+                    color: (0, 200, 255),
+                    width: 1.0,
+                    extend_right: false,
+                },
+                offset: 8.0,
+            });
+
+            // Fibonacci retracement (orange)
+            let high_bar = 19;
+            let low_bar = 9;
+            annotations.add_fibonacci(FibonacciRetracement {
+                high_bar,
+                high_price: data[high_bar].high,
+                low_bar,
+                low_price: data[low_bar].low,
+                color: (255, 165, 0),
+            });
+
+            let marker_refs: Vec<&Marker> = vec![];
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &marker_refs,
+                &annotations,
+                None,
+                config,
+            );
+        },
+    );
 
     // 7. Annotations: trendlines, corridor, Fibonacci retracement
     generate_svg(
@@ -265,6 +265,78 @@ fn sample_ohlcv() -> Vec<Ohlcv> {
     }
 
     data
+}
+
+/// Sample markers demonstrating all marker shapes and positions.
+fn sample_markers() -> Vec<Marker> {
+    vec![
+        // Green balls above bar (e.g., CUSUM event detected)
+        Marker {
+            bar_index: 6,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::AboveBar,
+            color: (0, 200, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 12,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::AboveBar,
+            color: (0, 200, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 19,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::AboveBar,
+            color: (0, 200, 0, 255),
+            label: "CUSUM".to_string(),
+        },
+        // Red balls below bar
+        Marker {
+            bar_index: 3,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::BelowBar,
+            color: (220, 0, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 9,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::BelowBar,
+            color: (220, 0, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 15,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::BelowBar,
+            color: (220, 0, 0, 255),
+            label: "Alert".to_string(),
+        },
+        // Other marker shapes for comparison
+        Marker {
+            bar_index: 22,
+            shape: MarkerShape::ArrowUp,
+            position: MarkerPosition::BelowBar,
+            color: (0, 200, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 25,
+            shape: MarkerShape::ArrowDown,
+            position: MarkerPosition::AboveBar,
+            color: (220, 0, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 28,
+            shape: MarkerShape::Diamond,
+            position: MarkerPosition::AboveBar,
+            color: (255, 200, 0, 255),
+            label: String::new(),
+        },
+    ]
 }
 
 /// OHLCV data with institutional activity for split-candle rendering.
