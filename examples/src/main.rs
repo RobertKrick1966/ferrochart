@@ -282,6 +282,43 @@ fn main() {
         },
     );
 
+    // 16. Renko chart
+    generate_svg("output/16_renko.svg", &data, |renderer, data, config| {
+        let mut cfg = config.clone();
+        cfg.chart_type = ChartType::Renko { brick_size: 2.0 };
+        render_full_chart_with_markers(
+            renderer,
+            data,
+            &[],
+            &[],
+            &Annotations::default(),
+            None,
+            &cfg,
+        );
+    });
+
+    // 17. Point & Figure chart
+    generate_svg(
+        "output/17_point_figure.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::PointFigure {
+                box_size: 1.5,
+                reversal: 3,
+            };
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
     println!("All SVGs written to output/");
 }
 

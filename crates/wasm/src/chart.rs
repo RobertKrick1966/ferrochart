@@ -469,7 +469,8 @@ impl FerroChart {
 
     /// Set the chart type.
     ///
-    /// Supported names: `"candlestick"`, `"heikin_ashi"`, `"line"`, `"area"`, `"ohlc"`.
+    /// Supported names: `"candlestick"`, `"heikin_ashi"`, `"line"`, `"area"`, `"ohlc"`,
+    /// `"renko"`, `"point_figure"`.
     ///
     /// # Errors
     ///
@@ -482,6 +483,11 @@ impl FerroChart {
             "line" => ChartType::Line,
             "area" => ChartType::Area,
             "ohlc" => ChartType::OhlcBars,
+            "renko" => ChartType::Renko { brick_size: 1.0 },
+            "point_figure" => ChartType::PointFigure {
+                box_size: 1.0,
+                reversal: 3,
+            },
             _ => return Err(JsValue::from_str(&format!("unknown chart type: {name}"))),
         };
         let mut st = self.state.borrow_mut();
@@ -490,6 +496,22 @@ impl FerroChart {
             st.dirty.mark_all();
         }
         Ok(())
+    }
+
+    /// Set chart type to Renko with a custom brick size.
+    #[wasm_bindgen(js_name = setRenkoConfig)]
+    pub fn set_renko_config(&self, brick_size: f64) {
+        let mut st = self.state.borrow_mut();
+        st.chart_type = ChartType::Renko { brick_size };
+        st.dirty.mark_all();
+    }
+
+    /// Set chart type to Point & Figure with a custom box size and reversal count.
+    #[wasm_bindgen(js_name = setPfConfig)]
+    pub fn set_pf_config(&self, box_size: f64, reversal: usize) {
+        let mut st = self.state.borrow_mut();
+        st.chart_type = ChartType::PointFigure { box_size, reversal };
+        st.dirty.mark_all();
     }
 
     /// Add a marker at a specific bar index.

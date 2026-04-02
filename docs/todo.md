@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
 > **Stand:** 2026-04-02 CEST
-> **Tests:** 320 (277 core + 43 render), Clippy-pedantic clean
+> **Tests:** 348 (305 core + 43 render), Clippy-pedantic clean
 
 ---
 
@@ -66,17 +66,15 @@
 
 ---
 
-## Phase 6 -- Chart-Typen ✅ (teilweise)
-
-> Non-Uniform X-Achse ist Blocker fuer Renko/P&F.
+## Phase 6 -- Chart-Typen ✅
 
 | Feature | Beschreibung | Status |
 |---|---|---|
 | Heikin-Ashi | ✅ `compute_heikin_ashi()`, `setChartType("heikin_ashi")` | ✅ |
 | OHLC Bars | ✅ `draw_ohlc_bars()`, `setChartType("ohlc")` | ✅ |
 | Line / Area Chart | ✅ `draw_line_chart()`, `draw_area_chart()`, `setChartType("line"/"area")` | ✅ |
-| Renko | Zeitunabhaengige Bricks basierend auf Preisbewegung | **Non-Uniform X-Achse** offen |
-| Point & Figure | X/O-Saeulen, zeitunabhaengig | **Non-Uniform X-Achse** offen |
+| Renko | ✅ `compute_renko()`, `render_renko_chart()`, `setChartType("renko")`, `setRenkoConfig(brick_size)` | ✅ |
+| Point & Figure | ✅ `compute_point_figure()`, `render_point_figure_chart()`, `setChartType("point_figure")`, `setPfConfig(box_size, reversal)` | ✅ |
 | Session-Separation | Pre/Regular/Post-Market Zonen | offen |
 
 ---
@@ -163,7 +161,7 @@
 | 3 | ML-Integration (Confidence Band, Walk-Forward, News Events) | ✅ |
 | 4 | Erweitert (GEX, Max Pain, Multi-Chart Sync, Equity Curve) | ✅ |
 | 5 | Performance & Skalierung (LOD ✅, Virtualisierung ✅, WebGL offen) | teilweise ✅ |
-| 6 | Chart-Typen (HA ✅, OHLC ✅, Line ✅, Area ✅, Renko/P&F offen) | teilweise ✅ |
+| 6 | Chart-Typen (HA ✅, OHLC ✅, Line ✅, Area ✅, Renko ✅, P&F ✅) | ✅ |
 | 7 | Drawing Tools (7 Tools ✅, Price Channel/Prio2/Edit/Snap/Undo offen) | teilweise ✅ |
 | 8 | Indikator-Bibliothek (22 Indikatoren ✅, Plugin-System offen) | teilweise ✅ |
 | 9 | Erweiterte Konzepte (Replay, Multi-Symbol, Templates, Footprint) | -- |
