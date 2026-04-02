@@ -16,8 +16,8 @@ use ferrochart_core::{
     AndrewsPitchfork, Annotations, BarrierOutcome, ChartType, ConfidenceBand, Corridor, Ellipse,
     FibonacciRetracement, GannFan, HorizontalHistogram, HorizontalLevel, HorizontalRay, Indicator,
     IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape,
-    MeasurementTool, NewsEvent, Ohlcv, Point, PriceRange, Ray, Rect, RectangleZone, SeriesStyle,
-    TextLabel, TimeRange, Transform, TrendLine, TripleBarrier, VerticalLine, Viewport,
+    MeasurementTool, NewsEvent, Ohlcv, Point, PriceChannel, PriceRange, Ray, Rect, RectangleZone,
+    SeriesStyle, TextLabel, TimeRange, Transform, TrendLine, TripleBarrier, VerticalLine, Viewport,
     WalkForwardZone, ZoomPanState,
 };
 use ferrochart_render::Renderer;
@@ -79,6 +79,8 @@ enum DrawMode {
     Pitchfork,
     /// Gann Fan: first click = anchor, second click = determines scale.
     GannFan,
+    /// Price Channel: two clicks define start and end bars; highs/lows are computed.
+    PriceChannel,
 }
 
 /// In-progress drawing.
@@ -995,6 +997,79 @@ impl FerroChart {
         st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
+    /// Add a price channel annotation (upper + lower trendlines with fill).
+    ///
+    /// `color_hex` is the line color (`"#RRGGBB"`), `fill_hex` is the fill color.
+    #[wasm_bindgen(js_name = addPriceChannel)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_price_channel(
+        &self,
+        start_bar: f64,
+        end_bar: f64,
+        upper_start: f64,
+        upper_end: f64,
+        lower_start: f64,
+        lower_end: f64,
+        color_hex: &str,
+        fill_hex: &str,
+        width: f64,
+    ) {
+        let color = parse_color(color_hex);
+        let fill_rgb = parse_color(fill_hex);
+        let fill_color = (fill_rgb.0, fill_rgb.1, fill_rgb.2, 20u8);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_price_channel(PriceChannel {
+            start_bar,
+            end_bar,
+            upper_start_price: upper_start,
+            upper_end_price: upper_end,
+            lower_start_price: lower_start,
+            lower_end_price: lower_end,
+            color,
+            fill_color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Register a custom overlay indicator with precomputed values.
+    ///
+    /// `name` is the display name. `values` is a flat `Float64Array` of length
+    /// `n * series_count` (row-major: series0\[0..n\], series1\[0..n\], ...).
+    /// Each series is drawn as a line on the price panel.
+    #[wasm_bindgen(js_name = addCustomOverlay)]
+    pub fn add_custom_overlay(&self, name: &str, values: &[f64], series_count: u32) {
+        let sc = series_count.max(1) as usize;
+        let n = values.len() / sc;
+        let series = build_custom_series(values, sc, n);
+        let output = IndicatorOutput {
+            name: name.to_string(),
+            placement: IndicatorPlacement::Overlay,
+            series,
+        };
+        let mut st = self.state.borrow_mut();
+        st.cached_outputs.push(output);
+        st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
+    }
+
+    /// Register a custom sub-panel indicator with precomputed values.
+    ///
+    /// Like `addCustomOverlay` but rendered in its own sub-panel with auto-scaled Y axis.
+    #[wasm_bindgen(js_name = addCustomSubPanel)]
+    pub fn add_custom_sub_panel(&self, name: &str, values: &[f64], series_count: u32) {
+        let sc = series_count.max(1) as usize;
+        let n = values.len() / sc;
+        let series = build_custom_series(values, sc, n);
+        let output = IndicatorOutput {
+            name: name.to_string(),
+            placement: IndicatorPlacement::SubPanelAuto,
+            series,
+        };
+        let mut st = self.state.borrow_mut();
+        st.cached_outputs.push(output);
+        st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
+    }
+
     /// Add an equity curve sub-panel from pre-computed per-bar returns.
     #[wasm_bindgen(js_name = addEquityCurve)]
     pub fn add_equity_curve(&self, returns: &[f64]) {
@@ -1029,6 +1104,7 @@ impl FerroChart {
             "ellipse" => DrawMode::Ellipse,
             "pitchfork" => DrawMode::Pitchfork,
             "gann_fan" => DrawMode::GannFan,
+            "price_channel" => DrawMode::PriceChannel,
             _ => return Err(JsValue::from_str(&format!("unknown draw mode: {mode}"))),
         };
         st.drawing = None;
@@ -1380,6 +1456,30 @@ fn clear_replay_interval(replay: &mut ReplayState) {
 /// Parse a `"#RRGGBB"` hex color string into `(r, g, b)`.
 ///
 /// Falls back to `(128, 128, 128)` if the string is not in the expected format.
+/// Static series names for custom indicators (up to 8 series).
+const CUSTOM_SERIES_NAMES: [&str; 8] = [
+    "Series 0", "Series 1", "Series 2", "Series 3", "Series 4", "Series 5", "Series 6", "Series 7",
+];
+
+/// Build `IndicatorSeries` from a flat row-major values array.
+fn build_custom_series(
+    values: &[f64],
+    series_count: usize,
+    n: usize,
+) -> Vec<ferrochart_core::IndicatorSeries> {
+    (0..series_count)
+        .map(|s| {
+            let start = s * n;
+            let end = (start + n).min(values.len());
+            ferrochart_core::IndicatorSeries {
+                name: CUSTOM_SERIES_NAMES[s % CUSTOM_SERIES_NAMES.len()],
+                values: values[start..end].to_vec(),
+                style_hint: SeriesStyle::Line,
+            }
+        })
+        .collect()
+}
+
 fn parse_color(hex: &str) -> (u8, u8, u8) {
     let s = hex.trim().trim_start_matches('#');
     let parse = || -> Option<(u8, u8, u8)> {
@@ -1604,6 +1704,35 @@ fn attach_mouse_events(
                             anchor_price: start.start_price,
                             scale: scale.max(0.01),
                             color: (200, 100, 255),
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::PriceChannel => {
+                        // Compute highest high and lowest low between start and end bars
+                        let sb = start.start_bar.round() as usize;
+                        let eb = data_pos.0.round() as usize;
+                        let (lo, hi) = if sb <= eb { (sb, eb) } else { (eb, sb) };
+                        let lo = lo.min(st.data.len().saturating_sub(1));
+                        let hi = hi.min(st.data.len().saturating_sub(1));
+                        let upper_start = st.data[lo..=hi]
+                            .iter()
+                            .map(|b| b.high)
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        let lower_start = st.data[lo..=hi]
+                            .iter()
+                            .map(|b| b.low)
+                            .fold(f64::INFINITY, f64::min);
+                        st.annotations.add_price_channel(PriceChannel {
+                            start_bar: lo as f64,
+                            end_bar: hi as f64,
+                            upper_start_price: upper_start,
+                            upper_end_price: upper_start,
+                            lower_start_price: lower_start,
+                            lower_end_price: lower_start,
+                            color: (0, 200, 255),
+                            fill_color: (0, 200, 255, 20),
+                            width: 1.5,
                         });
                         st.drawing = None;
                         st.draw_mode = DrawMode::None;
@@ -2371,6 +2500,43 @@ fn draw_preview(
                 mouse,
                 &LineStyle {
                     color: Color::rgba(200, 100, 255, 180),
+                    width: 1.0,
+                },
+            );
+        }
+        DrawMode::PriceChannel => {
+            // Show a rectangle preview between start and mouse
+            let x_left = start_pixel.x.min(mouse.x);
+            let x_right = start_pixel.x.max(mouse.x);
+            let y_top = start_pixel.y.min(mouse.y);
+            let y_bottom = start_pixel.y.max(mouse.y);
+            renderer.fill_polygon(
+                &[
+                    Point {
+                        x: x_left,
+                        y: y_top,
+                    },
+                    Point {
+                        x: x_right,
+                        y: y_top,
+                    },
+                    Point {
+                        x: x_right,
+                        y: y_bottom,
+                    },
+                    Point {
+                        x: x_left,
+                        y: y_bottom,
+                    },
+                ],
+                &FillStyle {
+                    color: Color::rgba(0, 200, 255, 20),
+                },
+            );
+            renderer.draw_rect_outline(
+                Rect::new(x_left, y_top, x_right - x_left, y_bottom - y_top),
+                &LineStyle {
+                    color: Color::rgba(0, 200, 255, 150),
                     width: 1.0,
                 },
             );

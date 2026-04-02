@@ -7,8 +7,8 @@ use std::fs;
 
 use ferrochart_core::{
     AndrewsPitchfork, Annotations, ChartType, Corridor, Ellipse, FibonacciRetracement, GannFan,
-    HorizontalRay, Marker, MarkerPosition, MarkerShape, MeasurementTool, Ohlcv, Ray, RectangleZone,
-    TrendLine, VerticalLine,
+    HorizontalRay, Marker, MarkerPosition, MarkerShape, MeasurementTool, Ohlcv, PriceChannel, Ray,
+    RectangleZone, TrendLine, VerticalLine,
     indicator::{Atr, Indicator, Rsi, Sma, Stochastic, VolumeSma},
 };
 use ferrochart_render::chart::{
@@ -397,6 +397,27 @@ fn main() {
         });
         render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
     });
+
+    // 23. Price Channel
+    generate_svg(
+        "output/23_price_channel.svg",
+        &data,
+        |renderer, data, config| {
+            let mut annotations = Annotations::new();
+            annotations.add_price_channel(PriceChannel {
+                start_bar: 3.0,
+                end_bar: 25.0,
+                upper_start_price: data[3].high,
+                upper_end_price: data[25].high,
+                lower_start_price: data[3].low,
+                lower_end_price: data[25].low,
+                color: (0, 200, 255),
+                fill_color: (0, 200, 255, 20),
+                width: 1.5,
+            });
+            render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+        },
+    );
 
     println!("All SVGs written to output/");
 }

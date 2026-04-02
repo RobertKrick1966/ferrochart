@@ -4,9 +4,9 @@
 use ferrochart_core::{
     AndrewsPitchfork, Annotations, BarrierOutcome, CandleGeometry, ChartType, Ellipse, GannFan,
     HorizontalRay, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerShape,
-    MeasurementTool, Ohlcv, PFDirection, PanelLayout, Point, PriceRange, Ray, Rect, RectangleZone,
-    SeriesStyle, TextLabel, TimeRange, Transform, VerticalLine, Viewport, YScaleMode,
-    compute_heikin_ashi, compute_point_figure, compute_renko, indicator::VolumeProfile,
+    MeasurementTool, Ohlcv, PFDirection, PanelLayout, Point, PriceChannel, PriceRange, Ray, Rect,
+    RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, VerticalLine, Viewport,
+    YScaleMode, compute_heikin_ashi, compute_point_figure, compute_renko, indicator::VolumeProfile,
 };
 
 use crate::Renderer;
@@ -1128,6 +1128,149 @@ fn draw_indicator_overlay(
 
         let style = LineStyle { color, width: 1.5 };
         draw_series_line(renderer, &series.values, transform, &style);
+    }
+
+    // Ichimoku cloud fill between Senkou A (index 2) and Senkou B (index 3)
+    if output.name.starts_with("Ichimoku") && output.series.len() >= 4 {
+        draw_ichimoku_cloud(renderer, output, transform);
+    }
+}
+
+/// Fill the Ichimoku cloud between Senkou Span A and Senkou Span B.
+///
+/// Green fill where A > B (bullish), red fill where B > A (bearish).
+fn draw_ichimoku_cloud(
+    renderer: &mut dyn Renderer,
+    output: &IndicatorOutput,
+    transform: &Transform,
+) {
+    let senkou_a = &output.series[2].values;
+    let senkou_b = &output.series[3].values;
+    let n = senkou_a.len().min(senkou_b.len());
+    if n == 0 {
+        return;
+    }
+
+    // Collect contiguous segments where both A and B are valid
+    let mut i = 0;
+    while i < n {
+        // Skip NaN entries
+        if senkou_a[i].is_nan() || senkou_b[i].is_nan() {
+            i += 1;
+            continue;
+        }
+
+        // Start of a valid segment
+        let seg_start = i;
+        while i < n && !senkou_a[i].is_nan() && !senkou_b[i].is_nan() {
+            i += 1;
+        }
+        let seg_end = i; // exclusive
+
+        if seg_end - seg_start < 2 {
+            continue;
+        }
+
+        // Within the segment, split at crossover points and fill polygons
+        fill_ichimoku_segment(renderer, senkou_a, senkou_b, seg_start, seg_end, transform);
+    }
+}
+
+/// Fill one contiguous segment of the Ichimoku cloud, splitting at crossovers.
+fn fill_ichimoku_segment(
+    renderer: &mut dyn Renderer,
+    senkou_a: &[f64],
+    senkou_b: &[f64],
+    start: usize,
+    end: usize,
+    transform: &Transform,
+) {
+    let cloud_alpha: u8 = 30;
+    let green = Color::rgba(0, 200, 0, cloud_alpha);
+    let red = Color::rgba(200, 0, 0, cloud_alpha);
+
+    let mut seg_start = start;
+    for j in start..(end - 1) {
+        let a1 = senkou_a[j];
+        let b1 = senkou_b[j];
+        let a2 = senkou_a[j + 1];
+        let b2 = senkou_b[j + 1];
+
+        // Check for crossover between j and j+1
+        let diff1 = a1 - b1;
+        let diff2 = a2 - b2;
+        let crosses = (diff1 > 0.0 && diff2 < 0.0) || (diff1 < 0.0 && diff2 > 0.0);
+
+        if crosses {
+            // Find crossover fraction t where A(t) == B(t)
+            let t = diff1 / (diff1 - diff2);
+            let cross_bar = j as f64 + t;
+            let cross_price = a1 + (a2 - a1) * t;
+
+            // Fill from seg_start to crossover point
+            fill_cloud_polygon(
+                renderer,
+                senkou_a,
+                senkou_b,
+                seg_start,
+                j + 1,
+                Some((cross_bar, cross_price)),
+                if diff1 > 0.0 { green } else { red },
+                transform,
+            );
+            seg_start = j; // Next segment starts at the bar before crossover
+        }
+    }
+
+    // Fill the remaining segment
+    let a_above = senkou_a[seg_start] >= senkou_b[seg_start];
+    fill_cloud_polygon(
+        renderer,
+        senkou_a,
+        senkou_b,
+        seg_start,
+        end,
+        None,
+        if a_above { green } else { red },
+        transform,
+    );
+}
+
+/// Fill a single cloud polygon between Senkou A and B over a bar range.
+#[allow(clippy::too_many_arguments)]
+fn fill_cloud_polygon(
+    renderer: &mut dyn Renderer,
+    senkou_a: &[f64],
+    senkou_b: &[f64],
+    start: usize,
+    end: usize,
+    cross_point: Option<(f64, f64)>,
+    color: Color,
+    transform: &Transform,
+) {
+    let mut upper_points = Vec::new();
+    let mut lower_points = Vec::new();
+
+    // If there's a crossover at the start, add it
+    if let Some((cb, cp)) = cross_point
+        && start > 0
+    {
+        upper_points.push(transform.to_pixel(cb, cp));
+        lower_points.push(transform.to_pixel(cb, cp));
+    }
+
+    for i in start..end {
+        upper_points.push(transform.to_pixel(i as f64, senkou_a[i]));
+        lower_points.push(transform.to_pixel(i as f64, senkou_b[i]));
+    }
+
+    // Build polygon: upper forward, then lower reversed
+    let mut polygon = upper_points;
+    lower_points.reverse();
+    polygon.extend(lower_points);
+
+    if polygon.len() >= 3 {
+        renderer.fill_polygon(&polygon, &FillStyle { color });
     }
 }
 
@@ -2263,6 +2406,11 @@ fn draw_annotations(
     for fan in &annotations.gann_fans {
         draw_gann_fan(renderer, fan, transform, panel_rect, offset, bar_slots);
     }
+
+    // Price Channels
+    for channel in &annotations.price_channels {
+        draw_price_channel(renderer, channel, transform, offset);
+    }
 }
 
 /// Draw horizontal rays spanning the full panel width.
@@ -2673,7 +2821,42 @@ fn draw_gann_fan(
     }
 }
 
-/// Draw volume profile histogram on the price panel (horizontal bars from right edge).
+/// Draw a price channel annotation (upper + lower trendlines with filled area).
+fn draw_price_channel(
+    renderer: &mut dyn Renderer,
+    channel: &PriceChannel,
+    transform: &Transform,
+    offset: f64,
+) {
+    let rel_start = channel.start_bar - offset;
+    let rel_end = channel.end_bar - offset;
+
+    let upper_start = transform.to_pixel(rel_start, channel.upper_start_price);
+    let upper_end = transform.to_pixel(rel_end, channel.upper_end_price);
+    let lower_start = transform.to_pixel(rel_start, channel.lower_start_price);
+    let lower_end = transform.to_pixel(rel_end, channel.lower_end_price);
+
+    // Fill the area between upper and lower lines
+    let (fr, fg, fb, fa) = channel.fill_color;
+    renderer.fill_polygon(
+        &[upper_start, upper_end, lower_end, lower_start],
+        &FillStyle {
+            color: Color::rgba(fr, fg, fb, fa),
+        },
+    );
+
+    // Draw upper trendline
+    let color = Color::rgb(channel.color.0, channel.color.1, channel.color.2);
+    let style = LineStyle {
+        color,
+        width: channel.width,
+    };
+    renderer.draw_line(upper_start, upper_end, &style);
+
+    // Draw lower trendline
+    renderer.draw_line(lower_start, lower_end, &style);
+}
+
 /// Draw volume profile histogram on the price panel (horizontal bars from right edge).
 fn draw_volume_profile(
     renderer: &mut dyn Renderer,

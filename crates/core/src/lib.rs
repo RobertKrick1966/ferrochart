@@ -28,8 +28,8 @@ mod zoom;
 pub use annotation::{
     AndrewsPitchfork, Annotations, BarrierOutcome, ConfidenceBand, Corridor, Ellipse,
     FibonacciRetracement, GannFan, HorizontalHistogram, HorizontalLevel, HorizontalRay,
-    MeasurementTool, NewsEvent, Ray, RectangleZone, TextLabel, TrendLine, TripleBarrier,
-    VerticalLine, WalkForwardZone,
+    MeasurementTool, NewsEvent, PriceChannel, Ray, RectangleZone, TextLabel, TrendLine,
+    TripleBarrier, VerticalLine, WalkForwardZone,
 };
 /// Re-exported candlestick geometry.
 pub use candle::CandleGeometry;
