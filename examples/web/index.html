@@ -159,7 +159,7 @@
 
         let chart;
         let closes = [];
-        let crosshairBar = 0;
+        let crosshairBar = -1;
         let crosshairPrice = 0;
 
         function resizeCanvas(canvas) {
@@ -231,14 +231,14 @@
             chart.addNewsEvent(25, 'Earnings', 0.8, 3);
             chart.addNewsEvent(70, 'FDA', -0.6, 2);
 
-            // Track crosshair for quick-add tools
-            canvas.addEventListener('mousemove', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const dpr = window.devicePixelRatio || 1;
-                const x = (e.clientX - rect.left) * dpr;
-                // rough bar estimate from canvas x
-                crosshairBar = Math.round(x / (canvas.width / 200));
-                crosshairPrice = closes[Math.min(crosshairBar, closes.length - 1)] || 0;
+            // Track crosshair via the chart's own accurate transform
+            canvas.addEventListener('mousemove', () => {
+                const p = chart.getCrosshairPrice();
+                const b = chart.getCrosshairBar();
+                if (!isNaN(p) && b >= 0) {
+                    crosshairPrice = p;
+                    crosshairBar   = b;
+                }
             });
 
             // ── Chart type ──
@@ -254,15 +254,20 @@
             drawSelect.addEventListener('change', () => {
                 const mode = drawSelect.value;
                 if (mode === 'add_hline') {
-                    // Add horizontal line at last known crosshair price
-                    const p = crosshairPrice || (closes.reduce((a,b)=>a+b,0)/closes.length);
-                    try { chart.addHorizontalRay(p, '#ffd700', 1.5); } catch(e) { console.warn(e); }
-                    status.textContent = `H-Line @ ${p.toFixed(2)}`;
+                    if (crosshairPrice > 0) {
+                        try { chart.addHorizontalRay(crosshairPrice, '#ffd700', 1.5); } catch(e) { console.warn(e); }
+                        status.textContent = `H-Line @ ${crosshairPrice.toFixed(2)}`;
+                    } else {
+                        status.textContent = 'Move cursor over chart first';
+                    }
                     drawSelect.selectedIndex = 0;
                 } else if (mode === 'add_vline') {
-                    const b = Math.max(0, Math.min(crosshairBar, 199));
-                    try { chart.addVerticalLine(b, '#64c8ff', 1.0); } catch(e) { console.warn(e); }
-                    status.textContent = `V-Line @ bar ${b}`;
+                    if (crosshairBar >= 0) {
+                        try { chart.addVerticalLine(crosshairBar, '#64c8ff', 1.0); } catch(e) { console.warn(e); }
+                        status.textContent = `V-Line @ bar ${crosshairBar}`;
+                    } else {
+                        status.textContent = 'Move cursor over chart first';
+                    }
                     drawSelect.selectedIndex = 0;
                 } else {
                     chart.setDrawMode(mode);

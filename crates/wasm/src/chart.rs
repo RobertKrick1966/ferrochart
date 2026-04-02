@@ -934,6 +934,50 @@ impl FerroChart {
         Ok(())
     }
 
+    /// Return the price currently under the crosshair, or `NaN` if the cursor is outside the chart.
+    ///
+    /// Uses the chart's own transform so the value matches the crosshair tooltip exactly.
+    #[must_use]
+    #[wasm_bindgen(js_name = getCrosshairPrice)]
+    pub fn get_crosshair_price(&self) -> f64 {
+        let st = self.state.borrow();
+        let Some(mouse) = st.mouse_pos else {
+            return f64::NAN;
+        };
+        let Some(transform) = st.last_layout.price_transform else {
+            return f64::NAN;
+        };
+        let chart_top = st.config.margin.top;
+        let chart_bottom = st.config.height - st.config.margin.bottom;
+        if mouse.y < chart_top || mouse.y > chart_bottom {
+            return f64::NAN;
+        }
+        transform.pixel_y_to_price(mouse.y)
+    }
+
+    /// Return the bar index (in the full dataset) currently under the crosshair, or `-1`.
+    ///
+    /// Uses the chart's own transform so the value matches the crosshair tooltip exactly.
+    #[must_use]
+    #[wasm_bindgen(js_name = getCrosshairBar)]
+    pub fn get_crosshair_bar(&self) -> i32 {
+        let st = self.state.borrow();
+        let Some(mouse) = st.mouse_pos else {
+            return -1;
+        };
+        let Some(transform) = st.last_layout.price_transform else {
+            return -1;
+        };
+        let chart_left = st.config.margin.left;
+        let chart_right = st.config.width - st.config.margin.right;
+        if mouse.x < chart_left || mouse.x > chart_right {
+            return -1;
+        }
+        let rel = transform.pixel_x_to_bar(mouse.x);
+        let abs_bar = (rel as i32) + st.zoom_pan.visible_range().start as i32;
+        abs_bar.max(0).min(st.data.len() as i32 - 1)
+    }
+
     /// Update the chart dimensions (call after canvas resize).
     pub fn resize(&self, width: u32, height: u32) {
         let mut st = self.state.borrow_mut();
