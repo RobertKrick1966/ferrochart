@@ -1,6 +1,6 @@
 # ferrochart-wasm -- API-Referenz
 
-> **Stand:** 2026-04-02 CEST
+> **Stand:** 2026-04-02 CEST (Replay + Plugin + Cloud-Fill)
 > **WASM-Build:** `wasm-pack build crates/wasm --target web`
 
 ---
@@ -269,12 +269,57 @@ addGannFan(
   color_hex:  string
 ): void
 
+// Price Channel (zwei parallele Trendlinien mit Fill)
+addPriceChannel(
+  start_bar: number, end_bar: number,
+  upper_start: number, upper_end: number,
+  lower_start: number, lower_end: number,
+  color_hex: string, fill_hex: string, width: number
+): void
+
 // Alle Drawing-Tool-Annotations und ML-Overlays löschen
 clearAnnotations(): void
 
 // JSON-Export/Import (persisted state)
 exportAnnotations(): string
 importAnnotations(json: string): void
+```
+
+---
+
+### Plugin-System — Custom Indicators
+
+```typescript
+// JS-berechnete Werte als Overlay-Indikator (z.B. eigene SMA, ML-Score)
+// values: Float64Array, row-major: series0[0..n], series1[0..n], ...
+addCustomOverlay(name: string, values: Float64Array, series_count: number): void
+
+// JS-berechnete Werte als eigenes Sub-Panel (auto-skalierte Y-Achse)
+addCustomSubPanel(name: string, values: Float64Array, series_count: number): void
+```
+
+---
+
+### Replay-Modus
+
+```typescript
+// Replay starten ab Bar (1-based). Chart zeigt nur die ersten N Bars.
+replayStart(start_bar: number): void
+
+// Einen Bar weiter. Rückgabe: neue Cursor-Position (0 = nicht im Replay).
+replayStep(): number
+
+// Auto-Play starten (speed_ms = Millisekunden zwischen Bars)
+replayPlay(speed_ms: number): void
+
+// Auto-Play pausieren (Replay bleibt aktiv)
+replayPause(): void
+
+// Replay komplett beenden, Chart zeigt wieder alle Daten
+replayStop(): void
+
+// Aktuelle Replay-Position (0 = kein Replay aktiv)
+replayPosition(): number
 ```
 
 ---
@@ -339,16 +384,19 @@ setConfig(json: string): void
 | `addConfidenceBand`, `addWalkForwardZone`, `addNewsEvent` | ✅ |
 | `addHorizontalRay`, `addVerticalLine`, `addRectangle`, `addTextLabel` | ✅ |
 | `addRay`, `addMeasurement`, `addEllipse`, `addPitchfork`, `addGannFan` | ✅ |
+| `addPriceChannel` | ✅ |
+| `addCustomOverlay`, `addCustomSubPanel` (Plugin-System) | ✅ |
+| `replayStart/Step/Play/Pause/Stop/Position` (Replay-Modus) | ✅ |
 | `getCrosshairPrice`, `getCrosshairBar` | ✅ |
 | `getZoomPanState` / `setZoomPanState` (Multi-Chart-Sync) | ✅ |
 | `onWheel` / `onPan` (externe Event-Integration) | ✅ |
 | `setConfig(json)` | ✅ |
 | DirtyFlags (layer-granular) | ✅ |
+| Ichimoku Cloud-Fill (render-only) | ✅ |
 | CanvasRenderer in `ferrochart-render` verschieben | offen |
 | `@ferrochart/web` TypeScript-Wrapper (npm) | offen |
 | Drawing-Tools selektieren / verschieben / löschen | offen |
 | Undo/Redo für Zeichnungen | offen |
-| Plugin-System für Custom-Indikatoren | offen |
 
 ---
 

@@ -1,6 +1,7 @@
 # ferrochart-core
 
 > **Stand:** 2026-04-02 CEST
+> **Tests:** 340 (297 core + 43 render)
 
 Core data structures, indicators, and layout engine. No I/O, no external dependencies.
 
@@ -44,10 +45,10 @@ Equity Curve, Volume Profile, Triple Barrier (als Annotation)
 | Renko | `compute_renko(data, brick_size)` → `Vec<RenkoBar>` | non-uniform |
 | Point & Figure | `compute_point_figure(data, box_size, reversal)` → `Vec<PFColumn>` | non-uniform |
 
-## Drawing Tools (12)
+## Drawing Tools (13)
 
 ### Priority 1 (Grundbedürfnis)
-TrendLine, FibonacciRetracement, Corridor, HorizontalRay, VerticalLine, RectangleZone, TextLabel
+TrendLine, FibonacciRetracement, Corridor, HorizontalRay, VerticalLine, RectangleZone, TextLabel, PriceChannel
 
 ### Priority 2 (Advanced)
 Ray, MeasurementTool, Ellipse, AndrewsPitchfork, GannFan
@@ -79,9 +80,6 @@ Ray, MeasurementTool, Ellipse, AndrewsPitchfork, GannFan
 | Feature | Beschreibung |
 |---|---|
 | Session-Separation | Pre/Regular/Post-Market-Zonen |
-| Plugin-System | Custom Indicators von außen registrieren (Trait-basiert) |
-| Ichimoku Cloud-Fill | `fill_polygon` zwischen Senkou A/B |
-| Price Channel | Parallele Trendlinien durch Highs/Lows |
 | Edit-Modus | Zeichnungen selektieren, verschieben, löschen |
 | Snap-to-OHLC | Zeichenpunkte rasten auf H/L/O/C ein |
 | Undo/Redo | Für Zeichnungen |
