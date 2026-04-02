@@ -151,6 +151,16 @@
             <button id="btn-save">Save</button>
             <button id="btn-load">Load</button>
 
+            <span class="separator">|</span>
+
+            <!-- Replay -->
+            <label>Replay:</label>
+            <button id="replay-start">&#x23EE; Start</button>
+            <button id="replay-step">&#x23ED; Step</button>
+            <button id="replay-play">&#x25B6; Play</button>
+            <button id="replay-pause">&#x23F8; Pause</button>
+            <button id="replay-stop">&#x23F9; Stop</button>
+
             <span class="status" id="draw-status"></span>
         </div>
         <canvas id="chart"></canvas>
@@ -383,6 +393,34 @@
                 } else {
                     status.textContent = 'No saved data';
                 }
+                canvas.focus();
+            });
+
+            // ── Replay ──
+            document.getElementById('replay-start').addEventListener('click', () => {
+                chart.replayStart(1);
+                status.textContent = 'Replay: bar 1';
+                canvas.focus();
+            });
+            document.getElementById('replay-step').addEventListener('click', () => {
+                const pos = chart.replayStep();
+                if (pos > 0) status.textContent = `Replay: bar ${pos}`;
+                canvas.focus();
+            });
+            document.getElementById('replay-play').addEventListener('click', () => {
+                chart.replayPlay(200);
+                status.textContent = 'Replay playing...';
+                canvas.focus();
+            });
+            document.getElementById('replay-pause').addEventListener('click', () => {
+                chart.replayPause();
+                const pos = chart.replayPosition();
+                status.textContent = pos > 0 ? `Replay paused @ bar ${pos}` : 'Replay paused';
+                canvas.focus();
+            });
+            document.getElementById('replay-stop').addEventListener('click', () => {
+                chart.replayStop();
+                status.textContent = 'Replay stopped';
                 canvas.focus();
             });
 
