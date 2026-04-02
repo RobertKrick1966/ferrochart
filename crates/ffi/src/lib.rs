@@ -22,7 +22,7 @@ use ferrochart_core::annotation::Annotations;
 use ferrochart_core::indicator::{self, Indicator, IndicatorOutput};
 use ferrochart_core::marker::{Marker, MarkerPosition, MarkerShape};
 use ferrochart_core::{ChartType, Ohlcv};
-use ferrochart_render::chart::{render_full_chart_with_markers, ChartConfig};
+use ferrochart_render::chart::{ChartConfig, render_full_chart_with_markers};
 use ferrochart_render::style::Color;
 use ferrochart_render::{Renderer as _, SvgRenderer};
 
@@ -144,10 +144,7 @@ pub unsafe extern "C" fn fc_chart_set_data(
 ///
 /// `handle` must be valid. `json` must be a valid null-terminated UTF-8 string.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn fc_chart_set_data_json(
-    handle: *mut FcChart,
-    json: *const c_char,
-) -> i32 {
+pub unsafe extern "C" fn fc_chart_set_data_json(handle: *mut FcChart, json: *const c_char) -> i32 {
     let chart = unsafe { &mut *handle };
     let c_str = unsafe { CStr::from_ptr(json) };
     let Ok(s) = c_str.to_str() else { return -1 };
