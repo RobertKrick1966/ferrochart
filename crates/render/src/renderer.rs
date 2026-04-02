@@ -31,6 +31,12 @@ pub trait Renderer {
     /// Draw a filled polygon defined by its vertices.
     fn fill_polygon(&mut self, points: &[Point], fill: &FillStyle);
 
+    /// Draw an ellipse outline centered at `(cx, cy)` with semi-axes `rx` and `ry`.
+    fn draw_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, style: &LineStyle);
+
+    /// Draw a filled ellipse centered at `(cx, cy)` with semi-axes `rx` and `ry`.
+    fn fill_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, fill: &FillStyle);
+
     /// Set the background color.
     fn set_background(&mut self, color: Color);
 

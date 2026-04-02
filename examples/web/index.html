@@ -92,6 +92,11 @@
                     <option value="trendline">Trendline</option>
                     <option value="corridor">Corridor</option>
                     <option value="fibonacci">Fibonacci</option>
+                    <option value="ray">Ray</option>
+                    <option value="measurement">Measurement</option>
+                    <option value="ellipse">Ellipse</option>
+                    <option value="pitchfork">Pitchfork (3pt)</option>
+                    <option value="gann_fan">Gann Fan</option>
                 </optgroup>
                 <optgroup label="Quick Add">
                     <option value="add_hline">H-Line @ crosshair</option>
@@ -271,8 +276,18 @@
                     drawSelect.selectedIndex = 0;
                 } else {
                     chart.setDrawMode(mode);
-                    status.textContent = mode === 'none' ? '' :
-                        mode === 'corridor' ? 'Click 3 points: start, end, offset' : 'Click 2 points';
+                    const statusMap = {
+                        'none': '',
+                        'trendline': 'Click 2 points',
+                        'fibonacci': 'Click 2 points',
+                        'corridor': 'Click 3 points: start, end, offset',
+                        'ray': 'Click 2 points',
+                        'measurement': 'Click 2 points',
+                        'ellipse': 'Click 2 points',
+                        'pitchfork': 'Click 3 points',
+                        'gann_fan': 'Click 2 points (anchor + scale)',
+                    };
+                    status.textContent = statusMap[mode] ?? 'Click 2 points';
                     if (mode === 'none') drawSelect.selectedIndex = 0;
                 }
                 canvas.focus();
