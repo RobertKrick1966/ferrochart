@@ -8,15 +8,16 @@ use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
 use ferrochart_core::indicator::{
-    AnchoredVwap, Atr, BollingerBands, Cusum, Donchian, Ema, Keltner, Macd, Obv, Rsi, SessionVwap,
-    Sma, Stochastic, VolumeSma,
+    Adx, AnchoredVwap, Atr, BollingerBands, Cci, Cusum, Donchian, Ema, Ichimoku, Keltner, Macd,
+    Obv, ParabolicSar, Rsi, SessionVwap, Sma, Stochastic, Supertrend, VolumeSma, WilliamsR,
 };
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
     Annotations, BarrierOutcome, ChartType, ConfidenceBand, Corridor, FibonacciRetracement,
-    HorizontalHistogram, HorizontalLevel, Indicator, IndicatorOutput, IndicatorPlacement, Marker,
-    MarkerPosition, MarkerSet, MarkerShape, NewsEvent, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
-    TimeRange, Transform, TrendLine, TripleBarrier, Viewport, WalkForwardZone, ZoomPanState,
+    HorizontalHistogram, HorizontalLevel, HorizontalRay, Indicator, IndicatorOutput,
+    IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape, NewsEvent, Ohlcv, Point,
+    PriceRange, Rect, RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, TrendLine,
+    TripleBarrier, VerticalLine, Viewport, WalkForwardZone, ZoomPanState,
 };
 use ferrochart_render::Renderer;
 use ferrochart_render::chart::{
@@ -403,6 +404,25 @@ impl FerroChart {
                 atr_period: 10,
                 multiplier: 2.0,
             }),
+            "williams_r" => Box::new(WilliamsR {
+                period: period.unwrap_or(14) as usize,
+            }),
+            "cci" => Box::new(Cci {
+                period: period.unwrap_or(20) as usize,
+            }),
+            "adx" => Box::new(Adx {
+                period: period.unwrap_or(14) as usize,
+            }),
+            "parabolic_sar" => Box::new(ParabolicSar::default()),
+            "supertrend" => Box::new(Supertrend {
+                period: period.unwrap_or(10) as usize,
+                multiplier: 3.0,
+            }),
+            "ichimoku" => Box::new(Ichimoku {
+                tenkan_period: period.unwrap_or(9) as usize,
+                kijun_period: 26,
+                senkou_b_period: 52,
+            }),
             _ => return Err(JsValue::from_str(&format!("unknown indicator: {name}"))),
         };
 
@@ -715,6 +735,83 @@ impl FerroChart {
         st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
+    /// Add a horizontal ray (full-width price line) at the given price level.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addHorizontalRay)]
+    pub fn add_horizontal_ray(&self, price: f64, color_hex: &str, width: f64) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_horizontal_ray(HorizontalRay {
+            price,
+            color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a vertical line at the given bar index.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addVerticalLine)]
+    pub fn add_vertical_line(&self, bar_index: f64, color_hex: &str, width: f64) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_vertical_line(VerticalLine {
+            bar_index,
+            color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a price × time rectangle zone.
+    ///
+    /// `color_hex` is the border color; `fill_hex` is the fill color, both as `"#RRGGBB"`.
+    /// Fill alpha defaults to 30 (semi-transparent).
+    #[wasm_bindgen(js_name = addRectangle)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_rectangle(
+        &self,
+        start_bar: f64,
+        end_bar: f64,
+        top_price: f64,
+        bottom_price: f64,
+        color_hex: &str,
+        fill_hex: &str,
+    ) {
+        let border_color = parse_color(color_hex);
+        let fill_rgb = parse_color(fill_hex);
+        let fill_color = (fill_rgb.0, fill_rgb.1, fill_rgb.2, 30u8);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_rectangle_zone(RectangleZone {
+            start_bar,
+            end_bar,
+            top_price,
+            bottom_price,
+            border_color,
+            fill_color,
+            width: 1.0,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a text label at a specific bar and price position.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addTextLabel)]
+    pub fn add_text_label(&self, bar_index: f64, price: f64, text: &str, color_hex: &str) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_text_label(TextLabel {
+            bar_index,
+            price,
+            text: text.to_string(),
+            color,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
     /// Add an equity curve sub-panel from pre-computed per-bar returns.
     #[wasm_bindgen(js_name = addEquityCurve)]
     pub fn add_equity_curve(&self, returns: &[f64]) {
@@ -940,6 +1037,24 @@ impl FerroChart {
         st.zoom_pan = compute_pan(st.zoom_pan, dx, chart_width, drag_start);
         st.dirty.mark_all();
     }
+}
+
+/// Parse a `"#RRGGBB"` hex color string into `(r, g, b)`.
+///
+/// Falls back to `(128, 128, 128)` if the string is not in the expected format.
+fn parse_color(hex: &str) -> (u8, u8, u8) {
+    let s = hex.trim().trim_start_matches('#');
+    let parse = || -> Option<(u8, u8, u8)> {
+        if s.len() != 6 {
+            return None;
+        }
+        Some((
+            u8::from_str_radix(&s[0..2], 16).ok()?,
+            u8::from_str_radix(&s[2..4], 16).ok()?,
+            u8::from_str_radix(&s[4..6], 16).ok()?,
+        ))
+    };
+    parse().unwrap_or((128, 128, 128))
 }
 
 /// Helper: get mouse position relative to canvas in canvas-pixel coordinates.
