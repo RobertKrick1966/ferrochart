@@ -8,11 +8,12 @@ use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
 use ferrochart_core::indicator::{
-    AnchoredVwap, BollingerBands, Cusum, Ema, Macd, Rsi, Sma, VolumeSma,
+    AnchoredVwap, Atr, BollingerBands, Cusum, Donchian, Ema, Keltner, Macd, Obv, Rsi, SessionVwap,
+    Sma, Stochastic, VolumeSma,
 };
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
-    Annotations, BarrierOutcome, ConfidenceBand, Corridor, FibonacciRetracement,
+    Annotations, BarrierOutcome, ChartType, ConfidenceBand, Corridor, FibonacciRetracement,
     HorizontalHistogram, HorizontalLevel, Indicator, IndicatorOutput, IndicatorPlacement, Marker,
     MarkerPosition, MarkerSet, MarkerShape, NewsEvent, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
     TimeRange, Transform, TrendLine, TripleBarrier, Viewport, WalkForwardZone, ZoomPanState,
@@ -120,6 +121,8 @@ struct ChartState {
     pinch_start_visible: usize,
     /// Number of price buckets for volume profile (0 = disabled).
     volume_profile_buckets: usize,
+    /// Active chart type (candlestick, line, area, etc.).
+    chart_type: ChartType,
     dirty: DirtyFlags,
 }
 
@@ -190,6 +193,7 @@ impl FerroChart {
             pinch_start_dist: 0.0,
             pinch_start_visible: 100,
             volume_profile_buckets: 0,
+            chart_type: ChartType::Candlestick,
             dirty: DirtyFlags(DirtyFlags::ALL),
         }));
 
@@ -382,6 +386,23 @@ impl FerroChart {
             "cusum" => Box::new(Cusum {
                 threshold: period.map_or(0.03, |p| f64::from(p) / 1000.0),
             }),
+            "atr" => Box::new(Atr {
+                period: period.unwrap_or(14) as usize,
+            }),
+            "obv" => Box::new(Obv),
+            "session_vwap" => Box::new(SessionVwap),
+            "stochastic" => Box::new(Stochastic {
+                k_period: period.unwrap_or(14) as usize,
+                d_period: 3,
+            }),
+            "donchian" => Box::new(Donchian {
+                period: period.unwrap_or(20) as usize,
+            }),
+            "keltner" => Box::new(Keltner {
+                ema_period: period.unwrap_or(20) as usize,
+                atr_period: 10,
+                multiplier: 2.0,
+            }),
             _ => return Err(JsValue::from_str(&format!("unknown indicator: {name}"))),
         };
 
@@ -424,6 +445,31 @@ impl FerroChart {
         st.indicators.clear();
         st.cached_outputs.clear();
         st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
+    }
+
+    /// Set the chart type.
+    ///
+    /// Supported names: `"candlestick"`, `"heikin_ashi"`, `"line"`, `"area"`, `"ohlc"`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the chart type name is unknown.
+    #[wasm_bindgen(js_name = setChartType)]
+    pub fn set_chart_type(&self, name: &str) -> Result<(), JsValue> {
+        let chart_type = match name {
+            "candlestick" => ChartType::Candlestick,
+            "heikin_ashi" => ChartType::HeikinAshi,
+            "line" => ChartType::Line,
+            "area" => ChartType::Area,
+            "ohlc" => ChartType::OhlcBars,
+            _ => return Err(JsValue::from_str(&format!("unknown chart type: {name}"))),
+        };
+        let mut st = self.state.borrow_mut();
+        if st.chart_type != chart_type {
+            st.chart_type = chart_type;
+            st.dirty.mark_all();
+        }
+        Ok(())
     }
 
     /// Add a marker at a specific bar index.
@@ -1506,10 +1552,11 @@ fn render_frame(st: &mut ChartState) {
         .collect();
     let marker_refs: Vec<&Marker> = adjusted_markers.iter().collect();
 
-    // Apply Y-axis scale factor, panel weights, and bar slot count
+    // Apply Y-axis scale factor, panel weights, bar slot count, and chart type
     st.config.price_scale = st.price_scale;
     st.config.panel_weights = st.panel_weights.clone();
     st.config.visible_offset = start;
+    st.config.chart_type = st.chart_type;
     // If scrolled into future space, there are fewer data bars than visible slots
     st.config.visible_bar_slots = if render_data.len() < st.zoom_pan.visible_bars {
         Some(st.zoom_pan.visible_bars)
