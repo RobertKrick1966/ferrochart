@@ -1637,41 +1637,35 @@ fn render_point_figure_chart(
 
     renderer.clip(chart_rect);
 
-    let x_fill_color = Color::rgb(38, 166, 154); // teal
-    let o_stroke_color = Color::rgb(239, 83, 80); // red
-    let stroke_style = LineStyle {
-        color: o_stroke_color,
-        width: 1.5,
+    // Font size for X/O symbols: fit within one box height, capped to col_width.
+    let box_px = (box_size / y_span * chart_rect.height).max(6.0);
+    let symbol_size = box_px.min(col_width - 2.0).max(6.0);
+
+    let x_style = TextStyle {
+        color: Color::rgb(38, 166, 154), // teal
+        size: symbol_size,
+        font_family: "monospace".to_string(),
+    };
+    let o_style = TextStyle {
+        color: Color::rgb(239, 83, 80), // red
+        size: symbol_size,
+        font_family: "monospace".to_string(),
     };
 
     for (i, col) in columns.iter().enumerate() {
-        let col_x = chart_rect.x + i as f64 * col_width;
-        // Iterate box by box
+        let col_x = chart_rect.x + i as f64 * col_width + col_width / 2.0;
         let num_boxes = col.box_count.max(1);
         for b in 0..num_boxes {
             let box_bottom = col.bottom_price + b as f64 * box_size;
-            let box_top = box_bottom + box_size;
-            let top_y = chart_rect.bottom() - ((box_top - y_min) / y_span) * chart_rect.height;
-            let bot_y = chart_rect.bottom() - ((box_bottom - y_min) / y_span) * chart_rect.height;
-            let box_h = (bot_y - top_y).max(1.0);
-            let margin = 1.5;
-            let box_rect = Rect::new(
-                col_x + margin,
-                top_y,
-                (col_width - margin * 2.0).max(1.0),
-                box_h,
-            );
+            let box_mid = box_bottom + box_size / 2.0;
+            let y = chart_rect.bottom() - ((box_mid - y_min) / y_span) * chart_rect.height
+                + symbol_size * 0.35;
             match col.direction {
                 PFDirection::X => {
-                    renderer.draw_rect(
-                        box_rect,
-                        &FillStyle {
-                            color: x_fill_color,
-                        },
-                    );
+                    renderer.draw_text("X", Point { x: col_x, y }, &x_style, TextAnchor::Middle);
                 }
                 PFDirection::O => {
-                    renderer.draw_rect_outline(box_rect, &stroke_style);
+                    renderer.draw_text("O", Point { x: col_x, y }, &o_style, TextAnchor::Middle);
                 }
             }
         }
