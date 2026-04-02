@@ -178,6 +178,64 @@ pub struct HorizontalLevel {
     pub width: f64,
 }
 
+/// A horizontal price-level line spanning the full chart width.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HorizontalRay {
+    /// Price at which to draw the horizontal line.
+    pub price: f64,
+    /// RGB color.
+    pub color: (u8, u8, u8),
+    /// Line width in pixels.
+    pub width: f64,
+}
+
+/// A vertical line at a specific bar index.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct VerticalLine {
+    /// Bar index at which to draw the vertical line (fractional for precise placement).
+    pub bar_index: f64,
+    /// RGB color.
+    pub color: (u8, u8, u8),
+    /// Line width in pixels.
+    pub width: f64,
+}
+
+/// A price × time rectangle zone.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RectangleZone {
+    /// Bar index of the left edge.
+    pub start_bar: f64,
+    /// Bar index of the right edge.
+    pub end_bar: f64,
+    /// Price at the top of the rectangle.
+    pub top_price: f64,
+    /// Price at the bottom of the rectangle.
+    pub bottom_price: f64,
+    /// RGB border color.
+    pub border_color: (u8, u8, u8),
+    /// RGBA fill color (R, G, B, A) with alpha 0–255.
+    pub fill_color: (u8, u8, u8, u8),
+    /// Border line width in pixels.
+    pub width: f64,
+}
+
+/// A text label at a specific bar and price.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TextLabel {
+    /// Bar index at which to place the label.
+    pub bar_index: f64,
+    /// Price at which to place the label.
+    pub price: f64,
+    /// Text content.
+    pub text: String,
+    /// RGB color.
+    pub color: (u8, u8, u8),
+}
+
 /// Collection of annotations on a chart.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -200,6 +258,14 @@ pub struct Annotations {
     pub horizontal_histograms: Vec<HorizontalHistogram>,
     /// Horizontal price level lines (Max Pain, support/resistance).
     pub horizontal_levels: Vec<HorizontalLevel>,
+    /// Horizontal rays spanning the full chart width.
+    pub horizontal_rays: Vec<HorizontalRay>,
+    /// Vertical lines at specific bar indices.
+    pub vertical_lines: Vec<VerticalLine>,
+    /// Price × time rectangle zones.
+    pub rectangle_zones: Vec<RectangleZone>,
+    /// Text labels at specific bar and price positions.
+    pub text_labels: Vec<TextLabel>,
 }
 
 impl Annotations {
@@ -254,6 +320,26 @@ impl Annotations {
         self.horizontal_levels.push(level);
     }
 
+    /// Adds a horizontal ray (full-width price line) to the collection.
+    pub fn add_horizontal_ray(&mut self, ray: HorizontalRay) {
+        self.horizontal_rays.push(ray);
+    }
+
+    /// Adds a vertical line at a specific bar index to the collection.
+    pub fn add_vertical_line(&mut self, line: VerticalLine) {
+        self.vertical_lines.push(line);
+    }
+
+    /// Adds a price × time rectangle zone to the collection.
+    pub fn add_rectangle_zone(&mut self, zone: RectangleZone) {
+        self.rectangle_zones.push(zone);
+    }
+
+    /// Adds a text label at a specific bar and price to the collection.
+    pub fn add_text_label(&mut self, label: TextLabel) {
+        self.text_labels.push(label);
+    }
+
     /// Removes all annotations.
     pub fn clear(&mut self) {
         self.trend_lines.clear();
@@ -265,6 +351,10 @@ impl Annotations {
         self.news_events.clear();
         self.horizontal_histograms.clear();
         self.horizontal_levels.clear();
+        self.horizontal_rays.clear();
+        self.vertical_lines.clear();
+        self.rectangle_zones.clear();
+        self.text_labels.clear();
     }
 
     /// Returns `true` if there are no annotations of any kind.
@@ -279,6 +369,10 @@ impl Annotations {
             && self.news_events.is_empty()
             && self.horizontal_histograms.is_empty()
             && self.horizontal_levels.is_empty()
+            && self.horizontal_rays.is_empty()
+            && self.vertical_lines.is_empty()
+            && self.rectangle_zones.is_empty()
+            && self.text_labels.is_empty()
     }
 }
 
@@ -424,5 +518,107 @@ mod tests {
         assert!(restored.trend_lines[0].extend_right);
         assert!((restored.corridors[0].offset - 5.0).abs() < 1e-9);
         assert_eq!(restored.fibonaccis[0].high_bar, 10);
+    }
+
+    #[test]
+    fn horizontal_ray_add_and_clear() {
+        let mut ann = Annotations::new();
+        ann.add_horizontal_ray(HorizontalRay {
+            price: 150.0,
+            color: (255, 0, 0),
+            width: 1.0,
+        });
+        assert!(!ann.is_empty());
+        assert_eq!(ann.horizontal_rays.len(), 1);
+        ann.clear();
+        assert!(ann.is_empty());
+    }
+
+    #[test]
+    fn vertical_line_add_and_clear() {
+        let mut ann = Annotations::new();
+        ann.add_vertical_line(VerticalLine {
+            bar_index: 42.0,
+            color: (0, 255, 0),
+            width: 1.5,
+        });
+        assert!(!ann.is_empty());
+        assert_eq!(ann.vertical_lines.len(), 1);
+        ann.clear();
+        assert!(ann.is_empty());
+    }
+
+    #[test]
+    fn rectangle_zone_add_and_clear() {
+        let mut ann = Annotations::new();
+        ann.add_rectangle_zone(RectangleZone {
+            start_bar: 10.0,
+            end_bar: 20.0,
+            top_price: 120.0,
+            bottom_price: 100.0,
+            border_color: (255, 255, 0),
+            fill_color: (255, 255, 0, 30),
+            width: 1.0,
+        });
+        assert!(!ann.is_empty());
+        assert_eq!(ann.rectangle_zones.len(), 1);
+        ann.clear();
+        assert!(ann.is_empty());
+    }
+
+    #[test]
+    fn text_label_add_and_clear() {
+        let mut ann = Annotations::new();
+        ann.add_text_label(TextLabel {
+            bar_index: 5.0,
+            price: 110.0,
+            text: "Signal".to_string(),
+            color: (200, 200, 200),
+        });
+        assert!(!ann.is_empty());
+        assert_eq!(ann.text_labels.len(), 1);
+        ann.clear();
+        assert!(ann.is_empty());
+    }
+
+    #[test]
+    fn drawing_tools_is_empty_checks_all_new_fields() {
+        let mut ann = Annotations::new();
+        // Verify is_empty() respects all new annotation types
+        assert!(ann.is_empty());
+        ann.add_horizontal_ray(HorizontalRay {
+            price: 100.0,
+            color: (0, 0, 0),
+            width: 1.0,
+        });
+        assert!(!ann.is_empty());
+        ann.clear();
+        ann.add_vertical_line(VerticalLine {
+            bar_index: 1.0,
+            color: (0, 0, 0),
+            width: 1.0,
+        });
+        assert!(!ann.is_empty());
+        ann.clear();
+        ann.add_rectangle_zone(RectangleZone {
+            start_bar: 0.0,
+            end_bar: 5.0,
+            top_price: 110.0,
+            bottom_price: 90.0,
+            border_color: (0, 0, 0),
+            fill_color: (0, 0, 0, 20),
+            width: 1.0,
+        });
+        assert!(!ann.is_empty());
+        ann.clear();
+        ann.add_text_label(TextLabel {
+            bar_index: 0.0,
+            price: 100.0,
+            text: "x".to_string(),
+            color: (0, 0, 0),
+        });
+        assert!(!ann.is_empty());
+        ann.clear();
+        assert!(ann.is_empty());
     }
 }

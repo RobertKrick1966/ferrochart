@@ -2,9 +2,10 @@
 // Copyright (C) 2025 Robert Krick
 
 use ferrochart_core::{
-    Annotations, BarrierOutcome, CandleGeometry, ChartType, IndicatorOutput, IndicatorPlacement,
-    Marker, MarkerPosition, MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle,
-    TimeRange, Transform, Viewport, YScaleMode, compute_heikin_ashi, indicator::VolumeProfile,
+    Annotations, BarrierOutcome, CandleGeometry, ChartType, HorizontalRay, IndicatorOutput,
+    IndicatorPlacement, Marker, MarkerPosition, MarkerShape, Ohlcv, PanelLayout, Point, PriceRange,
+    Rect, RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, VerticalLine, Viewport,
+    YScaleMode, compute_heikin_ashi, indicator::VolumeProfile,
 };
 
 use crate::Renderer;
@@ -1929,6 +1930,187 @@ fn draw_annotations(
                 TextAnchor::Start,
             );
         }
+    }
+
+    // Horizontal rays (full-width price lines)
+    draw_horizontal_rays(
+        renderer,
+        &annotations.horizontal_rays,
+        transform,
+        panel_rect,
+    );
+
+    // Vertical lines at specific bar indices
+    draw_vertical_lines(
+        renderer,
+        &annotations.vertical_lines,
+        transform,
+        panel_rect,
+        offset,
+    );
+
+    // Rectangle zones
+    draw_rectangle_zones(
+        renderer,
+        &annotations.rectangle_zones,
+        transform,
+        panel_rect,
+        offset,
+    );
+
+    // Text labels
+    draw_text_labels(
+        renderer,
+        &annotations.text_labels,
+        transform,
+        panel_rect,
+        offset,
+        config,
+    );
+}
+
+/// Draw horizontal rays spanning the full panel width.
+fn draw_horizontal_rays(
+    renderer: &mut dyn Renderer,
+    rays: &[HorizontalRay],
+    transform: &Transform,
+    panel_rect: &Rect,
+) {
+    for ray in rays {
+        let y = transform.price_y(ray.price);
+        let color = Color::rgb(ray.color.0, ray.color.1, ray.color.2);
+        renderer.draw_line(
+            Point { x: panel_rect.x, y },
+            Point {
+                x: panel_rect.right(),
+                y,
+            },
+            &LineStyle {
+                color,
+                width: ray.width,
+            },
+        );
+    }
+}
+
+/// Draw vertical lines at specific bar indices.
+fn draw_vertical_lines(
+    renderer: &mut dyn Renderer,
+    lines: &[VerticalLine],
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+) {
+    for line in lines {
+        let rel = line.bar_index - offset;
+        let x = transform.bar_x(rel.round().max(0.0) as usize);
+        let color = Color::rgb(line.color.0, line.color.1, line.color.2);
+        renderer.draw_line(
+            Point { x, y: panel_rect.y },
+            Point {
+                x,
+                y: panel_rect.bottom(),
+            },
+            &LineStyle {
+                color,
+                width: line.width,
+            },
+        );
+    }
+}
+
+/// Draw price × time rectangle zones.
+fn draw_rectangle_zones(
+    renderer: &mut dyn Renderer,
+    zones: &[RectangleZone],
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+) {
+    for zone in zones {
+        let rel_start = zone.start_bar - offset;
+        let rel_end = zone.end_bar - offset;
+        let x1 = transform.bar_x(rel_start.round().max(0.0) as usize);
+        let x2 = transform.bar_x(rel_end.round().max(0.0) as usize);
+        let y_top = transform.price_y(zone.top_price);
+        let y_bottom = transform.price_y(zone.bottom_price);
+
+        // Clamp to panel bounds
+        let x_left = x1.max(panel_rect.x);
+        let x_right = x2.min(panel_rect.right());
+        let y_t = y_top.max(panel_rect.y);
+        let y_b = y_bottom.min(panel_rect.bottom());
+
+        let width = (x_right - x_left).max(0.0);
+        let height = (y_b - y_t).max(0.0);
+
+        if width < f64::EPSILON || height < f64::EPSILON {
+            continue;
+        }
+
+        let (fr, fg, fb, fa) = zone.fill_color;
+        let fill_color = Color::rgba(fr, fg, fb, fa);
+        renderer.draw_rect(
+            Rect::new(x_left, y_t, width, height),
+            &FillStyle { color: fill_color },
+        );
+
+        let border_color = Color::rgb(
+            zone.border_color.0,
+            zone.border_color.1,
+            zone.border_color.2,
+        );
+        let border_style = LineStyle {
+            color: border_color,
+            width: zone.width,
+        };
+        // Draw four border edges
+        renderer.draw_line(
+            Point { x: x_left, y: y_t },
+            Point { x: x_right, y: y_t },
+            &border_style,
+        );
+        renderer.draw_line(
+            Point { x: x_right, y: y_t },
+            Point { x: x_right, y: y_b },
+            &border_style,
+        );
+        renderer.draw_line(
+            Point { x: x_right, y: y_b },
+            Point { x: x_left, y: y_b },
+            &border_style,
+        );
+        renderer.draw_line(
+            Point { x: x_left, y: y_b },
+            Point { x: x_left, y: y_t },
+            &border_style,
+        );
+    }
+}
+
+/// Draw text labels at specific bar and price positions.
+///
+/// Renders text at each label's bar/price position using `draw_text`.
+fn draw_text_labels(
+    renderer: &mut dyn Renderer,
+    labels: &[TextLabel],
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+    config: &ChartConfig,
+) {
+    let _ = panel_rect; // used implicitly via transform bounds
+    for label in labels {
+        let rel = label.bar_index - offset;
+        let x = transform.bar_x(rel.round().max(0.0) as usize);
+        let y = transform.price_y(label.price);
+        let color = Color::rgb(label.color.0, label.color.1, label.color.2);
+        let text_style = TextStyle {
+            color,
+            size: config.font_size,
+            font_family: "monospace".to_string(),
+        };
+        renderer.draw_text(&label.text, Point { x, y }, &text_style, TextAnchor::Start);
     }
 }
 
