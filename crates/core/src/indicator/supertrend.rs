@@ -225,7 +225,7 @@ mod tests {
         }
         .compute(&data);
         let v = &out.series[0].values;
-        for val in v[9..].iter() {
+        for val in &v[9..] {
             assert!(val.is_finite(), "expected finite value, got {val}");
         }
     }

@@ -234,7 +234,7 @@ mod tests {
         let senkou_a = &out.series[2].values;
         for i in 0..60 {
             if !tenkan[i].is_nan() && !kijun[i].is_nan() {
-                let expected = (tenkan[i] + kijun[i]) / 2.0;
+                let expected = f64::midpoint(tenkan[i], kijun[i]);
                 assert!(
                     (senkou_a[i] - expected).abs() < 1e-9,
                     "senkou_a[{i}] mismatch: {} vs {}",
@@ -256,7 +256,7 @@ mod tests {
         }
         .compute(&data);
         let tenkan = &out.series[0].values;
-        for val in tenkan[8..].iter() {
+        for val in &tenkan[8..] {
             assert!((val - 95.0).abs() < 1e-9, "expected 95.0, got {val}");
         }
     }

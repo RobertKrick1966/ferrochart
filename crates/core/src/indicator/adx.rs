@@ -245,7 +245,7 @@ mod tests {
         let out = Adx { period: 14 }.compute(&data);
         for series in &out.series[..3] {
             for &v in series.values.iter().filter(|v| !v.is_nan()) {
-                assert!(v >= 0.0 && v <= 100.0, "ADX/DI out of range: {v}");
+                assert!((0.0..=100.0).contains(&v), "ADX/DI out of range: {v}");
             }
         }
     }

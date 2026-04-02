@@ -158,7 +158,7 @@ mod tests {
         let data: Vec<Ohlcv> = (0..25).map(|_| bar(100.0, 100.0, 100.0)).collect();
         let out = Cci { period: 20 }.compute(&data);
         let v = &out.series[0].values;
-        for val in v[19..].iter() {
+        for val in &v[19..] {
             assert!(val.abs() < 1e-9, "expected 0, got {val}");
         }
     }
@@ -194,7 +194,7 @@ mod tests {
         let out = Cci { period: 5 }.compute(&data);
         let v = &out.series[0].values;
         // For a linearly rising series the CCI is non-NaN and finite
-        for val in v[4..].iter() {
+        for val in &v[4..] {
             assert!(val.is_finite(), "expected finite value, got {val}");
         }
     }

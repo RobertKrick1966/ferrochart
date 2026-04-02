@@ -163,8 +163,8 @@ mod tests {
             .collect();
         let out = WilliamsR { period: 14 }.compute(&data);
         let v = &out.series[0].values;
-        for val in v[13..].iter() {
-            assert!(*val >= -100.0 && *val <= 0.0, "out of range: {val}");
+        for val in &v[13..] {
+            assert!((-100.0..=0.0).contains(val), "out of range: {val}");
         }
     }
 
@@ -174,7 +174,7 @@ mod tests {
         let data: Vec<Ohlcv> = (0..20).map(|_| bar(100.0, 90.0, 100.0)).collect();
         let out = WilliamsR { period: 5 }.compute(&data);
         let v = &out.series[0].values;
-        for val in v[4..].iter() {
+        for val in &v[4..] {
             assert!(val.abs() < 1e-9, "expected 0, got {val}");
         }
     }
@@ -185,7 +185,7 @@ mod tests {
         let data: Vec<Ohlcv> = (0..20).map(|_| bar(100.0, 90.0, 90.0)).collect();
         let out = WilliamsR { period: 5 }.compute(&data);
         let v = &out.series[0].values;
-        for val in v[4..].iter() {
+        for val in &v[4..] {
             assert!((val - (-100.0)).abs() < 1e-9, "expected -100, got {val}");
         }
     }
@@ -196,7 +196,7 @@ mod tests {
         let data: Vec<Ohlcv> = (0..20).map(|_| bar(100.0, 100.0, 100.0)).collect();
         let out = WilliamsR { period: 5 }.compute(&data);
         let v = &out.series[0].values;
-        for val in v[4..].iter() {
+        for val in &v[4..] {
             assert!((val - (-50.0)).abs() < 1e-9, "expected -50, got {val}");
         }
     }
