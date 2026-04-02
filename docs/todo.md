@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
 > **Stand:** 2026-04-02 CEST
-> **Tests:** 340 (297 core + 43 render), Clippy-pedantic clean
+> **Tests:** 346 (297 core + 43 render + 6 ffi), Clippy-pedantic clean
 
 ---
 
@@ -146,6 +146,21 @@
 
 ---
 
+## Phase 10 -- FFI / Sprachanbindungen ✅
+
+> C-kompatibles FFI fuer Integration in C++, Python, C#, Go und weitere Sprachen.
+
+| Feature | Beschreibung | Status |
+|---|---|---|
+| `ferrochart-ffi` Crate | Opaker Handle, `extern "C"` Funktionen, `cdylib` + `staticlib` | ✅ |
+| C-Header (cbindgen) | Automatisch generierter `ferrochart.h` Header | ✅ |
+| C/C++ Doku | Integration Guide mit RAII-Wrapper, Compile-Anleitung | ✅ |
+| Python Doku | ctypes-Bindings, High-Level Wrapper, NumPy/Pandas Beispiele | ✅ |
+| C# Doku | P/Invoke Bindings, IDisposable Wrapper, ASP.NET Beispiel | ✅ |
+| API-Abdeckung | Lifecycle, Data (Arrays + JSON), Config, 18 Indikatoren, Markers, Annotations (JSON), SVG-Rendering | ✅ |
+
+---
+
 ## Backlog
 
 - [ ] npm-publish workflow (GitHub Actions, auf Release)
@@ -167,6 +182,7 @@
 | 7 | Drawing Tools (13 Tools ✅, Edit/Snap/Undo offen) | teilweise ✅ |
 | 8 | Indikator-Bibliothek (22 Indikatoren ✅, Plugin-System ✅, Cloud-Fill ✅) | ✅ |
 | 9 | Erweiterte Konzepte (Replay ✅, Plugin ✅, Multi-Symbol/Templates/Footprint offen) | teilweise ✅ |
+| 10 | FFI / Sprachanbindungen (C/C++, Python, C# -- Crate + Header + Docs) | ✅ |
 
 ### Strategische Einordnung
 

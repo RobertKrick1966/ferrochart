@@ -125,6 +125,7 @@ let json = serde_json::to_string(&data)?;
 | `ferrochart-core` | Data structures, indicators, layout, coordinate transforms |
 | `ferrochart-render` | Renderer trait + SVG/Canvas backends |
 | `ferrochart-wasm` | WebAssembly bindings, event handling, interactive chart |
+| `ferrochart-ffi` | C-compatible FFI bindings for C/C++, Python, C#, etc. |
 | `ferrochart-examples` | Example applications |
 
 ## Building
@@ -148,6 +149,9 @@ cargo run --package ferrochart-examples
 
 ## Integration Guides
 
+- [C/C++ (FFI)](docs/integration/c-cpp.md) -- native shared library + auto-generated header
+- [Python (ctypes)](docs/integration/python.md) -- high-level wrapper with NumPy/Pandas support
+- [C# / .NET (P/Invoke)](docs/integration/csharp.md) -- IDisposable wrapper, ASP.NET example
 - [Axum Backend Endpoint](docs/integration/axum-endpoint.md)
 - [React Wrapper Component](docs/integration/react-wrapper.md)
 
