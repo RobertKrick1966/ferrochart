@@ -3,9 +3,10 @@
 
 use ferrochart_core::{
     Annotations, BarrierOutcome, CandleGeometry, ChartType, HorizontalRay, IndicatorOutput,
-    IndicatorPlacement, Marker, MarkerPosition, MarkerShape, Ohlcv, PanelLayout, Point, PriceRange,
-    Rect, RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, VerticalLine, Viewport,
-    YScaleMode, compute_heikin_ashi, indicator::VolumeProfile,
+    IndicatorPlacement, Marker, MarkerPosition, MarkerShape, Ohlcv, PFDirection, PanelLayout,
+    Point, PriceRange, Rect, RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform,
+    VerticalLine, Viewport, YScaleMode, compute_heikin_ashi, compute_point_figure, compute_renko,
+    indicator::VolumeProfile,
 };
 
 use crate::Renderer;
@@ -868,6 +869,8 @@ pub fn render_full_chart_with_markers(
     // --- Price panel ---
     // Extend price range to include overlay indicator values (BB bands, etc.)
     // For Line/Area charts use close-only range; otherwise use full OHLC range.
+    // Renko/P&F chart types compute their own price range inside their render function,
+    // but we still need a range here for the panel layout; use OHLC range.
     let base_price_range = match config.chart_type {
         ChartType::Line | ChartType::Area => {
             PriceRange::from_closes(render_data).unwrap_or(PriceRange::new(0.0, 100.0))
@@ -961,6 +964,14 @@ pub fn render_full_chart_with_markers(
         }
         ChartType::OhlcBars => {
             draw_ohlc_bars(renderer, render_data, &price_transform, config);
+        }
+        ChartType::Renko { brick_size } => {
+            let renko_bars = compute_renko(data, brick_size);
+            render_renko_chart(renderer, &renko_bars, config);
+        }
+        ChartType::PointFigure { box_size, reversal } => {
+            let columns = compute_point_figure(data, box_size, reversal);
+            render_point_figure_chart(renderer, &columns, box_size, config);
         }
     }
 
@@ -1410,6 +1421,257 @@ fn draw_ohlc_bars(
             &style,
         );
     }
+}
+
+/// Render a standalone Renko chart into `renderer`.
+///
+/// Each brick is drawn as a filled rectangle (green for up, red for down).
+/// No wicks are drawn — Renko bricks have no high/low beyond open/close.
+fn render_renko_chart(
+    renderer: &mut dyn Renderer,
+    renko_bars: &[ferrochart_core::RenkoBar],
+    config: &ChartConfig,
+) {
+    if renko_bars.is_empty() {
+        return;
+    }
+
+    renderer.set_background(config.background);
+
+    let chart_rect = Rect::new(
+        config.margin.left,
+        config.margin.top,
+        config.width - config.margin.left - config.margin.right,
+        config.height - config.margin.top - config.margin.bottom,
+    );
+
+    // Compute Y range from all bricks
+    let min_low = renko_bars
+        .iter()
+        .map(|b| b.low)
+        .fold(f64::INFINITY, f64::min);
+    let max_high = renko_bars
+        .iter()
+        .map(|b| b.high)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let span = (max_high - min_low).max(1.0);
+    let padding = span * 0.05;
+    let y_min = min_low - padding;
+    let y_max = max_high + padding;
+    let y_span = y_max - y_min;
+
+    let n = renko_bars.len();
+    let bar_width = chart_rect.width / n as f64;
+
+    let text_style = TextStyle {
+        color: config.text_color,
+        size: config.font_size,
+        font_family: "monospace".to_string(),
+    };
+    let grid_style = LineStyle {
+        color: config.grid_color,
+        width: 1.0,
+    };
+
+    // Y-axis grid and labels
+    let num_labels: i32 = 8;
+    for i in 1..num_labels {
+        let price = y_min + (y_span / f64::from(num_labels)) * f64::from(i);
+        let y = chart_rect.bottom() - ((price - y_min) / y_span) * chart_rect.height;
+        renderer.draw_line(
+            Point { x: chart_rect.x, y },
+            Point {
+                x: chart_rect.right(),
+                y,
+            },
+            &grid_style,
+        );
+        renderer.draw_text(
+            &format!("{price:.2}"),
+            Point {
+                x: chart_rect.right() + 5.0,
+                y: y + 4.0,
+            },
+            &text_style,
+            TextAnchor::Start,
+        );
+    }
+
+    // Draw bricks
+    renderer.clip(chart_rect);
+    let up_color = Color::rgb(38, 166, 154); // teal (#26a69a)
+    let dn_color = Color::rgb(239, 83, 80); // red (#ef5350)
+
+    for (i, brick) in renko_bars.iter().enumerate() {
+        let color = if brick.up { up_color } else { dn_color };
+        let x = chart_rect.x + i as f64 * bar_width;
+        let open_y = chart_rect.bottom() - ((brick.open - y_min) / y_span) * chart_rect.height;
+        let close_y = chart_rect.bottom() - ((brick.close - y_min) / y_span) * chart_rect.height;
+        let top_y = open_y.min(close_y);
+        let height = (open_y - close_y).abs().max(1.0);
+        renderer.draw_rect(
+            Rect::new(x + 1.0, top_y, (bar_width - 2.0).max(1.0), height),
+            &FillStyle { color },
+        );
+    }
+    renderer.restore_clip();
+
+    // X-axis: show bar index every ~10 bricks
+    let step = (n / 10).max(1);
+    for i in (0..n).step_by(step) {
+        let x = chart_rect.x + i as f64 * bar_width + bar_width / 2.0;
+        renderer.draw_text(
+            &format!("{i}"),
+            Point {
+                x,
+                y: chart_rect.bottom() + 14.0,
+            },
+            &text_style,
+            TextAnchor::Middle,
+        );
+    }
+
+    // Border
+    renderer.draw_rect_outline(
+        chart_rect,
+        &LineStyle {
+            color: config.axis_color,
+            width: 1.0,
+        },
+    );
+}
+
+/// Render a standalone Point & Figure chart into `renderer`.
+///
+/// X columns are filled green rectangles; O columns are stroked red rectangles.
+fn render_point_figure_chart(
+    renderer: &mut dyn Renderer,
+    columns: &[ferrochart_core::PFColumn],
+    box_size: f64,
+    config: &ChartConfig,
+) {
+    if columns.is_empty() {
+        return;
+    }
+
+    renderer.set_background(config.background);
+
+    let chart_rect = Rect::new(
+        config.margin.left,
+        config.margin.top,
+        config.width - config.margin.left - config.margin.right,
+        config.height - config.margin.top - config.margin.bottom,
+    );
+
+    // Compute Y range
+    let min_bottom = columns
+        .iter()
+        .map(|c| c.bottom_price)
+        .fold(f64::INFINITY, f64::min);
+    let max_top = columns
+        .iter()
+        .map(|c| c.top_price)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let span = (max_top - min_bottom).max(box_size);
+    let padding = span * 0.05;
+    let y_min = min_bottom - padding;
+    let y_max = max_top + padding;
+    let y_span = y_max - y_min;
+
+    let n = columns.len();
+    let raw_col_w = chart_rect.width / n as f64;
+    let col_width = raw_col_w.clamp(8.0, 30.0);
+
+    let text_style = TextStyle {
+        color: config.text_color,
+        size: config.font_size,
+        font_family: "monospace".to_string(),
+    };
+    let grid_style = LineStyle {
+        color: config.grid_color,
+        width: 1.0,
+    };
+
+    // Horizontal price grid at each box interval
+    let mut price = y_min.ceil();
+    while price <= y_max {
+        let y = chart_rect.bottom() - ((price - y_min) / y_span) * chart_rect.height;
+        renderer.draw_line(
+            Point { x: chart_rect.x, y },
+            Point {
+                x: chart_rect.right(),
+                y,
+            },
+            &grid_style,
+        );
+        // Label every few boxes to avoid crowding
+        let boxes_from_bottom = ((price - y_min) / box_size).round() as i64;
+        if boxes_from_bottom % 5 == 0 {
+            renderer.draw_text(
+                &format!("{price:.2}"),
+                Point {
+                    x: chart_rect.right() + 5.0,
+                    y: y + 4.0,
+                },
+                &text_style,
+                TextAnchor::Start,
+            );
+        }
+        price += box_size;
+    }
+
+    renderer.clip(chart_rect);
+
+    let x_fill_color = Color::rgb(38, 166, 154); // teal
+    let o_stroke_color = Color::rgb(239, 83, 80); // red
+    let stroke_style = LineStyle {
+        color: o_stroke_color,
+        width: 1.5,
+    };
+
+    for (i, col) in columns.iter().enumerate() {
+        let col_x = chart_rect.x + i as f64 * col_width;
+        // Iterate box by box
+        let num_boxes = col.box_count.max(1);
+        for b in 0..num_boxes {
+            let box_bottom = col.bottom_price + b as f64 * box_size;
+            let box_top = box_bottom + box_size;
+            let top_y = chart_rect.bottom() - ((box_top - y_min) / y_span) * chart_rect.height;
+            let bot_y = chart_rect.bottom() - ((box_bottom - y_min) / y_span) * chart_rect.height;
+            let box_h = (bot_y - top_y).max(1.0);
+            let margin = 1.5;
+            let box_rect = Rect::new(
+                col_x + margin,
+                top_y,
+                (col_width - margin * 2.0).max(1.0),
+                box_h,
+            );
+            match col.direction {
+                PFDirection::X => {
+                    renderer.draw_rect(
+                        box_rect,
+                        &FillStyle {
+                            color: x_fill_color,
+                        },
+                    );
+                }
+                PFDirection::O => {
+                    renderer.draw_rect_outline(box_rect, &stroke_style);
+                }
+            }
+        }
+    }
+
+    renderer.restore_clip();
+
+    // Border
+    renderer.draw_rect_outline(
+        chart_rect,
+        &LineStyle {
+            color: config.axis_color,
+            width: 1.0,
+        },
+    );
 }
 
 /// Draw a legend for overlay indicators in the top-left of a panel.

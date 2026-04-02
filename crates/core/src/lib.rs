@@ -8,7 +8,8 @@
 /// Chart annotation types (trend lines, Fibonacci retracements, corridors).
 pub mod annotation;
 mod candle;
-mod chart_type;
+/// Chart type enum and chart-specific computation functions.
+pub mod chart_type;
 mod data;
 /// Level-of-Detail decimation for large datasets.
 pub mod decimation;
@@ -31,8 +32,11 @@ pub use annotation::{
 };
 /// Re-exported candlestick geometry.
 pub use candle::CandleGeometry;
-/// Re-exported chart type enum and Heikin-Ashi transform.
-pub use chart_type::{ChartType, compute_heikin_ashi};
+/// Re-exported chart type enum, Heikin-Ashi transform, Renko, and Point & Figure computations.
+pub use chart_type::{
+    ChartType, PFColumn, PFDirection, RenkoBar, compute_heikin_ashi, compute_point_figure,
+    compute_renko,
+};
 /// Re-exported data primitives.
 pub use data::{Ohlcv, PriceRange, Series, TimeRange};
 /// Re-exported geometry primitives.
