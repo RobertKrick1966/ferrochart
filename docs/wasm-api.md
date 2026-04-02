@@ -190,8 +190,9 @@ addHorizontalLevel(
 ### Annotations -- Drawing-Tools
 
 ```typescript
-// Interaktives Zeichnen (Klick 2 Punkte / 3 Punkte für Corridor)
+// Interaktives Zeichnen (2 Klicks, außer corridor/pitchfork = 3 Klicks)
 // mode: "none" | "trendline" | "fibonacci" | "corridor"
+//       "ray" | "measurement" | "ellipse" | "pitchfork" | "gann_fan"
 setDrawMode(mode: string): void
 
 // Direkt-Add (keine Benutzerinteraktion nötig)
@@ -229,6 +230,43 @@ addRectangle(
 addTextLabel(
   bar_index: number, price: number,
   text: string, color_hex: string
+): void
+
+// Ray (Halbgerade: startet bei start, läuft durch end bis zum rechten Rand)
+addRay(
+  start_bar: number, start_price: number,
+  end_bar:   number, end_price:   number,
+  color_hex: string, width: number
+): void
+
+// Measurement Tool (zeigt Δ$, Δ%, Δ Bars zwischen zwei Punkten)
+addMeasurement(
+  start_bar: number, start_price: number,
+  end_bar:   number, end_price:   number,
+  r: number, g: number, b: number
+): void
+
+// Ellipse (Bounding-Box-Ecken als Anker)
+addEllipse(
+  start_bar:  number, start_price: number,
+  end_bar:    number, end_price:   number,
+  border_hex: string, fill_hex:    string,
+  width:      number
+): void
+
+// Andrews Pitchfork (3 Anker: Griff + 2 Zinken)
+addPitchfork(
+  bar1: number, price1: number,
+  bar2: number, price2: number,
+  bar3: number, price3: number,
+  color_hex: string, width: number
+): void
+
+// Gann Fan (8 Fächerlinien von Anker; scale = Preiseinheiten pro Bar für 1×1-Linie)
+addGannFan(
+  anchor_bar: number, anchor_price: number,
+  scale:      number,
+  color_hex:  string
 ): void
 
 // Alle Drawing-Tool-Annotations und ML-Overlays löschen
@@ -300,6 +338,7 @@ setConfig(json: string): void
 | `addMarker`, `addTrendLine`, `addFibonacci`, `addTripleBarrier` | ✅ |
 | `addConfidenceBand`, `addWalkForwardZone`, `addNewsEvent` | ✅ |
 | `addHorizontalRay`, `addVerticalLine`, `addRectangle`, `addTextLabel` | ✅ |
+| `addRay`, `addMeasurement`, `addEllipse`, `addPitchfork`, `addGannFan` | ✅ |
 | `getCrosshairPrice`, `getCrosshairBar` | ✅ |
 | `getZoomPanState` / `setZoomPanState` (Multi-Chart-Sync) | ✅ |
 | `onWheel` / `onPan` (externe Event-Integration) | ✅ |

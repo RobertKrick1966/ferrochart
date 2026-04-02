@@ -26,9 +26,10 @@ mod zoom;
 
 /// Re-exported annotation types.
 pub use annotation::{
-    Annotations, BarrierOutcome, ConfidenceBand, Corridor, FibonacciRetracement,
-    HorizontalHistogram, HorizontalLevel, HorizontalRay, NewsEvent, RectangleZone, TextLabel,
-    TrendLine, TripleBarrier, VerticalLine, WalkForwardZone,
+    AndrewsPitchfork, Annotations, BarrierOutcome, ConfidenceBand, Corridor, Ellipse,
+    FibonacciRetracement, GannFan, HorizontalHistogram, HorizontalLevel, HorizontalRay,
+    MeasurementTool, NewsEvent, Ray, RectangleZone, TextLabel, TrendLine, TripleBarrier,
+    VerticalLine, WalkForwardZone,
 };
 /// Re-exported candlestick geometry.
 pub use candle::CandleGeometry;

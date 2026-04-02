@@ -6,8 +6,9 @@
 use std::fs;
 
 use ferrochart_core::{
-    Annotations, ChartType, Corridor, FibonacciRetracement, HorizontalRay, Marker, MarkerPosition,
-    MarkerShape, Ohlcv, RectangleZone, TrendLine, VerticalLine,
+    AndrewsPitchfork, Annotations, ChartType, Corridor, Ellipse, FibonacciRetracement, GannFan,
+    HorizontalRay, Marker, MarkerPosition, MarkerShape, MeasurementTool, Ohlcv, Ray, RectangleZone,
+    TrendLine, VerticalLine,
     indicator::{Atr, Indicator, Rsi, Sma, Stochastic, VolumeSma},
 };
 use ferrochart_render::chart::{
@@ -318,6 +319,84 @@ fn main() {
             );
         },
     );
+
+    // 18. Ray
+    generate_svg("output/18_ray.svg", &data, |renderer, data, config| {
+        let mut annotations = Annotations::new();
+        annotations.add_ray(Ray {
+            start_bar: 5.0,
+            start_price: data[5].low,
+            end_bar: 15.0,
+            end_price: data[15].low,
+            color: (0, 200, 255),
+            width: 1.5,
+        });
+        render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+    });
+
+    // 19. Measurement Tool
+    generate_svg(
+        "output/19_measurement.svg",
+        &data,
+        |renderer, data, config| {
+            let mut annotations = Annotations::new();
+            annotations.add_measurement(MeasurementTool {
+                start_bar: 5.0,
+                start_price: data[5].close,
+                end_bar: 20.0,
+                end_price: data[20].close,
+                color: (255, 200, 0),
+            });
+            render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+        },
+    );
+
+    // 20. Ellipse
+    generate_svg("output/20_ellipse.svg", &data, |renderer, data, config| {
+        let mut annotations = Annotations::new();
+        annotations.add_ellipse(Ellipse {
+            start_bar: 8.0,
+            start_price: data[8].low,
+            end_bar: 16.0,
+            end_price: data[16].high,
+            color: (100, 200, 100),
+            fill_color: (100, 200, 100, 25),
+            width: 1.5,
+        });
+        render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+    });
+
+    // 21. Andrews Pitchfork
+    generate_svg(
+        "output/21_pitchfork.svg",
+        &data,
+        |renderer, data, config| {
+            let mut annotations = Annotations::new();
+            annotations.add_pitchfork(AndrewsPitchfork {
+                bar1: 2.0,
+                price1: data[2].low,
+                bar2: 10.0,
+                price2: data[10].high,
+                bar3: 18.0,
+                price3: data[18].low,
+                color: (255, 165, 0),
+                width: 1.5,
+            });
+            render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+        },
+    );
+
+    // 22. Gann Fan
+    generate_svg("output/22_gann_fan.svg", &data, |renderer, data, config| {
+        let mut annotations = Annotations::new();
+        annotations.add_gann_fan(GannFan {
+            anchor_bar: 3.0,
+            anchor_price: data[3].low,
+            scale: 1.5,
+            color: (200, 100, 255),
+        });
+        render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+    });
 
     println!("All SVGs written to output/");
 }

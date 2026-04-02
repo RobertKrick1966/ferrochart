@@ -1,7 +1,7 @@
 # FerroChart -- Roadmap & Todo
 
 > **Stand:** 2026-04-02 CEST
-> **Tests:** 333 (290 core + 43 render), Clippy-pedantic clean
+> **Tests:** 339 (296 core + 43 render), Clippy-pedantic clean
 
 ---
 
@@ -81,7 +81,7 @@
 
 ## Phase 7 -- Drawing Tools (teilweise ✅)
 
-> Aktuell 7 Tools (Trendline, Fibonacci, Corridor, HorizontalRay, VerticalLine, RectangleZone, TextLabel). TradingView hat ~50.
+> Aktuell 12 Tools (Trendline, Fibonacci, Corridor, HorizontalRay, VerticalLine, RectangleZone, TextLabel, Ray, MeasurementTool, Ellipse, AndrewsPitchfork, GannFan). TradingView hat ~50.
 
 ### Prioritaet 1 (Haendler-Grundbeduerfnis)
 - [x] Horizontale Linie (`HorizontalRay`, `addHorizontalRay()`)
@@ -91,11 +91,11 @@
 - [ ] Price Channel (parallele Trendlinien durch Highs/Lows)
 
 ### Prioritaet 2 (Advanced)
-- [ ] Andrews Pitchfork
-- [ ] Gann Fan
-- [ ] Ellipse
-- [ ] Measurement Tool (Preis-/Zeitdifferenz anzeigen)
-- [ ] Ray (Halbgerade ab einem Punkt)
+- [x] Andrews Pitchfork
+- [x] Gann Fan
+- [x] Ellipse
+- [x] Measurement Tool (Preis-/Zeitdifferenz anzeigen)
+- [x] Ray (Halbgerade ab einem Punkt)
 
 ### Infrastruktur
 - [ ] Zeichnungen selektieren, verschieben, loeschen (Edit-Modus)
@@ -166,7 +166,7 @@
 | 4 | Erweitert (GEX, Max Pain, Multi-Chart Sync, Equity Curve) | ✅ |
 | 5 | Performance & Skalierung (LOD ✅, Virtualisierung ✅, WebGL offen) | teilweise ✅ |
 | 6 | Chart-Typen (HA ✅, OHLC ✅, Line ✅, Area ✅, Renko ✅, P&F ✅) | ✅ |
-| 7 | Drawing Tools (7 Tools ✅, Price Channel/Prio2/Edit/Snap/Undo offen) | teilweise ✅ |
+| 7 | Drawing Tools (12 Tools ✅, Price Channel/Edit/Snap/Undo offen) | teilweise ✅ |
 | 8 | Indikator-Bibliothek (22 Indikatoren ✅, Plugin-System offen) | teilweise ✅ |
 | 9 | Erweiterte Konzepte (Replay, Multi-Symbol, Templates, Footprint) | -- |
 

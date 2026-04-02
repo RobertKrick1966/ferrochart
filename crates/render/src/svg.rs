@@ -112,6 +112,29 @@ impl Renderer for SvgRenderer {
         ));
     }
 
+    fn draw_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, style: &LineStyle) {
+        self.elements.push(format!(
+            r#"<ellipse cx="{:.2}" cy="{:.2}" rx="{:.2}" ry="{:.2}" fill="none" stroke="{}" stroke-width="{:.1}" />"#,
+            cx,
+            cy,
+            rx,
+            ry,
+            style.color.to_css(),
+            style.width
+        ));
+    }
+
+    fn fill_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, fill: &FillStyle) {
+        self.elements.push(format!(
+            r#"<ellipse cx="{:.2}" cy="{:.2}" rx="{:.2}" ry="{:.2}" fill="{}" />"#,
+            cx,
+            cy,
+            rx,
+            ry,
+            fill.color.to_css()
+        ));
+    }
+
     fn fill_polygon(&mut self, points: &[Point], fill: &FillStyle) {
         if points.len() < 3 {
             return;

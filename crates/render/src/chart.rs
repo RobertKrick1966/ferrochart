@@ -2,11 +2,11 @@
 // Copyright (C) 2025 Robert Krick
 
 use ferrochart_core::{
-    Annotations, BarrierOutcome, CandleGeometry, ChartType, HorizontalRay, IndicatorOutput,
-    IndicatorPlacement, Marker, MarkerPosition, MarkerShape, Ohlcv, PFDirection, PanelLayout,
-    Point, PriceRange, Rect, RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform,
-    VerticalLine, Viewport, YScaleMode, compute_heikin_ashi, compute_point_figure, compute_renko,
-    indicator::VolumeProfile,
+    AndrewsPitchfork, Annotations, BarrierOutcome, CandleGeometry, ChartType, Ellipse, GannFan,
+    HorizontalRay, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerShape,
+    MeasurementTool, Ohlcv, PFDirection, PanelLayout, Point, PriceRange, Ray, Rect, RectangleZone,
+    SeriesStyle, TextLabel, TimeRange, Transform, VerticalLine, Viewport, YScaleMode,
+    compute_heikin_ashi, compute_point_figure, compute_renko, indicator::VolumeProfile,
 };
 
 use crate::Renderer;
@@ -2238,6 +2238,31 @@ fn draw_annotations(
         offset,
         config,
     );
+
+    // Rays
+    for ray in &annotations.rays {
+        draw_ray(renderer, ray, transform, panel_rect, offset, bar_slots);
+    }
+
+    // Measurement tools
+    for meas in &annotations.measurements {
+        draw_measurement(renderer, meas, transform, panel_rect, offset, config);
+    }
+
+    // Ellipses
+    for ellipse in &annotations.ellipses {
+        draw_ellipse_annotation(renderer, ellipse, transform, panel_rect, offset);
+    }
+
+    // Andrews Pitchforks
+    for fork in &annotations.pitchforks {
+        draw_pitchfork(renderer, fork, transform, panel_rect, offset, bar_slots);
+    }
+
+    // Gann Fans
+    for fan in &annotations.gann_fans {
+        draw_gann_fan(renderer, fan, transform, panel_rect, offset, bar_slots);
+    }
 }
 
 /// Draw horizontal rays spanning the full panel width.
@@ -2382,6 +2407,269 @@ fn draw_text_labels(
             font_family: "monospace".to_string(),
         };
         renderer.draw_text(&label.text, Point { x, y }, &text_style, TextAnchor::Start);
+    }
+}
+
+/// Draw a ray extending from start through end to the right chart boundary.
+fn draw_ray(
+    renderer: &mut dyn Renderer,
+    ray: &Ray,
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+    bar_slots: usize,
+) {
+    let color = Color::rgb(ray.color.0, ray.color.1, ray.color.2);
+    let style = LineStyle {
+        color,
+        width: ray.width,
+    };
+
+    let rel_start = ray.start_bar - offset;
+    let start = transform.to_pixel(rel_start, ray.start_price);
+
+    let dx = ray.end_bar - ray.start_bar;
+    if dx.abs() < f64::EPSILON {
+        // Vertical ray — draw from start_y toward panel top or bottom
+        let end_y = if ray.end_price >= ray.start_price {
+            panel_rect.y
+        } else {
+            panel_rect.bottom()
+        };
+        renderer.draw_line(
+            start,
+            Point {
+                x: start.x,
+                y: end_y,
+            },
+            &style,
+        );
+        return;
+    }
+
+    let slope = (ray.end_price - ray.start_price) / dx;
+    let extended_bar = bar_slots as f64;
+    let extended_price = ray.start_price + slope * (extended_bar + offset - ray.start_bar);
+    let end = transform.to_pixel(extended_bar, extended_price);
+
+    renderer.draw_line(start, end, &style);
+}
+
+/// Draw a measurement tool annotation (labeled rectangle between two points).
+fn draw_measurement(
+    renderer: &mut dyn Renderer,
+    meas: &MeasurementTool,
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+    config: &ChartConfig,
+) {
+    let rel_start = meas.start_bar - offset;
+    let rel_end = meas.end_bar - offset;
+    let p1 = transform.to_pixel(rel_start, meas.start_price);
+    let p2 = transform.to_pixel(rel_end, meas.end_price);
+
+    let x_left = p1.x.min(p2.x).max(panel_rect.x);
+    let x_right = p1.x.max(p2.x).min(panel_rect.right());
+    let y_top = p1.y.min(p2.y).max(panel_rect.y);
+    let y_bottom = p1.y.max(p2.y).min(panel_rect.bottom());
+    let width = (x_right - x_left).max(2.0);
+    let height = (y_bottom - y_top).max(2.0);
+
+    let color = Color::rgba(meas.color.0, meas.color.1, meas.color.2, 60);
+    let border = Color::rgba(meas.color.0, meas.color.1, meas.color.2, 180);
+    let text_color = Color::rgb(meas.color.0, meas.color.1, meas.color.2);
+
+    // Fill
+    renderer.draw_rect(
+        Rect::new(x_left, y_top, width, height),
+        &FillStyle { color },
+    );
+    // Border
+    renderer.draw_rect_outline(
+        Rect::new(x_left, y_top, width, height),
+        &LineStyle {
+            color: border,
+            width: 1.0,
+        },
+    );
+
+    // Labels in center
+    let cx = f64::midpoint(x_left, x_right);
+    let cy = f64::midpoint(y_top, y_bottom);
+    let text_style = TextStyle {
+        color: text_color,
+        size: config.font_size - 1.0,
+        font_family: "monospace".to_string(),
+    };
+    let price_diff = meas.end_price - meas.start_price;
+    let pct = if meas.start_price.abs() > f64::EPSILON {
+        price_diff / meas.start_price * 100.0
+    } else {
+        0.0
+    };
+    let bars = (meas.end_bar - meas.start_bar).abs().round() as i64;
+    let line_h = config.font_size + 2.0;
+    renderer.draw_text(
+        &format!("{price_diff:+.2}"),
+        Point {
+            x: cx,
+            y: cy - line_h,
+        },
+        &text_style,
+        TextAnchor::Middle,
+    );
+    renderer.draw_text(
+        &format!("{pct:+.1}%"),
+        Point { x: cx, y: cy },
+        &text_style,
+        TextAnchor::Middle,
+    );
+    renderer.draw_text(
+        &format!("{bars} bars"),
+        Point {
+            x: cx,
+            y: cy + line_h,
+        },
+        &text_style,
+        TextAnchor::Middle,
+    );
+}
+
+/// Draw an ellipse annotation defined by two bounding-box corner points.
+fn draw_ellipse_annotation(
+    renderer: &mut dyn Renderer,
+    ellipse: &Ellipse,
+    transform: &Transform,
+    _panel_rect: &Rect,
+    offset: f64,
+) {
+    let rel_start = ellipse.start_bar - offset;
+    let rel_end = ellipse.end_bar - offset;
+    let p1 = transform.to_pixel(rel_start, ellipse.start_price);
+    let p2 = transform.to_pixel(rel_end, ellipse.end_price);
+
+    let cx = f64::midpoint(p1.x, p2.x);
+    let cy = f64::midpoint(p1.y, p2.y);
+    let rx = (p2.x - p1.x).abs() / 2.0;
+    let ry = (p2.y - p1.y).abs() / 2.0;
+
+    if rx < f64::EPSILON || ry < f64::EPSILON {
+        return;
+    }
+
+    let (fr, fg, fb, fa) = ellipse.fill_color;
+    let fill = FillStyle {
+        color: Color::rgba(fr, fg, fb, fa),
+    };
+    let border = LineStyle {
+        color: Color::rgb(ellipse.color.0, ellipse.color.1, ellipse.color.2),
+        width: ellipse.width,
+    };
+
+    renderer.fill_ellipse(cx, cy, rx, ry, &fill);
+    renderer.draw_ellipse(cx, cy, rx, ry, &border);
+}
+
+/// Draw an Andrews Pitchfork annotation.
+fn draw_pitchfork(
+    renderer: &mut dyn Renderer,
+    fork: &AndrewsPitchfork,
+    transform: &Transform,
+    _panel_rect: &Rect,
+    offset: f64,
+    bar_slots: usize,
+) {
+    let color = Color::rgb(fork.color.0, fork.color.1, fork.color.2);
+    let style = LineStyle {
+        color,
+        width: fork.width,
+    };
+
+    // Convert anchors to pixel coords
+    let p1 = transform.to_pixel(fork.bar1 - offset, fork.price1);
+    let p2 = transform.to_pixel(fork.bar2 - offset, fork.price2);
+    let p3 = transform.to_pixel(fork.bar3 - offset, fork.price3);
+
+    // Midpoint of anchors 2 and 3 (in data space for extension)
+    let mid_bar = f64::midpoint(fork.bar2, fork.bar3);
+    let mid_price = f64::midpoint(fork.price2, fork.price3);
+    let mid = transform.to_pixel(mid_bar - offset, mid_price);
+
+    // Median line slope (data space) — from anchor1 through midpoint
+    let dx = mid_bar - fork.bar1;
+    let median_slope = if dx.abs() > f64::EPSILON {
+        (mid_price - fork.price1) / dx
+    } else {
+        0.0
+    };
+
+    // Extend each line to right edge (bar_slots)
+    let right_bar = bar_slots as f64 + offset;
+
+    let median_end_price = fork.price1 + median_slope * (right_bar - fork.bar1);
+    let tine2_end_price = fork.price2 + median_slope * (right_bar - fork.bar2);
+    let tine3_end_price = fork.price3 + median_slope * (right_bar - fork.bar3);
+
+    let median_end = transform.to_pixel(bar_slots as f64, median_end_price);
+    let tine2_end = transform.to_pixel(bar_slots as f64, tine2_end_price);
+    let tine3_end = transform.to_pixel(bar_slots as f64, tine3_end_price);
+
+    // Median line: p1 → mid → extended right
+    renderer.draw_line(p1, mid, &style);
+    renderer.draw_line(mid, median_end, &style);
+
+    // Tine 1: p2 → extended right (same slope as median)
+    renderer.draw_line(p2, tine2_end, &style);
+
+    // Tine 2: p3 → extended right (same slope as median)
+    renderer.draw_line(p3, tine3_end, &style);
+
+    // Handle line connecting p2 and p3
+    let handle_style = LineStyle {
+        color: Color::rgba(fork.color.0, fork.color.1, fork.color.2, 100),
+        width: fork.width * 0.5,
+    };
+    renderer.draw_line(p2, p3, &handle_style);
+}
+
+/// Draw a Gann Fan annotation (8 fan lines from anchor).
+fn draw_gann_fan(
+    renderer: &mut dyn Renderer,
+    fan: &GannFan,
+    transform: &Transform,
+    _panel_rect: &Rect,
+    offset: f64,
+    bar_slots: usize,
+) {
+    // Gann ratios: price units per bar relative to scale (1×1 = 45°)
+    // Ordered: steepest down to flattest, then flattest up
+    let ratios: &[(f64, u8)] = &[
+        (8.0, 220),       // 8×1
+        (4.0, 190),       // 4×1
+        (3.0, 160),       // 3×1
+        (2.0, 130),       // 2×1
+        (1.0, 255),       // 1×1 (45°) — main line, full opacity
+        (0.5, 130),       // 1×2
+        (1.0 / 3.0, 110), // 1×3
+        (0.25, 90),       // 1×4
+        (0.125, 70),      // 1×8
+    ];
+
+    let anchor = transform.to_pixel(fan.anchor_bar - offset, fan.anchor_price);
+    let right_rel = bar_slots as f64;
+    let bars_range = right_rel - (fan.anchor_bar - offset);
+
+    if bars_range < f64::EPSILON {
+        return;
+    }
+
+    for &(ratio, alpha) in ratios {
+        let end_price = fan.anchor_price + ratio * fan.scale * bars_range;
+        let end = transform.to_pixel(right_rel, end_price);
+        let color = Color::rgba(fan.color.0, fan.color.1, fan.color.2, alpha);
+        let style = LineStyle { color, width: 1.0 };
+        renderer.draw_line(anchor, end, &style);
     }
 }
 

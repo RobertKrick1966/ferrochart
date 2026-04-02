@@ -236,6 +236,96 @@ pub struct TextLabel {
     pub color: (u8, u8, u8),
 }
 
+/// A ray extending from start through end to the right chart boundary.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Ray {
+    /// Bar index of the start point.
+    pub start_bar: f64,
+    /// Price at the start point.
+    pub start_price: f64,
+    /// Bar index of the second point (determines direction).
+    pub end_bar: f64,
+    /// Price at the second point.
+    pub end_price: f64,
+    /// Line color.
+    pub color: (u8, u8, u8),
+    /// Line width.
+    pub width: f64,
+}
+
+/// Measurement annotation showing Δ price, Δ%, and Δ bars between two points.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MeasurementTool {
+    /// Bar index of the first anchor.
+    pub start_bar: f64,
+    /// Price of the first anchor.
+    pub start_price: f64,
+    /// Bar index of the second anchor.
+    pub end_bar: f64,
+    /// Price of the second anchor.
+    pub end_price: f64,
+    /// Color for the measurement display.
+    pub color: (u8, u8, u8),
+}
+
+/// Ellipse defined by two anchor points (bounding-box corners).
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Ellipse {
+    /// Bar index of the first anchor (left).
+    pub start_bar: f64,
+    /// Price of the first anchor.
+    pub start_price: f64,
+    /// Bar index of the second anchor (right).
+    pub end_bar: f64,
+    /// Price of the second anchor.
+    pub end_price: f64,
+    /// Border color.
+    pub color: (u8, u8, u8),
+    /// Fill color with alpha.
+    pub fill_color: (u8, u8, u8, u8),
+    /// Border width.
+    pub width: f64,
+}
+
+/// Andrews Pitchfork: 3 anchor points define median line + 2 parallel lines.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AndrewsPitchfork {
+    /// Bar index of anchor 1 (handle).
+    pub bar1: f64,
+    /// Price of anchor 1.
+    pub price1: f64,
+    /// Bar index of anchor 2 (first tine).
+    pub bar2: f64,
+    /// Price of anchor 2.
+    pub price2: f64,
+    /// Bar index of anchor 3 (second tine).
+    pub bar3: f64,
+    /// Price of anchor 3.
+    pub price3: f64,
+    /// Line color.
+    pub color: (u8, u8, u8),
+    /// Line width.
+    pub width: f64,
+}
+
+/// Gann Fan: 8 fan lines from a single anchor point at Gann angles.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct GannFan {
+    /// Bar index of the anchor point.
+    pub anchor_bar: f64,
+    /// Price of the anchor point.
+    pub anchor_price: f64,
+    /// Price units per bar for the 1×1 (45°) line.
+    pub scale: f64,
+    /// Base color (lines get varying opacity).
+    pub color: (u8, u8, u8),
+}
+
 /// Collection of annotations on a chart.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -266,6 +356,16 @@ pub struct Annotations {
     pub rectangle_zones: Vec<RectangleZone>,
     /// Text labels at specific bar and price positions.
     pub text_labels: Vec<TextLabel>,
+    /// Ray annotations extending from start through end to the right boundary.
+    pub rays: Vec<Ray>,
+    /// Measurement tool annotations showing Δ price, Δ%, and Δ bars.
+    pub measurements: Vec<MeasurementTool>,
+    /// Ellipse annotations defined by two bounding-box corners.
+    pub ellipses: Vec<Ellipse>,
+    /// Andrews Pitchfork annotations.
+    pub pitchforks: Vec<AndrewsPitchfork>,
+    /// Gann Fan annotations.
+    pub gann_fans: Vec<GannFan>,
 }
 
 impl Annotations {
@@ -340,6 +440,31 @@ impl Annotations {
         self.text_labels.push(label);
     }
 
+    /// Adds a ray extending from start through end to the right boundary.
+    pub fn add_ray(&mut self, ray: Ray) {
+        self.rays.push(ray);
+    }
+
+    /// Adds a measurement tool annotation.
+    pub fn add_measurement(&mut self, measurement: MeasurementTool) {
+        self.measurements.push(measurement);
+    }
+
+    /// Adds an ellipse annotation.
+    pub fn add_ellipse(&mut self, ellipse: Ellipse) {
+        self.ellipses.push(ellipse);
+    }
+
+    /// Adds an Andrews Pitchfork annotation.
+    pub fn add_pitchfork(&mut self, pitchfork: AndrewsPitchfork) {
+        self.pitchforks.push(pitchfork);
+    }
+
+    /// Adds a Gann Fan annotation.
+    pub fn add_gann_fan(&mut self, fan: GannFan) {
+        self.gann_fans.push(fan);
+    }
+
     /// Removes all annotations.
     pub fn clear(&mut self) {
         self.trend_lines.clear();
@@ -355,6 +480,11 @@ impl Annotations {
         self.vertical_lines.clear();
         self.rectangle_zones.clear();
         self.text_labels.clear();
+        self.rays.clear();
+        self.measurements.clear();
+        self.ellipses.clear();
+        self.pitchforks.clear();
+        self.gann_fans.clear();
     }
 
     /// Returns `true` if there are no annotations of any kind.
@@ -373,6 +503,11 @@ impl Annotations {
             && self.vertical_lines.is_empty()
             && self.rectangle_zones.is_empty()
             && self.text_labels.is_empty()
+            && self.rays.is_empty()
+            && self.measurements.is_empty()
+            && self.ellipses.is_empty()
+            && self.pitchforks.is_empty()
+            && self.gann_fans.is_empty()
     }
 }
 
@@ -615,6 +750,156 @@ mod tests {
             bar_index: 0.0,
             price: 100.0,
             text: "x".to_string(),
+            color: (0, 0, 0),
+        });
+        assert!(!ann.is_empty());
+        ann.clear();
+        assert!(ann.is_empty());
+    }
+
+    #[test]
+    fn ray_add_and_clear() {
+        let mut ann = Annotations::new();
+        assert!(ann.rays.is_empty());
+        ann.add_ray(Ray {
+            start_bar: 1.0,
+            start_price: 100.0,
+            end_bar: 10.0,
+            end_price: 110.0,
+            color: (0, 255, 0),
+            width: 1.5,
+        });
+        assert_eq!(ann.rays.len(), 1);
+        assert!(!ann.is_empty());
+        ann.clear();
+        assert!(ann.rays.is_empty());
+        assert!(ann.is_empty());
+    }
+
+    #[test]
+    fn measurement_add_and_clear() {
+        let mut ann = Annotations::new();
+        ann.add_measurement(MeasurementTool {
+            start_bar: 0.0,
+            start_price: 100.0,
+            end_bar: 20.0,
+            end_price: 120.0,
+            color: (255, 200, 0),
+        });
+        assert_eq!(ann.measurements.len(), 1);
+        let m = &ann.measurements[0];
+        assert!((m.end_price - m.start_price - 20.0).abs() < f64::EPSILON);
+        ann.clear();
+        assert!(ann.measurements.is_empty());
+    }
+
+    #[test]
+    fn ellipse_add_and_clear() {
+        let mut ann = Annotations::new();
+        ann.add_ellipse(Ellipse {
+            start_bar: 5.0,
+            start_price: 90.0,
+            end_bar: 15.0,
+            end_price: 110.0,
+            color: (0, 200, 100),
+            fill_color: (0, 200, 100, 25),
+            width: 1.5,
+        });
+        assert_eq!(ann.ellipses.len(), 1);
+        ann.clear();
+        assert!(ann.ellipses.is_empty());
+    }
+
+    #[test]
+    fn pitchfork_add_and_clear() {
+        let mut ann = Annotations::new();
+        ann.add_pitchfork(AndrewsPitchfork {
+            bar1: 2.0,
+            price1: 95.0,
+            bar2: 10.0,
+            price2: 110.0,
+            bar3: 18.0,
+            price3: 100.0,
+            color: (255, 165, 0),
+            width: 1.5,
+        });
+        assert_eq!(ann.pitchforks.len(), 1);
+        let p = &ann.pitchforks[0];
+        // midpoint of bar2/bar3 = 14.0, midpoint of price2/price3 = 105.0
+        let mid_bar = f64::midpoint(p.bar2, p.bar3);
+        let mid_price = f64::midpoint(p.price2, p.price3);
+        assert!((mid_bar - 14.0).abs() < f64::EPSILON);
+        assert!((mid_price - 105.0).abs() < f64::EPSILON);
+        ann.clear();
+        assert!(ann.pitchforks.is_empty());
+    }
+
+    #[test]
+    fn gann_fan_add_and_clear() {
+        let mut ann = Annotations::new();
+        ann.add_gann_fan(GannFan {
+            anchor_bar: 5.0,
+            anchor_price: 100.0,
+            scale: 2.0,
+            color: (200, 100, 255),
+        });
+        assert_eq!(ann.gann_fans.len(), 1);
+        assert!(!ann.is_empty());
+        ann.clear();
+        assert!(ann.gann_fans.is_empty());
+        assert!(ann.is_empty());
+    }
+
+    #[test]
+    fn all_prio2_tools_is_empty_coverage() {
+        // Verify is_empty() checks all 5 new fields
+        let mut ann = Annotations::new();
+        ann.add_ray(Ray {
+            start_bar: 0.0,
+            start_price: 100.0,
+            end_bar: 5.0,
+            end_price: 105.0,
+            color: (0, 0, 0),
+            width: 1.0,
+        });
+        assert!(!ann.is_empty());
+        ann.clear();
+        ann.add_measurement(MeasurementTool {
+            start_bar: 0.0,
+            start_price: 100.0,
+            end_bar: 5.0,
+            end_price: 105.0,
+            color: (0, 0, 0),
+        });
+        assert!(!ann.is_empty());
+        ann.clear();
+        ann.add_ellipse(Ellipse {
+            start_bar: 0.0,
+            start_price: 90.0,
+            end_bar: 10.0,
+            end_price: 110.0,
+            color: (0, 0, 0),
+            fill_color: (0, 0, 0, 20),
+            width: 1.0,
+        });
+        assert!(!ann.is_empty());
+        ann.clear();
+        ann.add_pitchfork(AndrewsPitchfork {
+            bar1: 0.0,
+            price1: 90.0,
+            bar2: 5.0,
+            price2: 110.0,
+            bar3: 10.0,
+            price3: 95.0,
+            color: (0, 0, 0),
+            width: 1.0,
+        });
+        assert!(!ann.is_empty());
+        ann.clear();
+        ann.add_gann_fan(GannFan {
+            anchor_bar: 0.0,
+            anchor_price: 100.0,
+            scale: 1.0,
             color: (0, 0, 0),
         });
         assert!(!ann.is_empty());

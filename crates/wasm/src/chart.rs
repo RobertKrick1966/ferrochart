@@ -13,11 +13,12 @@ use ferrochart_core::indicator::{
 };
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
-    Annotations, BarrierOutcome, ChartType, ConfidenceBand, Corridor, FibonacciRetracement,
-    HorizontalHistogram, HorizontalLevel, HorizontalRay, Indicator, IndicatorOutput,
-    IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape, NewsEvent, Ohlcv, Point,
-    PriceRange, Rect, RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, TrendLine,
-    TripleBarrier, VerticalLine, Viewport, WalkForwardZone, ZoomPanState,
+    AndrewsPitchfork, Annotations, BarrierOutcome, ChartType, ConfidenceBand, Corridor, Ellipse,
+    FibonacciRetracement, GannFan, HorizontalHistogram, HorizontalLevel, HorizontalRay, Indicator,
+    IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape,
+    MeasurementTool, NewsEvent, Ohlcv, Point, PriceRange, Ray, Rect, RectangleZone, SeriesStyle,
+    TextLabel, TimeRange, Transform, TrendLine, TripleBarrier, VerticalLine, Viewport,
+    WalkForwardZone, ZoomPanState,
 };
 use ferrochart_render::Renderer;
 use ferrochart_render::chart::{
@@ -68,6 +69,16 @@ enum DrawMode {
     Fibonacci,
     /// Corridor: first two clicks = trendline, third click = parallel offset.
     Corridor,
+    /// Ray: two clicks define start point and direction.
+    Ray,
+    /// Measurement tool: two clicks define the measured region.
+    Measurement,
+    /// Ellipse: two clicks define bounding-box corners.
+    Ellipse,
+    /// Pitchfork: three clicks define the three anchor points.
+    Pitchfork,
+    /// Gann Fan: first click = anchor, second click = determines scale.
+    GannFan,
 }
 
 /// In-progress drawing.
@@ -834,6 +845,135 @@ impl FerroChart {
         st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
+    /// Add a Ray annotation extending from start through end to the right chart boundary.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addRay)]
+    pub fn add_ray(
+        &self,
+        start_bar: f64,
+        start_price: f64,
+        end_bar: f64,
+        end_price: f64,
+        color_hex: &str,
+        width: f64,
+    ) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_ray(Ray {
+            start_bar,
+            start_price,
+            end_bar,
+            end_price,
+            color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a Measurement Tool annotation showing Δ price, Δ%, and Δ bars.
+    #[wasm_bindgen(js_name = addMeasurement)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_measurement(
+        &self,
+        start_bar: f64,
+        start_price: f64,
+        end_bar: f64,
+        end_price: f64,
+        r: u8,
+        g: u8,
+        b: u8,
+    ) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_measurement(MeasurementTool {
+            start_bar,
+            start_price,
+            end_bar,
+            end_price,
+            color: (r, g, b),
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add an Ellipse annotation defined by two bounding-box corner points.
+    ///
+    /// `border_hex` and `fill_hex` should be `"#RRGGBB"` hex strings.
+    #[wasm_bindgen(js_name = addEllipse)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_ellipse(
+        &self,
+        start_bar: f64,
+        start_price: f64,
+        end_bar: f64,
+        end_price: f64,
+        border_hex: &str,
+        fill_hex: &str,
+        width: f64,
+    ) {
+        let color = parse_color(border_hex);
+        let fill_rgb = parse_color(fill_hex);
+        let fill_color = (fill_rgb.0, fill_rgb.1, fill_rgb.2, 40u8);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_ellipse(Ellipse {
+            start_bar,
+            start_price,
+            end_bar,
+            end_price,
+            color,
+            fill_color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add an Andrews Pitchfork annotation from 3 anchor points.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addPitchfork)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_pitchfork(
+        &self,
+        bar1: f64,
+        price1: f64,
+        bar2: f64,
+        price2: f64,
+        bar3: f64,
+        price3: f64,
+        color_hex: &str,
+        width: f64,
+    ) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_pitchfork(AndrewsPitchfork {
+            bar1,
+            price1,
+            bar2,
+            price2,
+            bar3,
+            price3,
+            color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a Gann Fan annotation from a single anchor point.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    /// `scale` is the price units per bar for the 1×1 (45°) line.
+    #[wasm_bindgen(js_name = addGannFan)]
+    pub fn add_gann_fan(&self, anchor_bar: f64, anchor_price: f64, scale: f64, color_hex: &str) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_gann_fan(GannFan {
+            anchor_bar,
+            anchor_price,
+            scale,
+            color,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
     /// Add an equity curve sub-panel from pre-computed per-bar returns.
     #[wasm_bindgen(js_name = addEquityCurve)]
     pub fn add_equity_curve(&self, returns: &[f64]) {
@@ -863,6 +1003,11 @@ impl FerroChart {
             "trendline" => DrawMode::TrendLine,
             "fibonacci" => DrawMode::Fibonacci,
             "corridor" => DrawMode::Corridor,
+            "ray" => DrawMode::Ray,
+            "measurement" => DrawMode::Measurement,
+            "ellipse" => DrawMode::Ellipse,
+            "pitchfork" => DrawMode::Pitchfork,
+            "gann_fan" => DrawMode::GannFan,
             _ => return Err(JsValue::from_str(&format!("unknown draw mode: {mode}"))),
         };
         st.drawing = None;
@@ -1261,6 +1406,80 @@ fn attach_mouse_events(
                                 end_price: Some(data_pos.1),
                             });
                         }
+                    }
+                    DrawMode::Ray => {
+                        st.annotations.add_ray(Ray {
+                            start_bar: start.start_bar,
+                            start_price: start.start_price,
+                            end_bar: data_pos.0,
+                            end_price: data_pos.1,
+                            color: (0, 200, 255),
+                            width: 1.5,
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::Measurement => {
+                        st.annotations.add_measurement(MeasurementTool {
+                            start_bar: start.start_bar,
+                            start_price: start.start_price,
+                            end_bar: data_pos.0,
+                            end_price: data_pos.1,
+                            color: (255, 200, 0),
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::Ellipse => {
+                        st.annotations.add_ellipse(Ellipse {
+                            start_bar: start.start_bar,
+                            start_price: start.start_price,
+                            end_bar: data_pos.0,
+                            end_price: data_pos.1,
+                            color: (100, 200, 100),
+                            fill_color: (100, 200, 100, 25),
+                            width: 1.5,
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::Pitchfork => {
+                        if let (Some(end_bar), Some(end_price)) = (start.end_bar, start.end_price) {
+                            // Third click → complete pitchfork
+                            st.annotations.add_pitchfork(AndrewsPitchfork {
+                                bar1: start.start_bar,
+                                price1: start.start_price,
+                                bar2: end_bar,
+                                price2: end_price,
+                                bar3: data_pos.0,
+                                price3: data_pos.1,
+                                color: (255, 165, 0),
+                                width: 1.5,
+                            });
+                            st.drawing = None;
+                            st.draw_mode = DrawMode::None;
+                        } else {
+                            // Second click → store end, wait for third
+                            st.drawing = Some(DrawingInProgress {
+                                start_bar: start.start_bar,
+                                start_price: start.start_price,
+                                end_bar: Some(data_pos.0),
+                                end_price: Some(data_pos.1),
+                            });
+                        }
+                    }
+                    DrawMode::GannFan => {
+                        let bar_range = (data_pos.0 - start.start_bar).abs().max(1.0);
+                        let price_range = (data_pos.1 - start.start_price).abs();
+                        let scale = price_range / bar_range;
+                        st.annotations.add_gann_fan(GannFan {
+                            anchor_bar: start.start_bar,
+                            anchor_price: start.start_price,
+                            scale: scale.max(0.01),
+                            color: (200, 100, 255),
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
                     }
                     DrawMode::None => {}
                 }
@@ -1919,6 +2138,70 @@ fn draw_preview(
                 // Before second click: show line from start to mouse
                 renderer.draw_line(start_pixel, mouse, &style);
             }
+        }
+        DrawMode::Ray => {
+            let style = LineStyle {
+                color: Color::rgba(0, 200, 255, 180),
+                width: 1.5,
+            };
+            renderer.draw_line(start_pixel, mouse, &style);
+        }
+        DrawMode::Measurement => {
+            let x_left = start_pixel.x.min(mouse.x);
+            let x_right = start_pixel.x.max(mouse.x);
+            let y_top = start_pixel.y.min(mouse.y);
+            let y_bottom = start_pixel.y.max(mouse.y);
+            renderer.draw_rect_outline(
+                Rect::new(x_left, y_top, x_right - x_left, y_bottom - y_top),
+                &LineStyle {
+                    color: Color::rgba(255, 200, 0, 150),
+                    width: 1.0,
+                },
+            );
+        }
+        DrawMode::Ellipse => {
+            let cx = f64::midpoint(start_pixel.x, mouse.x);
+            let cy = f64::midpoint(start_pixel.y, mouse.y);
+            let rx = (mouse.x - start_pixel.x).abs() / 2.0;
+            let ry = (mouse.y - start_pixel.y).abs() / 2.0;
+            if rx > f64::EPSILON && ry > f64::EPSILON {
+                renderer.draw_ellipse(
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    &LineStyle {
+                        color: Color::rgba(100, 200, 100, 180),
+                        width: 1.5,
+                    },
+                );
+            }
+        }
+        DrawMode::Pitchfork => {
+            let style = LineStyle {
+                color: Color::rgba(255, 165, 0, 180),
+                width: 1.0,
+            };
+            if let (Some(end_bar), Some(end_price)) = (drawing.end_bar, drawing.end_price) {
+                let rel_end = end_bar - visible_start as f64;
+                let end_pixel = transform.to_pixel(rel_end, end_price);
+                // Show first two anchor points and line to mouse (third anchor)
+                renderer.draw_line(start_pixel, end_pixel, &style);
+                renderer.draw_line(end_pixel, mouse, &style);
+            } else {
+                renderer.draw_line(start_pixel, mouse, &style);
+            }
+        }
+        DrawMode::GannFan => {
+            // Show a preview line from anchor to mouse
+            renderer.draw_line(
+                start_pixel,
+                mouse,
+                &LineStyle {
+                    color: Color::rgba(200, 100, 255, 180),
+                    width: 1.0,
+                },
+            );
         }
         DrawMode::None => {}
     }
