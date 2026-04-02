@@ -164,7 +164,11 @@ mod tests {
         // day 1 bar should be computed with only its own TP*vol (reset)
         let tp2 = (120.0 + 100.0 + 110.0) / 3.0;
         assert!(!v[2].is_nan(), "expected valid VWAP on day 1, got NaN");
-        assert!((v[2] - tp2).abs() < 1e-9, "expected VWAP reset on new day, got {}", v[2]);
+        assert!(
+            (v[2] - tp2).abs() < 1e-9,
+            "expected VWAP reset on new day, got {}",
+            v[2]
+        );
     }
 
     #[test]

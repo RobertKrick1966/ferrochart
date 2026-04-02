@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025 Robert Krick
 
+use super::atr::compute_atr;
 use super::{
     Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, SeriesStyle, closes,
     compute_ema,
 };
-use super::atr::compute_atr;
 use crate::Ohlcv;
 
 /// Keltner Channels — EMA-based envelope using ATR as the width multiplier.
@@ -106,9 +106,20 @@ mod tests {
     #[test]
     fn keltner_nan_prefix() {
         let data: Vec<Ohlcv> = (0..30)
-            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i), 95.0 + f64::from(i)))
+            .map(|i| {
+                bar(
+                    100.0 + f64::from(i),
+                    90.0 + f64::from(i),
+                    95.0 + f64::from(i),
+                )
+            })
             .collect();
-        let out = Keltner { ema_period: 10, atr_period: 5, multiplier: 2.0 }.compute(&data);
+        let out = Keltner {
+            ema_period: 10,
+            atr_period: 5,
+            multiplier: 2.0,
+        }
+        .compute(&data);
         let upper = &out.series[0].values;
         // Leading values must be NaN (until both EMA and ATR have warmed up)
         assert!(upper[0].is_nan());
@@ -117,7 +128,13 @@ mod tests {
     #[test]
     fn keltner_series_count_and_names() {
         let data: Vec<Ohlcv> = (0..30)
-            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i), 95.0 + f64::from(i)))
+            .map(|i| {
+                bar(
+                    100.0 + f64::from(i),
+                    90.0 + f64::from(i),
+                    95.0 + f64::from(i),
+                )
+            })
             .collect();
         let out = Keltner::default().compute(&data);
         assert_eq!(out.series.len(), 3);
@@ -134,12 +151,20 @@ mod tests {
                 bar(c + 5.0, c - 5.0, c)
             })
             .collect();
-        let out = Keltner { ema_period: 10, atr_period: 5, multiplier: 2.0 }.compute(&data);
+        let out = Keltner {
+            ema_period: 10,
+            atr_period: 5,
+            multiplier: 2.0,
+        }
+        .compute(&data);
         let upper = &out.series[0].values;
         let lower = &out.series[2].values;
         for i in 0..data.len() {
             if !upper[i].is_nan() {
-                assert!(upper[i] > lower[i], "upper must be above lower at index {i}");
+                assert!(
+                    upper[i] > lower[i],
+                    "upper must be above lower at index {i}"
+                );
             }
         }
     }
@@ -148,7 +173,12 @@ mod tests {
     fn keltner_constant_bars_symmetric() {
         // Constant price: EMA = price, ATR = 0 → upper = mid = lower
         let data: Vec<Ohlcv> = (0..30).map(|_| bar(100.0, 100.0, 100.0)).collect();
-        let out = Keltner { ema_period: 5, atr_period: 5, multiplier: 2.0 }.compute(&data);
+        let out = Keltner {
+            ema_period: 5,
+            atr_period: 5,
+            multiplier: 2.0,
+        }
+        .compute(&data);
         let upper = &out.series[0].values;
         let mid = &out.series[1].values;
         let lower = &out.series[2].values;

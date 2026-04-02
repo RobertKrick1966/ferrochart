@@ -8,8 +8,8 @@ use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
 use ferrochart_core::indicator::{
-    AnchoredVwap, Atr, BollingerBands, Cusum, Donchian, Ema, Keltner, Macd, Obv, Rsi,
-    SessionVwap, Sma, Stochastic, VolumeSma,
+    AnchoredVwap, Atr, BollingerBands, Cusum, Donchian, Ema, Keltner, Macd, Obv, Rsi, SessionVwap,
+    Sma, Stochastic, VolumeSma,
 };
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{

@@ -134,7 +134,10 @@ mod tests {
 
     #[test]
     fn heikin_ashi_open_second_bar() {
-        let data = vec![bar(100.0, 110.0, 90.0, 105.0), bar(105.0, 115.0, 100.0, 110.0)];
+        let data = vec![
+            bar(100.0, 110.0, 90.0, 105.0),
+            bar(105.0, 115.0, 100.0, 110.0),
+        ];
         let ha = compute_heikin_ashi(&data);
 
         // ha_open[1] = (ha_open[0] + ha_close[0]) / 2
@@ -153,7 +156,14 @@ mod tests {
     #[test]
     fn heikin_ashi_many_bars_length() {
         let data: Vec<Ohlcv> = (0..50)
-            .map(|i| bar(100.0 + f64::from(i), 110.0 + f64::from(i), 90.0 + f64::from(i), 105.0 + f64::from(i)))
+            .map(|i| {
+                bar(
+                    100.0 + f64::from(i),
+                    110.0 + f64::from(i),
+                    90.0 + f64::from(i),
+                    105.0 + f64::from(i),
+                )
+            })
             .collect();
         let ha = compute_heikin_ashi(&data);
         assert_eq!(ha.len(), data.len());

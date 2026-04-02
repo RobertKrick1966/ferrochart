@@ -126,9 +126,19 @@ mod tests {
     #[test]
     fn stochastic_nan_prefix() {
         let data: Vec<Ohlcv> = (0..20)
-            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i), 95.0 + f64::from(i)))
+            .map(|i| {
+                bar(
+                    100.0 + f64::from(i),
+                    90.0 + f64::from(i),
+                    95.0 + f64::from(i),
+                )
+            })
             .collect();
-        let out = Stochastic { k_period: 5, d_period: 3 }.compute(&data);
+        let out = Stochastic {
+            k_period: 5,
+            d_period: 3,
+        }
+        .compute(&data);
         let k = &out.series[0].values;
         let d = &out.series[1].values;
         // First k_period-1 values of %K are NaN
@@ -145,7 +155,13 @@ mod tests {
     #[test]
     fn stochastic_series_count_and_names() {
         let data: Vec<Ohlcv> = (0..20)
-            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i), 95.0 + f64::from(i)))
+            .map(|i| {
+                bar(
+                    100.0 + f64::from(i),
+                    90.0 + f64::from(i),
+                    95.0 + f64::from(i),
+                )
+            })
             .collect();
         let out = Stochastic::default().compute(&data);
         assert_eq!(out.series.len(), 4);
@@ -164,7 +180,11 @@ mod tests {
                 bar(100.0 + v, 90.0 + v, 100.0 + v) // close == high
             })
             .collect();
-        let out = Stochastic { k_period: 5, d_period: 3 }.compute(&data);
+        let out = Stochastic {
+            k_period: 5,
+            d_period: 3,
+        }
+        .compute(&data);
         let k = &out.series[0].values;
         for val in &k[4..] {
             assert!((val - 100.0).abs() < 1e-9, "expected %K=100, got {val}");
@@ -175,7 +195,11 @@ mod tests {
     fn stochastic_zero_range_returns_50() {
         // All bars identical → range = 0, guard returns 50
         let data: Vec<Ohlcv> = (0..10).map(|_| bar(100.0, 100.0, 100.0)).collect();
-        let out = Stochastic { k_period: 5, d_period: 3 }.compute(&data);
+        let out = Stochastic {
+            k_period: 5,
+            d_period: 3,
+        }
+        .compute(&data);
         let k = &out.series[0].values;
         for val in &k[4..] {
             assert!((val - 50.0).abs() < 1e-9);
@@ -185,7 +209,13 @@ mod tests {
     #[test]
     fn stochastic_reference_lines() {
         let data: Vec<Ohlcv> = (0..20)
-            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i), 95.0 + f64::from(i)))
+            .map(|i| {
+                bar(
+                    100.0 + f64::from(i),
+                    90.0 + f64::from(i),
+                    95.0 + f64::from(i),
+                )
+            })
             .collect();
         let out = Stochastic::default().compute(&data);
         assert!((out.series[2].values[0] - 80.0).abs() < f64::EPSILON);
@@ -195,9 +225,7 @@ mod tests {
     #[test]
     fn stochastic_placement() {
         let p = Stochastic::default().placement();
-        assert!(
-            matches!(p, IndicatorPlacement::SubPanel { y_min, y_max }
-                if (y_min - 0.0).abs() < f64::EPSILON && (y_max - 100.0).abs() < f64::EPSILON)
-        );
+        assert!(matches!(p, IndicatorPlacement::SubPanel { y_min, y_max }
+                if (y_min - 0.0).abs() < f64::EPSILON && (y_max - 100.0).abs() < f64::EPSILON));
     }
 }

@@ -106,7 +106,13 @@ mod tests {
     #[test]
     fn atr_nan_prefix() {
         let data: Vec<Ohlcv> = (0..20)
-            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i), 95.0 + f64::from(i)))
+            .map(|i| {
+                bar(
+                    100.0 + f64::from(i),
+                    90.0 + f64::from(i),
+                    95.0 + f64::from(i),
+                )
+            })
             .collect();
         let out = Atr { period: 14 }.compute(&data);
         let v = &out.series[0].values;
@@ -119,7 +125,13 @@ mod tests {
     #[test]
     fn atr_output_series_count() {
         let data: Vec<Ohlcv> = (0..20)
-            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i), 95.0 + f64::from(i)))
+            .map(|i| {
+                bar(
+                    100.0 + f64::from(i),
+                    90.0 + f64::from(i),
+                    95.0 + f64::from(i),
+                )
+            })
             .collect();
         let out = Atr { period: 14 }.compute(&data);
         assert_eq!(out.series.len(), 1);
@@ -146,7 +158,13 @@ mod tests {
     #[test]
     fn compute_atr_public_function_matches_indicator() {
         let data: Vec<Ohlcv> = (0..20)
-            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i), 95.0 + f64::from(i)))
+            .map(|i| {
+                bar(
+                    100.0 + f64::from(i),
+                    90.0 + f64::from(i),
+                    95.0 + f64::from(i),
+                )
+            })
             .collect();
         let ind_values = Atr { period: 10 }.compute(&data).series[0].values.clone();
         let free_values = compute_atr(&data, 10);

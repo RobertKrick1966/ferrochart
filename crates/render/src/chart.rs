@@ -936,14 +936,16 @@ pub fn render_full_chart_with_markers(
             draw_candles(renderer, &candles, config);
         }
         ChartType::Line => {
-            let line_color = config.indicator_colors
+            let line_color = config
+                .indicator_colors
                 .first()
                 .copied()
                 .unwrap_or(Color::LIGHT_GRAY);
             draw_line_chart(renderer, render_data, &price_transform, config, line_color);
         }
         ChartType::Area => {
-            let area_color = config.indicator_colors
+            let area_color = config
+                .indicator_colors
                 .first()
                 .copied()
                 .unwrap_or(Color::LIGHT_GRAY);
@@ -1387,11 +1389,7 @@ fn draw_ohlc_bars(
         let style = LineStyle { color, width: 1.0 };
 
         // Vertical bar from high to low
-        renderer.draw_line(
-            Point { x, y: high_y },
-            Point { x, y: low_y },
-            &style,
-        );
+        renderer.draw_line(Point { x, y: high_y }, Point { x, y: low_y }, &style);
         // Open tick (left)
         renderer.draw_line(
             Point {

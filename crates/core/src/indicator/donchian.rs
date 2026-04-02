@@ -56,12 +56,7 @@ impl Indicator for Donchian {
 }
 
 impl Donchian {
-    fn build_output(
-        &self,
-        upper: Vec<f64>,
-        mid: Vec<f64>,
-        lower: Vec<f64>,
-    ) -> IndicatorOutput {
+    fn build_output(&self, upper: Vec<f64>, mid: Vec<f64>, lower: Vec<f64>) -> IndicatorOutput {
         IndicatorOutput {
             name: format!("Donchian({})", self.period),
             placement: self.placement(),
@@ -110,7 +105,9 @@ mod tests {
 
     #[test]
     fn donchian_nan_prefix() {
-        let data: Vec<Ohlcv> = (0..25).map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i))).collect();
+        let data: Vec<Ohlcv> = (0..25)
+            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i)))
+            .collect();
         let out = Donchian { period: 5 }.compute(&data);
         let upper = &out.series[0].values;
         for val in &upper[..4] {
@@ -121,7 +118,9 @@ mod tests {
 
     #[test]
     fn donchian_series_count_and_names() {
-        let data: Vec<Ohlcv> = (0..25).map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i))).collect();
+        let data: Vec<Ohlcv> = (0..25)
+            .map(|i| bar(100.0 + f64::from(i), 90.0 + f64::from(i)))
+            .collect();
         let out = Donchian::default().compute(&data);
         assert_eq!(out.series.len(), 3);
         assert_eq!(out.series[0].name, "Upper");
