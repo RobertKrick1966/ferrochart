@@ -1571,18 +1571,8 @@ fn attach_mouse_events(
             && let Some(data_pos) = pixel_to_data(&st, pos)
         {
             // Single-click drawing modes (no start point needed)
-            web_sys::console::log_1(
-                &format!(
-                    "[FC] mousedown draw_mode={:?} pixel=({:.0},{:.0}) data=({:.1},{:.2})",
-                    st.draw_mode, pos.x, pos.y, data_pos.0, data_pos.1
-                )
-                .into(),
-            );
             match st.draw_mode {
                 DrawMode::HorizontalLine => {
-                    web_sys::console::log_1(
-                        &format!("[FC] Adding H-Line at price={:.4}", data_pos.1).into(),
-                    );
                     st.annotations.add_horizontal_ray(HorizontalRay {
                         price: data_pos.1,
                         color: (255, 215, 0),
@@ -1593,9 +1583,6 @@ fn attach_mouse_events(
                     return;
                 }
                 DrawMode::VerticalLine => {
-                    web_sys::console::log_1(
-                        &format!("[FC] Adding V-Line at bar={:.1}", data_pos.0).into(),
-                    );
                     st.annotations.add_vertical_line(VerticalLine {
                         bar_index: data_pos.0,
                         color: (100, 200, 255),
