@@ -6,13 +6,19 @@ name: Publish to npm
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (skip actual publish)'
+        required: false
+        default: 'false'
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  publish:
-    name: Build & Publish
+  publish-wasm:
+    name: Build & Publish WASM
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,17 +34,60 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Build WASM package
-        run: wasm-pack build crates/wasm --target web --scope RobertKrick1966
+      - name: Build WASM package (web target)
+        run: wasm-pack build crates/wasm --target web
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Publish to npm
-        working-directory: crates/wasm/pkg
+      # Publish the raw WASM package as "ferrochart"
+      - name: Prepare root package
+        run: |
+          cp crates/wasm/pkg/ferrochart_wasm_bg.wasm pkg/ 2>/dev/null || mkdir -p pkg
+          cp -r crates/wasm/pkg/* pkg/
+
+      - name: Publish ferrochart
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Dry run ferrochart
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: npm publish --access public --dry-run
+
+  publish-web:
+    name: Build & Publish @ferrochart/web
+    needs: publish-wasm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install & Build
+        working-directory: packages/web
+        run: |
+          npm install
+          npm run build
+
+      - name: Publish @ferrochart/web
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        working-directory: packages/web
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Dry run @ferrochart/web
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        working-directory: packages/web
+        run: npm publish --access public --dry-run

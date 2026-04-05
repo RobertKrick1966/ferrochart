@@ -1,311 +1,418 @@
-# ferrochart-wasm -- API Design & Ist/Soll-Abgleich
+# ferrochart-wasm -- API-Referenz
 
-> **Stand:** 2026-04-01 19:45 CEST
+> **Stand:** 2026-04-02 CEST (Replay + Plugin + Cloud-Fill)
+> **WASM-Build:** `wasm-pack build crates/wasm --target web`
+
+---
 
 ## Crate-Struktur
 
 ```
 ferrochart/
-├── ferrochart-core/       ← rein, kein WASM-Bezug, kein I/O
-├── ferrochart-render/     ← Renderer-Trait, SvgRenderer, ChartConfig (serde hinter Feature-Flag)
-├── ferrochart-wasm/       ← WASM-Bindings + JS-API + CanvasRenderer
-├── ferrochart-examples/   ← SVG-Beispiele + Web-Demo
-└── packages/web/          ← @ferrochart/web TS-Wrapper (NPM)
+├── crates/core/           ← Datentypen, Indikatoren, Transforms (kein WASM-Bezug)
+├── crates/render/         ← Renderer-Trait, SvgRenderer, ChartConfig
+├── crates/wasm/           ← WASM-Bindings, CanvasRenderer, FerroChart-Klasse
+└── examples/
+    ├── src/main.rs        ← SVG-Beispiele (cargo run -p ferrochart-examples)
+    └── web/index.html     ← Browser-Demo
 ```
-
-### Warum CanvasRenderer in wasm bleibt
-
-Der `CanvasRenderer` lebt bewusst in `ferrochart-wasm`, nicht in `ferrochart-render`.
-Grund: Er haengt von `web-sys::CanvasRenderingContext2d` ab, was eine WASM-only
-Dependency ist. Wuerde man ihn nach `ferrochart-render` verschieben, muesste das
-render-Crate `web-sys` + `wasm-bindgen` als optionale Dependencies aufnehmen.
-Das wuerde:
-
-1. Die Kompilierzeit fuer Nicht-WASM-Nutzer erhoehen (Feature-Flag hin oder her,
-   Cargo laedt die Crates trotzdem)
-2. Die saubere Trennung aufbrechen: `ferrochart-render` ist heute rein
-   plattformunabhaengig (nur `ferrochart-core` als Dependency)
-3. Keinen praktischen Nutzen bringen — es gibt keinen zweiten Consumer des
-   CanvasRenderers ausserhalb von `ferrochart-wasm`
-
-Falls ein zweites WASM-Crate den CanvasRenderer braucht, kann es ihn direkt aus
-`ferrochart-wasm` importieren (`pub use` ist gesetzt).
 
 ---
 
-## 1. CanvasRenderer -- Ist vs. Soll
+## FerroChart -- vollständige API
 
-### Ist-Stand
-
-`CanvasRenderer` lebt in `ferrochart-wasm/src/canvas.rs`. Implementiert `Renderer`-Trait direkt
-gegen `web-sys::CanvasRenderingContext2d`. Kein Feature-Flag, fest an WASM gebunden.
-
-```rust
-// ferrochart-wasm/src/canvas.rs (Ist)
-pub struct CanvasRenderer {
-    ctx: CanvasRenderingContext2d,
-    width: f64,
-    height: f64,
-}
-```
-
-### Soll-Design
-
-`Canvas2dRenderer` in `ferrochart-render` hinter Feature-Flag `canvas2d`.
-Vorteil: Renderer-Tests auch ohne WASM moeglich, saubere Trennung.
-
-```rust
-// ferrochart-render/src/canvas2d.rs (Soll)
-// Feature-Flag: #[cfg(feature = "canvas2d")]
-pub struct Canvas2dRenderer {
-    ctx: CanvasRenderingContext2d,
-    width: f64,
-    height: f64,
-    clip_stack: Vec<Rect>,        // fuer geschachtelte clip()/restore_clip()
-}
-```
-
-### Delta
-
-| Aspekt | Ist | Soll |
-|---|---|---|
-| Location | `ferrochart-wasm/src/canvas.rs` | `ferrochart-render/src/canvas2d.rs` |
-| Feature-Flag | keiner (immer kompiliert mit wasm) | `canvas2d` in ferrochart-render |
-| Clip-Stack | kein Stack, nutzt `ctx.save()/restore()` | expliziter `Vec<Rect>` Stack |
-| Dashed Lines | nicht implementiert | `LineStyle::Dashed` -> `set_line_dash()` |
-
----
-
-## 2. FerroChart WASM-Klasse -- Ist vs. Soll
-
-### Ist-Stand (implementierte API)
+### Konstruktor
 
 ```typescript
-// Konstruktor
 new FerroChart(canvas: HTMLCanvasElement): FerroChart
+```
 
-// Daten
-setData(timestamps, opens, highs, lows, closes, volumes: Float64Array): void
-setDataWithRatios(..., institutional_ratios: Float64Array): void
+Initialisiert Chart mit Canvas-Dimensionen, startet internen rAF-Loop und
+registriert Mouse/Wheel/Touch/Keyboard-Events auf dem Canvas-Element.
 
-// Indikatoren (einzeln add/remove)
+---
+
+### Daten
+
+```typescript
+// Parallel-Arrays (Float64Array je n Elemente)
+setData(
+  timestamps: Float64Array,
+  opens:      Float64Array,
+  highs:      Float64Array,
+  lows:       Float64Array,
+  closes:     Float64Array,
+  volumes:    Float64Array
+): void
+
+// Wie setData, zusätzlich institutional_ratios für Split-Candle-Rendering
+setDataWithRatios(
+  timestamps:            Float64Array,
+  opens:                 Float64Array,
+  highs:                 Float64Array,
+  lows:                  Float64Array,
+  closes:                Float64Array,
+  volumes:               Float64Array,
+  institutional_ratios:  Float64Array
+): void
+
+// JSON-basiert: Array<{timestamp,open,high,low,close,volume,institutional_ratio?}>
+setDataJson(json: string): void
+
+// Letzten Balken aktualisieren (Realtime-Tick innerhalb laufender Periode)
+updateLastCandle(
+  timestamp: number, open: number, high: number,
+  low: number, close: number, volume: number
+): void
+
+// Neuen Balken anhängen (Periodenabschluss / neue Kerze)
+pushCandle(
+  timestamp: number, open: number, high: number,
+  low: number, close: number, volume: number
+): void
+```
+
+---
+
+### Chart-Typ
+
+```typescript
+// name: "candlestick" | "heikin_ashi" | "line" | "area" | "ohlc"
+//       "renko" | "point_figure"
+setChartType(name: string): void
+
+// Renko-Parameter (brick_size in Preiseinheiten)
+setRenkoConfig(brick_size: number): void
+
+// Point-&-Figure-Parameter
+setPfConfig(box_size: number, reversal: number): void
+```
+
+---
+
+### Indikatoren
+
+```typescript
+// Indikatoren-Namen und Standard-Perioden:
+//   Overlay:    "sma"(20)  "ema"(10)  "bollinger"(20)  "donchian"(20)
+//               "keltner"(20)  "parabolic_sar"(0)  "supertrend"(10)
+//               "ichimoku"(9)  "session_vwap"(0)
+//   Sub-Panel:  "rsi"(14)  "macd"(26)  "atr"(14)  "obv"(0)
+//               "stochastic"(14)  "williams_r"(14)  "cci"(20)  "adx"(14)
+//               "volume_sma"(20)  "cusum"(30)
 addIndicator(name: string, period?: number): void
+
+// Anchored VWAP ab einem bestimmten Bar-Index
+addAnchoredVwap(anchor_bar: number): void
+
+// Equity-Curve aus Returns-Array
+addEquityCurve(returns: Float64Array): void
+
 removeIndicator(name: string): void
 clearIndicators(): void
+```
 
-// Marker (einzeln add)
-addMarker(barIndex, shape, position, r, g, b, label): void
+---
+
+### Marker
+
+```typescript
+// shape:    "arrow_up" | "arrow_down" | "diamond" | "circle"
+// position: "above" | "below"
+addMarker(
+  bar_index: number,
+  shape:     string,
+  position:  string,
+  r: number, g: number, b: number,
+  label:     string
+): void
+
 clearMarkers(): void
+```
 
-// Annotations (einzeln add + bulk import/export)
-addTrendLine(startBar, startPrice, endBar, endPrice, r, g, b, extendRight): void
-addFibonacci(highBar, highPrice, lowBar, lowPrice, r, g, b): void
-setDrawMode(mode: "none"|"trendline"|"fibonacci"|"corridor"): void
+---
+
+### Annotations -- ML/SMR-Overlays
+
+```typescript
+// Konfidenzband (upper/lower als Float64Array, NaN = kein Wert)
+addConfidenceBand(
+  upper: Float64Array, lower: Float64Array,
+  r: number, g: number, b: number,
+  alpha: number
+): void
+
+// Walk-Forward-Zone (grün = Training, blau = Validierung)
+addWalkForwardZone(
+  start_bar: number, end_bar: number,
+  is_train:  boolean,
+  label:     string
+): void
+
+// Nachrichtenereignis (impact: -1..1, urgency: 1..5)
+addNewsEvent(
+  bar_index: number,
+  label:     string,
+  impact:    number,
+  urgency:   number
+): void
+
+// Triple-Barrier-Label (take-profit / stop-loss / timeout-Fenster)
+// outcome: "tp" | "sl" | "timeout"
+addTripleBarrier(
+  entry_bar:    number,
+  entry_price:  number,
+  take_profit:  number,
+  stop_loss:    number,
+  window_bars:  number,
+  end_bar:      number,
+  outcome:      string,
+  r: number, g: number, b: number
+): void
+
+// GEX/Options-Profil als horizontales Histogramm
+addHorizontalHistogram(
+  values:  Float64Array,
+  prices:  Float64Array,
+  r: number, g: number, b: number, alpha: number
+): void
+
+// Horizontales Preisniveau mit Label (z.B. Max-Pain, Strike-Preise)
+addHorizontalLevel(
+  price: number, label: string,
+  r: number, g: number, b: number,
+  width: number
+): void
+```
+
+---
+
+### Annotations -- Drawing-Tools
+
+```typescript
+// Interaktives Zeichnen (2 Klicks, außer corridor/pitchfork = 3 Klicks)
+// mode: "none" | "trendline" | "fibonacci" | "corridor"
+//       "ray" | "measurement" | "ellipse" | "pitchfork" | "gann_fan"
+setDrawMode(mode: string): void
+
+// Direkt-Add (keine Benutzerinteraktion nötig)
+addTrendLine(
+  start_bar: number, start_price: number,
+  end_bar:   number, end_price:   number,
+  r: number, g: number, b: number,
+  extend_right: boolean
+): void
+
+addFibonacci(
+  high_bar: number, high_price: number,
+  low_bar:  number, low_price:  number,
+  r: number, g: number, b: number
+): void
+
+// Horizontale Preislinie (color_hex: "#RRGGBB")
+addHorizontalRay(price: number, color_hex: string, width: number): void
+
+// Vertikale Zeitlinie (bar_index im Gesamt-Datensatz)
+addVerticalLine(bar_index: number, color_hex: string, width: number): void
+
+// Preisrechteck (border_hex + fill_hex als "#RRGGBB")
+addRectangle(
+  start_bar:    number,
+  end_bar:      number,
+  top_price:    number,
+  bottom_price: number,
+  border_hex:   string,
+  fill_hex:     string,
+  width:        number
+): void
+
+// Text-Label an Preis/Bar-Position
+addTextLabel(
+  bar_index: number, price: number,
+  text: string, color_hex: string
+): void
+
+// Ray (Halbgerade: startet bei start, läuft durch end bis zum rechten Rand)
+addRay(
+  start_bar: number, start_price: number,
+  end_bar:   number, end_price:   number,
+  color_hex: string, width: number
+): void
+
+// Measurement Tool (zeigt Δ$, Δ%, Δ Bars zwischen zwei Punkten)
+addMeasurement(
+  start_bar: number, start_price: number,
+  end_bar:   number, end_price:   number,
+  r: number, g: number, b: number
+): void
+
+// Ellipse (Bounding-Box-Ecken als Anker)
+addEllipse(
+  start_bar:  number, start_price: number,
+  end_bar:    number, end_price:   number,
+  border_hex: string, fill_hex:    string,
+  width:      number
+): void
+
+// Andrews Pitchfork (3 Anker: Griff + 2 Zinken)
+addPitchfork(
+  bar1: number, price1: number,
+  bar2: number, price2: number,
+  bar3: number, price3: number,
+  color_hex: string, width: number
+): void
+
+// Gann Fan (8 Fächerlinien von Anker; scale = Preiseinheiten pro Bar für 1×1-Linie)
+addGannFan(
+  anchor_bar: number, anchor_price: number,
+  scale:      number,
+  color_hex:  string
+): void
+
+// Price Channel (zwei parallele Trendlinien mit Fill)
+addPriceChannel(
+  start_bar: number, end_bar: number,
+  upper_start: number, upper_end: number,
+  lower_start: number, lower_end: number,
+  color_hex: string, fill_hex: string, width: number
+): void
+
+// Alle Drawing-Tool-Annotations und ML-Overlays löschen
 clearAnnotations(): void
-exportAnnotations(): string     // JSON
+
+// JSON-Export/Import (persisted state)
+exportAnnotations(): string
 importAnnotations(json: string): void
+```
 
-// Config
-setTheme(theme: "dark"|"light"): void
+---
+
+### Plugin-System — Custom Indicators
+
+```typescript
+// JS-berechnete Werte als Overlay-Indikator (z.B. eigene SMA, ML-Score)
+// values: Float64Array, row-major: series0[0..n], series1[0..n], ...
+addCustomOverlay(name: string, values: Float64Array, series_count: number): void
+
+// JS-berechnete Werte als eigenes Sub-Panel (auto-skalierte Y-Achse)
+addCustomSubPanel(name: string, values: Float64Array, series_count: number): void
+```
+
+---
+
+### Replay-Modus
+
+```typescript
+// Replay starten ab Bar (1-based). Chart zeigt nur die ersten N Bars.
+replayStart(start_bar: number): void
+
+// Einen Bar weiter. Rückgabe: neue Cursor-Position (0 = nicht im Replay).
+replayStep(): number
+
+// Auto-Play starten (speed_ms = Millisekunden zwischen Bars)
+replayPlay(speed_ms: number): void
+
+// Auto-Play pausieren (Replay bleibt aktiv)
+replayPause(): void
+
+// Replay komplett beenden, Chart zeigt wieder alle Daten
+replayStop(): void
+
+// Aktuelle Replay-Position (0 = kein Replay aktiv)
+replayPosition(): number
+```
+
+---
+
+### Crosshair-Abfrage
+
+```typescript
+// Aktueller Preis unter dem Cursor (NaN wenn außerhalb des Charts)
+// Basiert auf der internen price_transform — exakte Übereinstimmung mit Tooltip
+getCrosshairPrice(): number
+
+// Aktueller Bar-Index (im Gesamt-Datensatz) unter dem Cursor, -1 wenn außerhalb
+getCrosshairBar(): number
+```
+
+---
+
+### Viewport / Zoom-Pan
+
+```typescript
+// Zoom via Mausrad (delta_y in Pixeln, mouse_x für Zoom-Zentrum)
+onWheel(delta_y: number, mouse_x: number): void
+
+// Pan um dx Pixel (positiv = nach rechts)
+onPan(dx: number): void
+
+// Zoom-Pan-State lesen/schreiben (für Multi-Chart-Sync)
+getZoomPanState(): Uint32Array  // [visible_bars, offset]
+setZoomPanState(visible_bars: number, offset: number): void
+```
+
+---
+
+### Konfiguration
+
+```typescript
 resize(width: number, height: number): void
-```
 
-**Architektur Ist:**
-- State in `Rc<RefCell<ChartState>>` (shared mit Event-Closures)
-- Event-Handler intern registriert im Konstruktor (Mouse, Wheel, Touch, Keyboard)
-- rAF-Loop intern gestartet, rendert bei `dirty: bool` Flag
-- Dirty ist ein einzelnes `bool`, keine Layer-Granularitaet
+// theme: "dark" | "light"
+setTheme(theme: string): void
 
-### Soll-Design (Ziel-API)
+setLogScale(enabled: boolean): void
 
-```typescript
-// Konstruktor
-new FerroChart(canvas: HTMLCanvasElement): FerroChart
+// Volumen-Profil einblenden (num_buckets=0 = ausblenden)
+showVolumeProfile(num_buckets: number): void
 
-// Daten (JSON-basiert, nicht parallel arrays)
-set_data(data_json: string): void                    // Array<OhlcvDto>
-update_last_candle(candle_json: string): void         // Realtime-Tick
-push_candle(candle_json: string): void                // Neue Periode
-
-// Bulk-Setter (JSON)
-set_indicators(json: string): void
-set_markers(json: string): void
-set_annotations(json: string): void
-
-// Config
-set_theme(dark: boolean): void                        // bool statt string
-set_config(config_json: string): void
-resize(width: number, height: number): void
-
-// Input (explizit, nicht intern registriert)
-on_wheel(delta: number, cursor_x: number): void
-on_pan(dx: number): void
-
-// Rendering (explizit, nicht interner rAF-Loop)
-render_if_needed(): void                              // fuer externen rAF-Loop
-render(): void                                        // erzwungener Redraw
-```
-
-### Delta
-
-| Aspekt | Ist | Soll | Prioritaet |
-|---|---|---|---|
-| Daten-Format | Parallel `Float64Array` | JSON `Array<OhlcvDto>` | Mittel |
-| `update_last_candle` | nicht vorhanden | Realtime-Tick Update | Hoch |
-| `push_candle` | nicht vorhanden | Neue Kerze anhaengen | Hoch |
-| Indikator-API | `addIndicator(name, period)` einzeln | `set_indicators(json)` bulk | Niedrig |
-| Marker-API | `addMarker(...)` einzeln | `set_markers(json)` bulk | Niedrig |
-| Event-Handler | intern registriert im Konstruktor | extern via `on_wheel`/`on_pan` | Niedrig |
-| rAF-Loop | intern gestartet | extern via `render_if_needed()` | Niedrig |
-| Dirty-Flags | `bool` | Layer-granular (`DirtyFlags` bitfield) | Mittel |
-| `set_theme` | String `"dark"/"light"` | `bool dark` | Niedrig |
-| `set_config` | nicht vorhanden | JSON-basiert | Mittel |
-
----
-
-## 3. DirtyFlags -- Soll-Design
-
-Ist: einzelnes `dirty: bool` in `ChartState`.
-
-Soll: Layer-granulare Flags fuer selektiven Redraw.
-
-```rust
-#[derive(Default)]
-struct DirtyFlags(u8);
-
-#[repr(u8)]
-enum Layer {
-    Candles     = 0b0001,
-    Indicators  = 0b0010,
-    Annotations = 0b0100,
-    Overlay     = 0b1000,   // Crosshair, Tooltip
-    All         = 0b1111,
-}
-
-impl DirtyFlags {
-    fn mark(&mut self, layer: Layer) { self.0 |= layer as u8; }
-    fn mark_all(&mut self)           { self.0 = 0b1111; }
-    fn is_clean(&self) -> bool       { self.0 == 0 }
-    fn clear(&mut self)              { self.0 = 0; }
-}
-```
-
-**Nutzen:** Bei Realtime-Ticks nur `Layer::Candles` dirty markieren, Indikatoren/Annotations
-muessen nicht neu berechnet werden. Bei Crosshair-Bewegung nur `Layer::Overlay`.
-
----
-
-## 4. TypeScript-Wrapper -- Soll-Design (noch nicht implementiert)
-
-NPM-Package `@ferrochart/web` als schlanker Wrapper ueber die WASM-Klasse:
-
-```typescript
-export interface OhlcvDto {
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  institutional_ratio?: number;
-}
-
-export interface ChartOptions {
-  theme?: "dark" | "light";
-  panelWeights?: number[];
-  indicators?: IndicatorConfig[];
-}
-
-export type IndicatorConfig =
-  | { type: "sma"; period: number; color?: string }
-  | { type: "ema"; period: number; color?: string }
-  | { type: "bollinger"; period: number; stddev?: number }
-  | { type: "rsi"; period: number }
-  | { type: "macd"; fast?: number; slow?: number; signal?: number };
-
-export class FerroChart {
-  static async create(
-    canvas: HTMLCanvasElement,
-    options?: ChartOptions
-  ): Promise<FerroChart>;
-
-  setData(candles: OhlcvDto[]): void;
-  updateLastCandle(candle: OhlcvDto): void;
-  pushCandle(candle: OhlcvDto): void;
-  resize(width: number, height: number): void;
-  destroy(): void;
-}
-```
-
-**Verwendung (5 Zeilen):**
-
-```typescript
-import { FerroChart } from "@ferrochart/web";
-
-const chart = await FerroChart.create(canvas, {
-  theme: "dark",
-  indicators: [{ type: "ema", period: 20 }],
-});
-chart.setData(await fetchOhlcv("BTCUSDT", "1h"));
-
-// Realtime via WebSocket:
-ws.onmessage = (e) => chart.updateLastCandle(JSON.parse(e.data));
+// Vollständige ChartConfig als JSON setzen
+// Felder: price_scale, panel_weights, log_y, chart_type, ...
+setConfig(json: string): void
 ```
 
 ---
 
-## 5. Build-Pipeline
+## Ist-Stand vs. offene Punkte
 
-### Ist
+| Feature | Status |
+|---|---|
+| `setData` / `setDataJson` / `updateLastCandle` / `pushCandle` | ✅ |
+| `addIndicator` (22 Indikatoren) | ✅ |
+| `setChartType` (7 Typen inkl. Renko + P&F) | ✅ |
+| `addMarker`, `addTrendLine`, `addFibonacci`, `addTripleBarrier` | ✅ |
+| `addConfidenceBand`, `addWalkForwardZone`, `addNewsEvent` | ✅ |
+| `addHorizontalRay`, `addVerticalLine`, `addRectangle`, `addTextLabel` | ✅ |
+| `addRay`, `addMeasurement`, `addEllipse`, `addPitchfork`, `addGannFan` | ✅ |
+| `addPriceChannel` | ✅ |
+| `addCustomOverlay`, `addCustomSubPanel` (Plugin-System) | ✅ |
+| `replayStart/Step/Play/Pause/Stop/Position` (Replay-Modus) | ✅ |
+| `getCrosshairPrice`, `getCrosshairBar` | ✅ |
+| `getZoomPanState` / `setZoomPanState` (Multi-Chart-Sync) | ✅ |
+| `onWheel` / `onPan` (externe Event-Integration) | ✅ |
+| `setConfig(json)` | ✅ |
+| DirtyFlags (layer-granular) | ✅ |
+| Ichimoku Cloud-Fill (render-only) | ✅ |
+| CanvasRenderer in `ferrochart-render` verschieben | offen |
+| `@ferrochart/web` TypeScript-Wrapper (npm) | offen |
+| Drawing-Tools selektieren / verschieben / löschen | offen |
+| Undo/Redo für Zeichnungen | offen |
+
+---
+
+## Build
 
 ```bash
-wasm-pack build crates/wasm --target web --out-dir pkg
-# Output: crates/wasm/pkg/ferrochart_wasm.js + .wasm + .d.ts
+# WASM-Paket bauen
+wasm-pack build crates/wasm --target web
+
+# SVG-Beispiele generieren (output/01_candlestick.svg … 17_point_figure.svg)
+cargo run -p ferrochart-examples
+
+# Tests
+cargo test --workspace
+
+# Web-Demo starten (vom Projekt-Root!)
+python3 -m http.server 8080
+# → http://localhost:8080/examples/web/
 ```
-
-### Soll (zusaetzlich)
-
-```bash
-# TypeScript-Wrapper bauen + npm publish
-cd packages/web && npm run build && npm publish
-```
-
-```
-ferrochart/
-├── crates/wasm/pkg/               ← WASM-Output (generiert)
-└── packages/web/                  ← @ferrochart/web npm Package (Soll)
-    ├── src/index.ts               ← TS-Wrapper
-    ├── package.json
-    └── tsconfig.json
-```
-
----
-
-## 6. Abhaengigkeitsgraph
-
-```
-ferrochart-core              (kein WASM-Bezug, bleibt rein)
-       |
-ferrochart-render            + feature "canvas2d" -> Canvas2dRenderer (Soll)
-       |
-ferrochart-wasm              wasm-bindgen + web-sys -> FerroChart (WASM-Klasse)
-       |
-@ferrochart/web (npm)        TS-Wrapper -> FerroChart (JS-Klasse) + rAF-Loop (Soll)
-```
-
----
-
-## 7. Migrationsstrategie
-
-Die Ist-API funktioniert vollstaendig. Migration zur Soll-API in Schritten:
-
-1. **Hoch-Prioritaet (Realtime):** `update_last_candle()` + `push_candle()` hinzufuegen --
-   kein Breaking Change, erweitert nur die API
-2. **DirtyFlags:** `bool` -> Bitfield -- internes Refactoring, kein API-Change
-3. **Canvas2dRenderer verschieben:** nach `ferrochart-render` mit Feature-Flag --
-   internes Refactoring, WASM-Crate importiert dann von render
-4. **JSON-basierte Setter:** parallel zu bestehenden Array-Methoden anbieten,
-   alte Methoden mit `#[deprecated]` markieren
-5. **TS-Wrapper:** `@ferrochart/web` Package anlegen, WASM als Dependency
-6. **Externe Event-Handler:** Optional -- interne Handler bleiben als Default,
-   `on_wheel`/`on_pan` als Alternative fuer Framework-Integration

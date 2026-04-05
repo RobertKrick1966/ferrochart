@@ -158,6 +158,22 @@ impl Transform {
         self.x_scale
     }
 
+    /// Inverse of `price_y`: pixel Y → price.
+    #[must_use]
+    pub fn pixel_y_to_price(&self, pixel_y: f64) -> f64 {
+        let y_val = (pixel_y - self.y_offset) / self.y_scale;
+        match self.y_mode {
+            YScaleMode::Linear => y_val,
+            YScaleMode::Logarithmic => y_val.exp(),
+        }
+    }
+
+    /// Inverse of `bar_x`: pixel X → bar index (fractional, relative to visible slice).
+    #[must_use]
+    pub fn pixel_x_to_bar(&self, pixel_x: f64) -> f64 {
+        (pixel_x - self.x_offset) / self.x_scale
+    }
+
     /// Returns the active Y-axis scale mode.
     #[must_use]
     pub fn y_mode(&self) -> YScaleMode {

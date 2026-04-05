@@ -8,6 +8,8 @@
 /// Chart annotation types (trend lines, Fibonacci retracements, corridors).
 pub mod annotation;
 mod candle;
+/// Chart type enum and chart-specific computation functions.
+pub mod chart_type;
 mod data;
 /// Level-of-Detail decimation for large datasets.
 pub mod decimation;
@@ -24,17 +26,27 @@ mod zoom;
 
 /// Re-exported annotation types.
 pub use annotation::{
-    Annotations, BarrierOutcome, ConfidenceBand, Corridor, FibonacciRetracement,
-    HorizontalHistogram, HorizontalLevel, NewsEvent, TrendLine, TripleBarrier, WalkForwardZone,
+    AndrewsPitchfork, Annotations, BarrierOutcome, ConfidenceBand, Corridor, Ellipse,
+    FibonacciRetracement, GannFan, HorizontalHistogram, HorizontalLevel, HorizontalRay,
+    MeasurementTool, NewsEvent, PriceChannel, Ray, RectangleZone, TextLabel, TrendLine,
+    TripleBarrier, VerticalLine, WalkForwardZone,
 };
 /// Re-exported candlestick geometry.
 pub use candle::CandleGeometry;
+/// Re-exported chart type enum, Heikin-Ashi transform, Renko, and Point & Figure computations.
+pub use chart_type::{
+    ChartType, PFColumn, PFDirection, RenkoBar, compute_heikin_ashi, compute_point_figure,
+    compute_renko,
+};
 /// Re-exported data primitives.
 pub use data::{Ohlcv, PriceRange, Series, TimeRange};
 /// Re-exported geometry primitives.
 pub use geometry::{Point, Rect};
 /// Re-exported indicator types.
-pub use indicator::{Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, SeriesStyle};
+pub use indicator::{
+    Atr, Donchian, Indicator, IndicatorOutput, IndicatorPlacement, IndicatorSeries, Keltner, Obv,
+    SeriesStyle, SessionVwap, Stochastic,
+};
 /// Re-exported layout types.
 pub use layout::{Panel, PanelLayout};
 /// Re-exported marker types.

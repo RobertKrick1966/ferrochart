@@ -2,9 +2,11 @@
 // Copyright (C) 2025 Robert Krick
 
 use ferrochart_core::{
-    Annotations, BarrierOutcome, CandleGeometry, IndicatorOutput, IndicatorPlacement, Marker,
-    MarkerPosition, MarkerShape, Ohlcv, PanelLayout, Point, PriceRange, Rect, SeriesStyle,
-    TimeRange, Transform, Viewport, YScaleMode, indicator::VolumeProfile,
+    AndrewsPitchfork, Annotations, BarrierOutcome, CandleGeometry, ChartType, Ellipse, GannFan,
+    HorizontalRay, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerShape,
+    MeasurementTool, Ohlcv, PFDirection, PanelLayout, Point, PriceChannel, PriceRange, Ray, Rect,
+    RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, VerticalLine, Viewport,
+    YScaleMode, compute_heikin_ashi, compute_point_figure, compute_renko, indicator::VolumeProfile,
 };
 
 use crate::Renderer;
@@ -54,6 +56,8 @@ pub struct ChartConfig {
     /// Use logarithmic Y-axis for the price panel.
     /// Volume and indicator sub-panels always use linear scale.
     pub log_y: bool,
+    /// Visual style used to render price bars.
+    pub chart_type: ChartType,
 }
 
 /// Margins around the chart area.
@@ -96,6 +100,7 @@ impl Default for ChartConfig {
             visible_bar_slots: None,
             visible_offset: 0,
             log_y: false,
+            chart_type: ChartType::Candlestick,
             indicator_colors: vec![
                 Color::rgb(255, 235, 59), // yellow
                 Color::rgb(0, 188, 212),  // cyan
@@ -810,6 +815,25 @@ pub fn render_full_chart_with_markers(
     if data.is_empty() {
         return ChartLayoutInfo::default();
     }
+
+    // Non-uniform chart types have their own coordinate system and rendering pipeline.
+    // Dispatch early so the standard panel/volume/X-axis logic is not applied.
+    match config.chart_type {
+        ChartType::Renko { brick_size } => {
+            renderer.set_background(config.background);
+            let renko_bars = compute_renko(data, brick_size);
+            render_renko_chart(renderer, &renko_bars, config);
+            return ChartLayoutInfo::default();
+        }
+        ChartType::PointFigure { box_size, reversal } => {
+            renderer.set_background(config.background);
+            let columns = compute_point_figure(data, box_size, reversal);
+            render_point_figure_chart(renderer, &columns, box_size, config);
+            return ChartLayoutInfo::default();
+        }
+        _ => {}
+    }
+
     let mut layout_info = ChartLayoutInfo::default();
 
     renderer.set_background(config.background);
@@ -851,9 +875,28 @@ pub fn render_full_chart_with_markers(
     let time_range = TimeRange::new(0, bar_slots);
     let price_data_rect = inset_rect_horizontal(&price_panel.rect, bar_slots);
 
+    // --- Determine render data (may be Heikin-Ashi transformed) ---
+    let ha_data: Vec<Ohlcv>;
+    let render_data: &[Ohlcv] = match config.chart_type {
+        ChartType::HeikinAshi => {
+            ha_data = compute_heikin_ashi(data);
+            &ha_data
+        }
+        _ => data,
+    };
+
     // --- Price panel ---
     // Extend price range to include overlay indicator values (BB bands, etc.)
-    let mut price_range = PriceRange::from_ohlcv(data).unwrap_or(PriceRange::new(0.0, 100.0));
+    // For Line/Area charts use close-only range; otherwise use full OHLC range.
+    // Renko/P&F chart types compute their own price range inside their render function,
+    // but we still need a range here for the panel layout; use OHLC range.
+    let base_price_range = match config.chart_type {
+        ChartType::Line | ChartType::Area => {
+            PriceRange::from_closes(render_data).unwrap_or(PriceRange::new(0.0, 100.0))
+        }
+        _ => PriceRange::from_ohlcv(render_data).unwrap_or(PriceRange::new(0.0, 100.0)),
+    };
+    let mut price_range = base_price_range;
     for overlay in &overlays {
         for series in &overlay.series {
             if series.style_hint == SeriesStyle::Line {
@@ -907,8 +950,43 @@ pub fn render_full_chart_with_markers(
         &price_transform,
         config,
     );
-    let candles = CandleGeometry::compute_all(data, 0, &price_transform, config.body_ratio);
-    draw_candles(renderer, &candles, config);
+
+    // Render price bars according to chart type
+    match config.chart_type {
+        ChartType::Candlestick | ChartType::HeikinAshi => {
+            let candles =
+                CandleGeometry::compute_all(render_data, 0, &price_transform, config.body_ratio);
+            draw_candles(renderer, &candles, config);
+        }
+        ChartType::Line => {
+            let line_color = config
+                .indicator_colors
+                .first()
+                .copied()
+                .unwrap_or(Color::LIGHT_GRAY);
+            draw_line_chart(renderer, render_data, &price_transform, config, line_color);
+        }
+        ChartType::Area => {
+            let area_color = config
+                .indicator_colors
+                .first()
+                .copied()
+                .unwrap_or(Color::LIGHT_GRAY);
+            draw_area_chart(
+                renderer,
+                render_data,
+                &price_transform,
+                config,
+                &price_panel.rect,
+                area_color,
+            );
+        }
+        ChartType::OhlcBars => {
+            draw_ohlc_bars(renderer, render_data, &price_transform, config);
+        }
+        // Renko and PointFigure are handled by the early-return dispatch above.
+        ChartType::Renko { .. } | ChartType::PointFigure { .. } => {}
+    }
 
     // Draw volume profile on price panel (behind overlays)
     if let Some(vp) = volume_profile {
@@ -1050,6 +1128,149 @@ fn draw_indicator_overlay(
 
         let style = LineStyle { color, width: 1.5 };
         draw_series_line(renderer, &series.values, transform, &style);
+    }
+
+    // Ichimoku cloud fill between Senkou A (index 2) and Senkou B (index 3)
+    if output.name.starts_with("Ichimoku") && output.series.len() >= 4 {
+        draw_ichimoku_cloud(renderer, output, transform);
+    }
+}
+
+/// Fill the Ichimoku cloud between Senkou Span A and Senkou Span B.
+///
+/// Green fill where A > B (bullish), red fill where B > A (bearish).
+fn draw_ichimoku_cloud(
+    renderer: &mut dyn Renderer,
+    output: &IndicatorOutput,
+    transform: &Transform,
+) {
+    let senkou_a = &output.series[2].values;
+    let senkou_b = &output.series[3].values;
+    let n = senkou_a.len().min(senkou_b.len());
+    if n == 0 {
+        return;
+    }
+
+    // Collect contiguous segments where both A and B are valid
+    let mut i = 0;
+    while i < n {
+        // Skip NaN entries
+        if senkou_a[i].is_nan() || senkou_b[i].is_nan() {
+            i += 1;
+            continue;
+        }
+
+        // Start of a valid segment
+        let seg_start = i;
+        while i < n && !senkou_a[i].is_nan() && !senkou_b[i].is_nan() {
+            i += 1;
+        }
+        let seg_end = i; // exclusive
+
+        if seg_end - seg_start < 2 {
+            continue;
+        }
+
+        // Within the segment, split at crossover points and fill polygons
+        fill_ichimoku_segment(renderer, senkou_a, senkou_b, seg_start, seg_end, transform);
+    }
+}
+
+/// Fill one contiguous segment of the Ichimoku cloud, splitting at crossovers.
+fn fill_ichimoku_segment(
+    renderer: &mut dyn Renderer,
+    senkou_a: &[f64],
+    senkou_b: &[f64],
+    start: usize,
+    end: usize,
+    transform: &Transform,
+) {
+    let cloud_alpha: u8 = 30;
+    let green = Color::rgba(0, 200, 0, cloud_alpha);
+    let red = Color::rgba(200, 0, 0, cloud_alpha);
+
+    let mut seg_start = start;
+    for j in start..(end - 1) {
+        let a1 = senkou_a[j];
+        let b1 = senkou_b[j];
+        let a2 = senkou_a[j + 1];
+        let b2 = senkou_b[j + 1];
+
+        // Check for crossover between j and j+1
+        let diff1 = a1 - b1;
+        let diff2 = a2 - b2;
+        let crosses = (diff1 > 0.0 && diff2 < 0.0) || (diff1 < 0.0 && diff2 > 0.0);
+
+        if crosses {
+            // Find crossover fraction t where A(t) == B(t)
+            let t = diff1 / (diff1 - diff2);
+            let cross_bar = j as f64 + t;
+            let cross_price = a1 + (a2 - a1) * t;
+
+            // Fill from seg_start to crossover point
+            fill_cloud_polygon(
+                renderer,
+                senkou_a,
+                senkou_b,
+                seg_start,
+                j + 1,
+                Some((cross_bar, cross_price)),
+                if diff1 > 0.0 { green } else { red },
+                transform,
+            );
+            seg_start = j; // Next segment starts at the bar before crossover
+        }
+    }
+
+    // Fill the remaining segment
+    let a_above = senkou_a[seg_start] >= senkou_b[seg_start];
+    fill_cloud_polygon(
+        renderer,
+        senkou_a,
+        senkou_b,
+        seg_start,
+        end,
+        None,
+        if a_above { green } else { red },
+        transform,
+    );
+}
+
+/// Fill a single cloud polygon between Senkou A and B over a bar range.
+#[allow(clippy::too_many_arguments)]
+fn fill_cloud_polygon(
+    renderer: &mut dyn Renderer,
+    senkou_a: &[f64],
+    senkou_b: &[f64],
+    start: usize,
+    end: usize,
+    cross_point: Option<(f64, f64)>,
+    color: Color,
+    transform: &Transform,
+) {
+    let mut upper_points = Vec::new();
+    let mut lower_points = Vec::new();
+
+    // If there's a crossover at the start, add it
+    if let Some((cb, cp)) = cross_point
+        && start > 0
+    {
+        upper_points.push(transform.to_pixel(cb, cp));
+        lower_points.push(transform.to_pixel(cb, cp));
+    }
+
+    for i in start..end {
+        upper_points.push(transform.to_pixel(i as f64, senkou_a[i]));
+        lower_points.push(transform.to_pixel(i as f64, senkou_b[i]));
+    }
+
+    // Build polygon: upper forward, then lower reversed
+    let mut polygon = upper_points;
+    lower_points.reverse();
+    polygon.extend(lower_points);
+
+    if polygon.len() >= 3 {
+        renderer.fill_polygon(&polygon, &FillStyle { color });
     }
 }
 
@@ -1253,6 +1474,356 @@ fn draw_series_line(
     if segment.len() >= 2 {
         renderer.draw_path(&segment, style);
     }
+}
+
+/// Draw a line chart (close prices as a polyline).
+fn draw_line_chart(
+    renderer: &mut dyn Renderer,
+    data: &[Ohlcv],
+    transform: &Transform,
+    _config: &ChartConfig,
+    line_color: Color,
+) {
+    let values: Vec<f64> = data.iter().map(|b| b.close).collect();
+    let style = LineStyle {
+        color: line_color,
+        width: 1.5,
+    };
+    draw_series_line(renderer, &values, transform, &style);
+}
+
+/// Draw an area chart (filled polygon below close prices + line on top).
+fn draw_area_chart(
+    renderer: &mut dyn Renderer,
+    data: &[Ohlcv],
+    transform: &Transform,
+    config: &ChartConfig,
+    panel_rect: &Rect,
+    color: Color,
+) {
+    if data.is_empty() {
+        return;
+    }
+
+    // Build top edge of polygon (close prices) + bottom corners
+    let mut poly: Vec<Point> = data
+        .iter()
+        .enumerate()
+        .map(|(i, b)| transform.to_pixel(i as f64, b.close))
+        .collect();
+
+    // Close polygon: bottom-right, then bottom-left
+    let last_x = transform.bar_x(data.len() - 1);
+    let first_x = transform.bar_x(0);
+    let bottom_y = panel_rect.bottom();
+    poly.push(Point {
+        x: last_x,
+        y: bottom_y,
+    });
+    poly.push(Point {
+        x: first_x,
+        y: bottom_y,
+    });
+
+    let fill_color = Color::rgba(color.r, color.g, color.b, 40);
+    renderer.fill_polygon(&poly, &FillStyle { color: fill_color });
+
+    // Draw line on top
+    draw_line_chart(renderer, data, transform, config, color);
+}
+
+/// Draw OHLC bar chart (vertical bar + left tick for open, right tick for close).
+fn draw_ohlc_bars(
+    renderer: &mut dyn Renderer,
+    data: &[Ohlcv],
+    transform: &Transform,
+    config: &ChartConfig,
+) {
+    let bar_width = transform.bar_width();
+    let tick_len = (bar_width * config.body_ratio * 0.5).max(2.0);
+
+    for (i, bar) in data.iter().enumerate() {
+        let x = transform.bar_x(i);
+        let high_y = transform.price_y(bar.high);
+        let low_y = transform.price_y(bar.low);
+        let open_y = transform.price_y(bar.open);
+        let close_y = transform.price_y(bar.close);
+
+        let color = if bar.close >= bar.open {
+            config.bullish_color
+        } else {
+            config.bearish_color
+        };
+        let style = LineStyle { color, width: 1.0 };
+
+        // Vertical bar from high to low
+        renderer.draw_line(Point { x, y: high_y }, Point { x, y: low_y }, &style);
+        // Open tick (left)
+        renderer.draw_line(
+            Point {
+                x: x - tick_len,
+                y: open_y,
+            },
+            Point { x, y: open_y },
+            &style,
+        );
+        // Close tick (right)
+        renderer.draw_line(
+            Point { x, y: close_y },
+            Point {
+                x: x + tick_len,
+                y: close_y,
+            },
+            &style,
+        );
+    }
+}
+
+/// Render a standalone Renko chart into `renderer`.
+///
+/// Each brick is drawn as a filled rectangle (green for up, red for down).
+/// No wicks are drawn — Renko bricks have no high/low beyond open/close.
+fn render_renko_chart(
+    renderer: &mut dyn Renderer,
+    renko_bars: &[ferrochart_core::RenkoBar],
+    config: &ChartConfig,
+) {
+    if renko_bars.is_empty() {
+        return;
+    }
+
+    renderer.set_background(config.background);
+
+    let chart_rect = Rect::new(
+        config.margin.left,
+        config.margin.top,
+        config.width - config.margin.left - config.margin.right,
+        config.height - config.margin.top - config.margin.bottom,
+    );
+
+    // Compute Y range from all bricks
+    let min_low = renko_bars
+        .iter()
+        .map(|b| b.low)
+        .fold(f64::INFINITY, f64::min);
+    let max_high = renko_bars
+        .iter()
+        .map(|b| b.high)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let span = (max_high - min_low).max(1.0);
+    let padding = span * 0.05;
+    let y_min = min_low - padding;
+    let y_max = max_high + padding;
+    let y_span = y_max - y_min;
+
+    let n = renko_bars.len();
+    let bar_width = chart_rect.width / n as f64;
+
+    let text_style = TextStyle {
+        color: config.text_color,
+        size: config.font_size,
+        font_family: "monospace".to_string(),
+    };
+    let grid_style = LineStyle {
+        color: config.grid_color,
+        width: 1.0,
+    };
+
+    // Y-axis grid and labels
+    let num_labels: i32 = 8;
+    for i in 1..num_labels {
+        let price = y_min + (y_span / f64::from(num_labels)) * f64::from(i);
+        let y = chart_rect.bottom() - ((price - y_min) / y_span) * chart_rect.height;
+        renderer.draw_line(
+            Point { x: chart_rect.x, y },
+            Point {
+                x: chart_rect.right(),
+                y,
+            },
+            &grid_style,
+        );
+        renderer.draw_text(
+            &format!("{price:.2}"),
+            Point {
+                x: chart_rect.right() + 5.0,
+                y: y + 4.0,
+            },
+            &text_style,
+            TextAnchor::Start,
+        );
+    }
+
+    // Draw bricks
+    renderer.clip(chart_rect);
+    let up_color = Color::rgb(38, 166, 154); // teal (#26a69a)
+    let dn_color = Color::rgb(239, 83, 80); // red (#ef5350)
+
+    for (i, brick) in renko_bars.iter().enumerate() {
+        let color = if brick.up { up_color } else { dn_color };
+        let x = chart_rect.x + i as f64 * bar_width;
+        let open_y = chart_rect.bottom() - ((brick.open - y_min) / y_span) * chart_rect.height;
+        let close_y = chart_rect.bottom() - ((brick.close - y_min) / y_span) * chart_rect.height;
+        let top_y = open_y.min(close_y);
+        let height = (open_y - close_y).abs().max(1.0);
+        renderer.draw_rect(
+            Rect::new(x + 1.0, top_y, (bar_width - 2.0).max(1.0), height),
+            &FillStyle { color },
+        );
+    }
+    renderer.restore_clip();
+
+    // X-axis: show bar index every ~10 bricks
+    let step = (n / 10).max(1);
+    for i in (0..n).step_by(step) {
+        let x = chart_rect.x + i as f64 * bar_width + bar_width / 2.0;
+        renderer.draw_text(
+            &format!("{i}"),
+            Point {
+                x,
+                y: chart_rect.bottom() + 14.0,
+            },
+            &text_style,
+            TextAnchor::Middle,
+        );
+    }
+
+    // Border
+    renderer.draw_rect_outline(
+        chart_rect,
+        &LineStyle {
+            color: config.axis_color,
+            width: 1.0,
+        },
+    );
+}
+
+/// Render a standalone Point & Figure chart into `renderer`.
+///
+/// X columns are filled green rectangles; O columns are stroked red rectangles.
+fn render_point_figure_chart(
+    renderer: &mut dyn Renderer,
+    columns: &[ferrochart_core::PFColumn],
+    box_size: f64,
+    config: &ChartConfig,
+) {
+    if columns.is_empty() {
+        return;
+    }
+
+    renderer.set_background(config.background);
+
+    let chart_rect = Rect::new(
+        config.margin.left,
+        config.margin.top,
+        config.width - config.margin.left - config.margin.right,
+        config.height - config.margin.top - config.margin.bottom,
+    );
+
+    // Compute Y range
+    let min_bottom = columns
+        .iter()
+        .map(|c| c.bottom_price)
+        .fold(f64::INFINITY, f64::min);
+    let max_top = columns
+        .iter()
+        .map(|c| c.top_price)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let span = (max_top - min_bottom).max(box_size);
+    let padding = span * 0.05;
+    let y_min = min_bottom - padding;
+    let y_max = max_top + padding;
+    let y_span = y_max - y_min;
+
+    let n = columns.len();
+    let raw_col_w = chart_rect.width / n as f64;
+    // Clamp column width: min 8 px, no upper bound so columns fill available space.
+    let col_width = raw_col_w.max(8.0);
+
+    let text_style = TextStyle {
+        color: config.text_color,
+        size: config.font_size,
+        font_family: "monospace".to_string(),
+    };
+    let grid_style = LineStyle {
+        color: config.grid_color,
+        width: 1.0,
+    };
+
+    // Horizontal price grid at each box interval; label every Nth box so ~8 labels show.
+    let total_boxes = ((y_max - y_min) / box_size).ceil().max(1.0) as i64;
+    let label_step = (total_boxes / 8).max(1);
+    let mut price = (y_min / box_size).ceil() * box_size;
+    while price <= y_max {
+        let y = chart_rect.bottom() - ((price - y_min) / y_span) * chart_rect.height;
+        renderer.draw_line(
+            Point { x: chart_rect.x, y },
+            Point {
+                x: chart_rect.right(),
+                y,
+            },
+            &grid_style,
+        );
+        let boxes_from_bottom = ((price - y_min) / box_size).round() as i64;
+        if boxes_from_bottom % label_step == 0 {
+            renderer.draw_text(
+                &format!("{price:.2}"),
+                Point {
+                    x: chart_rect.right() + 5.0,
+                    y: y + 4.0,
+                },
+                &text_style,
+                TextAnchor::Start,
+            );
+        }
+        price += box_size;
+    }
+
+    renderer.clip(chart_rect);
+
+    // Font size for X/O symbols: fit within one box height, capped to col_width.
+    let box_px = (box_size / y_span * chart_rect.height).max(6.0);
+    let symbol_size = box_px.min(col_width - 2.0).max(6.0);
+
+    let x_style = TextStyle {
+        color: Color::rgb(38, 166, 154), // teal
+        size: symbol_size,
+        font_family: "monospace".to_string(),
+    };
+    let o_style = TextStyle {
+        color: Color::rgb(239, 83, 80), // red
+        size: symbol_size,
+        font_family: "monospace".to_string(),
+    };
+
+    for (i, col) in columns.iter().enumerate() {
+        let col_x = chart_rect.x + i as f64 * col_width + col_width / 2.0;
+        let num_boxes = col.box_count.max(1);
+        for b in 0..num_boxes {
+            let box_bottom = col.bottom_price + b as f64 * box_size;
+            let box_mid = box_bottom + box_size / 2.0;
+            let y = chart_rect.bottom() - ((box_mid - y_min) / y_span) * chart_rect.height
+                + symbol_size * 0.35;
+            match col.direction {
+                PFDirection::X => {
+                    renderer.draw_text("X", Point { x: col_x, y }, &x_style, TextAnchor::Middle);
+                }
+                PFDirection::O => {
+                    renderer.draw_text("O", Point { x: col_x, y }, &o_style, TextAnchor::Middle);
+                }
+            }
+        }
+    }
+
+    renderer.restore_clip();
+
+    // Border
+    renderer.draw_rect_outline(
+        chart_rect,
+        &LineStyle {
+            color: config.axis_color,
+            width: 1.0,
+        },
+    );
 }
 
 /// Draw a legend for overlay indicators in the top-left of a panel.
@@ -1774,6 +2345,516 @@ fn draw_annotations(
             );
         }
     }
+
+    // Horizontal rays (full-width price lines)
+    draw_horizontal_rays(
+        renderer,
+        &annotations.horizontal_rays,
+        transform,
+        panel_rect,
+    );
+
+    // Vertical lines at specific bar indices
+    draw_vertical_lines(
+        renderer,
+        &annotations.vertical_lines,
+        transform,
+        panel_rect,
+        offset,
+    );
+
+    // Rectangle zones
+    draw_rectangle_zones(
+        renderer,
+        &annotations.rectangle_zones,
+        transform,
+        panel_rect,
+        offset,
+    );
+
+    // Text labels
+    draw_text_labels(
+        renderer,
+        &annotations.text_labels,
+        transform,
+        panel_rect,
+        offset,
+        config,
+    );
+
+    // Rays
+    for ray in &annotations.rays {
+        draw_ray(renderer, ray, transform, panel_rect, offset, bar_slots);
+    }
+
+    // Measurement tools
+    for meas in &annotations.measurements {
+        draw_measurement(renderer, meas, transform, panel_rect, offset, config);
+    }
+
+    // Ellipses
+    for ellipse in &annotations.ellipses {
+        draw_ellipse_annotation(renderer, ellipse, transform, panel_rect, offset);
+    }
+
+    // Andrews Pitchforks
+    for fork in &annotations.pitchforks {
+        draw_pitchfork(renderer, fork, transform, panel_rect, offset, bar_slots);
+    }
+
+    // Gann Fans
+    for fan in &annotations.gann_fans {
+        draw_gann_fan(renderer, fan, transform, panel_rect, offset, bar_slots);
+    }
+
+    // Price Channels
+    for channel in &annotations.price_channels {
+        draw_price_channel(renderer, channel, transform, offset);
+    }
+}
+
+/// Draw horizontal rays spanning the full panel width.
+fn draw_horizontal_rays(
+    renderer: &mut dyn Renderer,
+    rays: &[HorizontalRay],
+    transform: &Transform,
+    panel_rect: &Rect,
+) {
+    for ray in rays {
+        let y = transform.price_y(ray.price);
+        let color = Color::rgb(ray.color.0, ray.color.1, ray.color.2);
+        renderer.draw_line(
+            Point { x: panel_rect.x, y },
+            Point {
+                x: panel_rect.right(),
+                y,
+            },
+            &LineStyle {
+                color,
+                width: ray.width,
+            },
+        );
+    }
+}
+
+/// Draw vertical lines at specific bar indices.
+fn draw_vertical_lines(
+    renderer: &mut dyn Renderer,
+    lines: &[VerticalLine],
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+) {
+    for line in lines {
+        let rel = line.bar_index - offset;
+        let x = transform.bar_x(rel.round().max(0.0) as usize);
+        let color = Color::rgb(line.color.0, line.color.1, line.color.2);
+        renderer.draw_line(
+            Point { x, y: panel_rect.y },
+            Point {
+                x,
+                y: panel_rect.bottom(),
+            },
+            &LineStyle {
+                color,
+                width: line.width,
+            },
+        );
+    }
+}
+
+/// Draw price × time rectangle zones.
+fn draw_rectangle_zones(
+    renderer: &mut dyn Renderer,
+    zones: &[RectangleZone],
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+) {
+    for zone in zones {
+        let rel_start = zone.start_bar - offset;
+        let rel_end = zone.end_bar - offset;
+        let x1 = transform.bar_x(rel_start.round().max(0.0) as usize);
+        let x2 = transform.bar_x(rel_end.round().max(0.0) as usize);
+        let y_top = transform.price_y(zone.top_price);
+        let y_bottom = transform.price_y(zone.bottom_price);
+
+        // Clamp to panel bounds
+        let x_left = x1.max(panel_rect.x);
+        let x_right = x2.min(panel_rect.right());
+        let y_t = y_top.max(panel_rect.y);
+        let y_b = y_bottom.min(panel_rect.bottom());
+
+        let width = (x_right - x_left).max(0.0);
+        let height = (y_b - y_t).max(0.0);
+
+        if width < f64::EPSILON || height < f64::EPSILON {
+            continue;
+        }
+
+        let (fr, fg, fb, fa) = zone.fill_color;
+        let fill_color = Color::rgba(fr, fg, fb, fa);
+        renderer.draw_rect(
+            Rect::new(x_left, y_t, width, height),
+            &FillStyle { color: fill_color },
+        );
+
+        let border_color = Color::rgb(
+            zone.border_color.0,
+            zone.border_color.1,
+            zone.border_color.2,
+        );
+        let border_style = LineStyle {
+            color: border_color,
+            width: zone.width,
+        };
+        // Draw four border edges
+        renderer.draw_line(
+            Point { x: x_left, y: y_t },
+            Point { x: x_right, y: y_t },
+            &border_style,
+        );
+        renderer.draw_line(
+            Point { x: x_right, y: y_t },
+            Point { x: x_right, y: y_b },
+            &border_style,
+        );
+        renderer.draw_line(
+            Point { x: x_right, y: y_b },
+            Point { x: x_left, y: y_b },
+            &border_style,
+        );
+        renderer.draw_line(
+            Point { x: x_left, y: y_b },
+            Point { x: x_left, y: y_t },
+            &border_style,
+        );
+    }
+}
+
+/// Draw text labels at specific bar and price positions.
+///
+/// Renders text at each label's bar/price position using `draw_text`.
+fn draw_text_labels(
+    renderer: &mut dyn Renderer,
+    labels: &[TextLabel],
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+    config: &ChartConfig,
+) {
+    let _ = panel_rect; // used implicitly via transform bounds
+    for label in labels {
+        let rel = label.bar_index - offset;
+        let x = transform.bar_x(rel.round().max(0.0) as usize);
+        let y = transform.price_y(label.price);
+        let color = Color::rgb(label.color.0, label.color.1, label.color.2);
+        let text_style = TextStyle {
+            color,
+            size: config.font_size,
+            font_family: "monospace".to_string(),
+        };
+        renderer.draw_text(&label.text, Point { x, y }, &text_style, TextAnchor::Start);
+    }
+}
+
+/// Draw a ray extending from start through end to the right chart boundary.
+fn draw_ray(
+    renderer: &mut dyn Renderer,
+    ray: &Ray,
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+    bar_slots: usize,
+) {
+    let color = Color::rgb(ray.color.0, ray.color.1, ray.color.2);
+    let style = LineStyle {
+        color,
+        width: ray.width,
+    };
+
+    let rel_start = ray.start_bar - offset;
+    let start = transform.to_pixel(rel_start, ray.start_price);
+
+    let dx = ray.end_bar - ray.start_bar;
+    if dx.abs() < f64::EPSILON {
+        // Vertical ray — draw from start_y toward panel top or bottom
+        let end_y = if ray.end_price >= ray.start_price {
+            panel_rect.y
+        } else {
+            panel_rect.bottom()
+        };
+        renderer.draw_line(
+            start,
+            Point {
+                x: start.x,
+                y: end_y,
+            },
+            &style,
+        );
+        return;
+    }
+
+    let slope = (ray.end_price - ray.start_price) / dx;
+    let extended_bar = bar_slots as f64;
+    let extended_price = ray.start_price + slope * (extended_bar + offset - ray.start_bar);
+    let end = transform.to_pixel(extended_bar, extended_price);
+
+    renderer.draw_line(start, end, &style);
+}
+
+/// Draw a measurement tool annotation (labeled rectangle between two points).
+fn draw_measurement(
+    renderer: &mut dyn Renderer,
+    meas: &MeasurementTool,
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+    config: &ChartConfig,
+) {
+    let rel_start = meas.start_bar - offset;
+    let rel_end = meas.end_bar - offset;
+    let p1 = transform.to_pixel(rel_start, meas.start_price);
+    let p2 = transform.to_pixel(rel_end, meas.end_price);
+
+    let x_left = p1.x.min(p2.x).max(panel_rect.x);
+    let x_right = p1.x.max(p2.x).min(panel_rect.right());
+    let y_top = p1.y.min(p2.y).max(panel_rect.y);
+    let y_bottom = p1.y.max(p2.y).min(panel_rect.bottom());
+    let width = (x_right - x_left).max(2.0);
+    let height = (y_bottom - y_top).max(2.0);
+
+    let color = Color::rgba(meas.color.0, meas.color.1, meas.color.2, 60);
+    let border = Color::rgba(meas.color.0, meas.color.1, meas.color.2, 180);
+    let text_color = Color::rgb(meas.color.0, meas.color.1, meas.color.2);
+
+    // Fill
+    renderer.draw_rect(
+        Rect::new(x_left, y_top, width, height),
+        &FillStyle { color },
+    );
+    // Border
+    renderer.draw_rect_outline(
+        Rect::new(x_left, y_top, width, height),
+        &LineStyle {
+            color: border,
+            width: 1.0,
+        },
+    );
+
+    // Labels in center
+    let cx = f64::midpoint(x_left, x_right);
+    let cy = f64::midpoint(y_top, y_bottom);
+    let text_style = TextStyle {
+        color: text_color,
+        size: config.font_size - 1.0,
+        font_family: "monospace".to_string(),
+    };
+    let price_diff = meas.end_price - meas.start_price;
+    let pct = if meas.start_price.abs() > f64::EPSILON {
+        price_diff / meas.start_price * 100.0
+    } else {
+        0.0
+    };
+    let bars = (meas.end_bar - meas.start_bar).abs().round() as i64;
+    let line_h = config.font_size + 2.0;
+    renderer.draw_text(
+        &format!("{price_diff:+.2}"),
+        Point {
+            x: cx,
+            y: cy - line_h,
+        },
+        &text_style,
+        TextAnchor::Middle,
+    );
+    renderer.draw_text(
+        &format!("{pct:+.1}%"),
+        Point { x: cx, y: cy },
+        &text_style,
+        TextAnchor::Middle,
+    );
+    renderer.draw_text(
+        &format!("{bars} bars"),
+        Point {
+            x: cx,
+            y: cy + line_h,
+        },
+        &text_style,
+        TextAnchor::Middle,
+    );
+}
+
+/// Draw an ellipse annotation defined by two bounding-box corner points.
+fn draw_ellipse_annotation(
+    renderer: &mut dyn Renderer,
+    ellipse: &Ellipse,
+    transform: &Transform,
+    _panel_rect: &Rect,
+    offset: f64,
+) {
+    let rel_start = ellipse.start_bar - offset;
+    let rel_end = ellipse.end_bar - offset;
+    let p1 = transform.to_pixel(rel_start, ellipse.start_price);
+    let p2 = transform.to_pixel(rel_end, ellipse.end_price);
+
+    let cx = f64::midpoint(p1.x, p2.x);
+    let cy = f64::midpoint(p1.y, p2.y);
+    let rx = (p2.x - p1.x).abs() / 2.0;
+    let ry = (p2.y - p1.y).abs() / 2.0;
+
+    if rx < f64::EPSILON || ry < f64::EPSILON {
+        return;
+    }
+
+    let (fr, fg, fb, fa) = ellipse.fill_color;
+    let fill = FillStyle {
+        color: Color::rgba(fr, fg, fb, fa),
+    };
+    let border = LineStyle {
+        color: Color::rgb(ellipse.color.0, ellipse.color.1, ellipse.color.2),
+        width: ellipse.width,
+    };
+
+    renderer.fill_ellipse(cx, cy, rx, ry, &fill);
+    renderer.draw_ellipse(cx, cy, rx, ry, &border);
+}
+
+/// Draw an Andrews Pitchfork annotation.
+fn draw_pitchfork(
+    renderer: &mut dyn Renderer,
+    fork: &AndrewsPitchfork,
+    transform: &Transform,
+    _panel_rect: &Rect,
+    offset: f64,
+    bar_slots: usize,
+) {
+    let color = Color::rgb(fork.color.0, fork.color.1, fork.color.2);
+    let style = LineStyle {
+        color,
+        width: fork.width,
+    };
+
+    // Convert anchors to pixel coords
+    let p1 = transform.to_pixel(fork.bar1 - offset, fork.price1);
+    let p2 = transform.to_pixel(fork.bar2 - offset, fork.price2);
+    let p3 = transform.to_pixel(fork.bar3 - offset, fork.price3);
+
+    // Midpoint of anchors 2 and 3 (in data space for extension)
+    let mid_bar = f64::midpoint(fork.bar2, fork.bar3);
+    let mid_price = f64::midpoint(fork.price2, fork.price3);
+    let mid = transform.to_pixel(mid_bar - offset, mid_price);
+
+    // Median line slope (data space) — from anchor1 through midpoint
+    let dx = mid_bar - fork.bar1;
+    let median_slope = if dx.abs() > f64::EPSILON {
+        (mid_price - fork.price1) / dx
+    } else {
+        0.0
+    };
+
+    // Extend each line to right edge (bar_slots)
+    let right_bar = bar_slots as f64 + offset;
+
+    let median_end_price = fork.price1 + median_slope * (right_bar - fork.bar1);
+    let tine2_end_price = fork.price2 + median_slope * (right_bar - fork.bar2);
+    let tine3_end_price = fork.price3 + median_slope * (right_bar - fork.bar3);
+
+    let median_end = transform.to_pixel(bar_slots as f64, median_end_price);
+    let tine2_end = transform.to_pixel(bar_slots as f64, tine2_end_price);
+    let tine3_end = transform.to_pixel(bar_slots as f64, tine3_end_price);
+
+    // Median line: p1 → mid → extended right
+    renderer.draw_line(p1, mid, &style);
+    renderer.draw_line(mid, median_end, &style);
+
+    // Tine 1: p2 → extended right (same slope as median)
+    renderer.draw_line(p2, tine2_end, &style);
+
+    // Tine 2: p3 → extended right (same slope as median)
+    renderer.draw_line(p3, tine3_end, &style);
+
+    // Handle line connecting p2 and p3
+    let handle_style = LineStyle {
+        color: Color::rgba(fork.color.0, fork.color.1, fork.color.2, 100),
+        width: fork.width * 0.5,
+    };
+    renderer.draw_line(p2, p3, &handle_style);
+}
+
+/// Draw a Gann Fan annotation (8 fan lines from anchor).
+fn draw_gann_fan(
+    renderer: &mut dyn Renderer,
+    fan: &GannFan,
+    transform: &Transform,
+    _panel_rect: &Rect,
+    offset: f64,
+    bar_slots: usize,
+) {
+    // Gann ratios: price units per bar relative to scale (1×1 = 45°)
+    // Ordered: steepest down to flattest, then flattest up
+    let ratios: &[(f64, u8)] = &[
+        (8.0, 220),       // 8×1
+        (4.0, 190),       // 4×1
+        (3.0, 160),       // 3×1
+        (2.0, 130),       // 2×1
+        (1.0, 255),       // 1×1 (45°) — main line, full opacity
+        (0.5, 130),       // 1×2
+        (1.0 / 3.0, 110), // 1×3
+        (0.25, 90),       // 1×4
+        (0.125, 70),      // 1×8
+    ];
+
+    let anchor = transform.to_pixel(fan.anchor_bar - offset, fan.anchor_price);
+    let right_rel = bar_slots as f64;
+    let bars_range = right_rel - (fan.anchor_bar - offset);
+
+    if bars_range < f64::EPSILON {
+        return;
+    }
+
+    for &(ratio, alpha) in ratios {
+        let end_price = fan.anchor_price + ratio * fan.scale * bars_range;
+        let end = transform.to_pixel(right_rel, end_price);
+        let color = Color::rgba(fan.color.0, fan.color.1, fan.color.2, alpha);
+        let style = LineStyle { color, width: 1.0 };
+        renderer.draw_line(anchor, end, &style);
+    }
+}
+
+/// Draw a price channel annotation (upper + lower trendlines with filled area).
+fn draw_price_channel(
+    renderer: &mut dyn Renderer,
+    channel: &PriceChannel,
+    transform: &Transform,
+    offset: f64,
+) {
+    let rel_start = channel.start_bar - offset;
+    let rel_end = channel.end_bar - offset;
+
+    let upper_start = transform.to_pixel(rel_start, channel.upper_start_price);
+    let upper_end = transform.to_pixel(rel_end, channel.upper_end_price);
+    let lower_start = transform.to_pixel(rel_start, channel.lower_start_price);
+    let lower_end = transform.to_pixel(rel_end, channel.lower_end_price);
+
+    // Fill the area between upper and lower lines
+    let (fr, fg, fb, fa) = channel.fill_color;
+    renderer.fill_polygon(
+        &[upper_start, upper_end, lower_end, lower_start],
+        &FillStyle {
+            color: Color::rgba(fr, fg, fb, fa),
+        },
+    );
+
+    // Draw upper trendline
+    let color = Color::rgb(channel.color.0, channel.color.1, channel.color.2);
+    let style = LineStyle {
+        color,
+        width: channel.width,
+    };
+    renderer.draw_line(upper_start, upper_end, &style);
+
+    // Draw lower trendline
+    renderer.draw_line(lower_start, lower_end, &style);
 }
 
 /// Draw volume profile histogram on the price panel (horizontal bars from right edge).

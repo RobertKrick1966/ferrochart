@@ -6,9 +6,10 @@
 use std::fs;
 
 use ferrochart_core::{
-    Annotations, Corridor, FibonacciRetracement, Marker, MarkerPosition, MarkerShape, Ohlcv,
-    TrendLine,
-    indicator::{Indicator, Sma, VolumeSma},
+    AndrewsPitchfork, Annotations, ChartType, Corridor, Ellipse, FibonacciRetracement, GannFan,
+    HorizontalRay, Marker, MarkerPosition, MarkerShape, MeasurementTool, Ohlcv, PriceChannel, Ray,
+    RectangleZone, TrendLine, VerticalLine,
+    indicator::{Atr, Indicator, Rsi, Sma, Stochastic, VolumeSma},
 };
 use ferrochart_render::chart::{
     ChartConfig, render_candlestick_chart, render_full_chart, render_full_chart_with_markers,
@@ -69,74 +70,7 @@ fn main() {
 
     // 6. Circle markers (balls above/below candles)
     generate_svg("output/06_markers.svg", &data, |renderer, data, config| {
-        let markers = vec![
-            // Green balls above bar (e.g., CUSUM event detected)
-            Marker {
-                bar_index: 6,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::AboveBar,
-                color: (0, 200, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 12,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::AboveBar,
-                color: (0, 200, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 19,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::AboveBar,
-                color: (0, 200, 0, 255),
-                label: "CUSUM".to_string(),
-            },
-            // Red balls below bar
-            Marker {
-                bar_index: 3,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::BelowBar,
-                color: (220, 0, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 9,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::BelowBar,
-                color: (220, 0, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 15,
-                shape: MarkerShape::Circle,
-                position: MarkerPosition::BelowBar,
-                color: (220, 0, 0, 255),
-                label: "Alert".to_string(),
-            },
-            // Other marker shapes for comparison
-            Marker {
-                bar_index: 22,
-                shape: MarkerShape::ArrowUp,
-                position: MarkerPosition::BelowBar,
-                color: (0, 200, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 25,
-                shape: MarkerShape::ArrowDown,
-                position: MarkerPosition::AboveBar,
-                color: (220, 0, 0, 255),
-                label: String::new(),
-            },
-            Marker {
-                bar_index: 28,
-                shape: MarkerShape::Diamond,
-                position: MarkerPosition::AboveBar,
-                color: (255, 200, 0, 255),
-                label: String::new(),
-            },
-        ];
+        let markers = sample_markers();
         let marker_refs: Vec<&Marker> = markers.iter().collect();
         render_full_chart_with_markers(
             renderer,
@@ -216,6 +150,275 @@ fn main() {
         },
     );
 
+    // 8. Heikin-Ashi chart
+    generate_svg(
+        "output/08_heikin_ashi.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::HeikinAshi;
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
+    // 9. Line chart
+    generate_svg(
+        "output/09_line_chart.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::Line;
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
+    // 10. Area chart
+    generate_svg(
+        "output/10_area_chart.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::Area;
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
+    // 11. OHLC Bars
+    generate_svg(
+        "output/11_ohlc_bars.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::OhlcBars;
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
+    // 12. ATR indicator (sub-panel)
+    generate_svg("output/12_atr.svg", &data, |renderer, data, config| {
+        let atr = Atr { period: 14 };
+        let output = atr.compute(data);
+        render_full_chart(renderer, data, &[output], config);
+    });
+
+    // 13. RSI indicator (sub-panel)
+    generate_svg("output/13_rsi.svg", &data, |renderer, data, config| {
+        let rsi = Rsi { period: 14 };
+        let output = rsi.compute(data);
+        render_full_chart(renderer, data, &[output], config);
+    });
+
+    // 14. Stochastic indicator (sub-panel)
+    generate_svg(
+        "output/14_stochastic.svg",
+        &data,
+        |renderer, data, config| {
+            let stoch = Stochastic {
+                k_period: 14,
+                d_period: 3,
+            };
+            let output = stoch.compute(data);
+            render_full_chart(renderer, data, &[output], config);
+        },
+    );
+
+    // 15. Drawing tools: HorizontalRay, VerticalLine, RectangleZone
+    generate_svg(
+        "output/15_drawing_tools.svg",
+        &data,
+        |renderer, data, config| {
+            let mut annotations = Annotations::new();
+            annotations.add_horizontal_ray(HorizontalRay {
+                price: data[15].high,
+                color: (255, 200, 0),
+                width: 1.5,
+            });
+            annotations.add_vertical_line(VerticalLine {
+                bar_index: 10.0,
+                color: (100, 200, 255),
+                width: 1.0,
+            });
+            annotations.add_rectangle_zone(RectangleZone {
+                start_bar: 5.0,
+                end_bar: 12.0,
+                top_price: data[8].high,
+                bottom_price: data[8].low,
+                border_color: (255, 100, 100),
+                fill_color: (255, 100, 100, 30),
+                width: 1.0,
+            });
+            render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+        },
+    );
+
+    // 16. Renko chart
+    generate_svg("output/16_renko.svg", &data, |renderer, data, config| {
+        let mut cfg = config.clone();
+        cfg.chart_type = ChartType::Renko { brick_size: 2.0 };
+        render_full_chart_with_markers(
+            renderer,
+            data,
+            &[],
+            &[],
+            &Annotations::default(),
+            None,
+            &cfg,
+        );
+    });
+
+    // 17. Point & Figure chart
+    generate_svg(
+        "output/17_point_figure.svg",
+        &data,
+        |renderer, data, config| {
+            let mut cfg = config.clone();
+            cfg.chart_type = ChartType::PointFigure {
+                box_size: 1.5,
+                reversal: 3,
+            };
+            render_full_chart_with_markers(
+                renderer,
+                data,
+                &[],
+                &[],
+                &Annotations::default(),
+                None,
+                &cfg,
+            );
+        },
+    );
+
+    // 18. Ray
+    generate_svg("output/18_ray.svg", &data, |renderer, data, config| {
+        let mut annotations = Annotations::new();
+        annotations.add_ray(Ray {
+            start_bar: 5.0,
+            start_price: data[5].low,
+            end_bar: 15.0,
+            end_price: data[15].low,
+            color: (0, 200, 255),
+            width: 1.5,
+        });
+        render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+    });
+
+    // 19. Measurement Tool
+    generate_svg(
+        "output/19_measurement.svg",
+        &data,
+        |renderer, data, config| {
+            let mut annotations = Annotations::new();
+            annotations.add_measurement(MeasurementTool {
+                start_bar: 5.0,
+                start_price: data[5].close,
+                end_bar: 20.0,
+                end_price: data[20].close,
+                color: (255, 200, 0),
+            });
+            render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+        },
+    );
+
+    // 20. Ellipse
+    generate_svg("output/20_ellipse.svg", &data, |renderer, data, config| {
+        let mut annotations = Annotations::new();
+        annotations.add_ellipse(Ellipse {
+            start_bar: 8.0,
+            start_price: data[8].low,
+            end_bar: 16.0,
+            end_price: data[16].high,
+            color: (100, 200, 100),
+            fill_color: (100, 200, 100, 25),
+            width: 1.5,
+        });
+        render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+    });
+
+    // 21. Andrews Pitchfork
+    generate_svg(
+        "output/21_pitchfork.svg",
+        &data,
+        |renderer, data, config| {
+            let mut annotations = Annotations::new();
+            annotations.add_pitchfork(AndrewsPitchfork {
+                bar1: 2.0,
+                price1: data[2].low,
+                bar2: 10.0,
+                price2: data[10].high,
+                bar3: 18.0,
+                price3: data[18].low,
+                color: (255, 165, 0),
+                width: 1.5,
+            });
+            render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+        },
+    );
+
+    // 22. Gann Fan
+    generate_svg("output/22_gann_fan.svg", &data, |renderer, data, config| {
+        let mut annotations = Annotations::new();
+        annotations.add_gann_fan(GannFan {
+            anchor_bar: 3.0,
+            anchor_price: data[3].low,
+            scale: 1.5,
+            color: (200, 100, 255),
+        });
+        render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+    });
+
+    // 23. Price Channel
+    generate_svg(
+        "output/23_price_channel.svg",
+        &data,
+        |renderer, data, config| {
+            let mut annotations = Annotations::new();
+            annotations.add_price_channel(PriceChannel {
+                start_bar: 3.0,
+                end_bar: 25.0,
+                upper_start_price: data[3].high,
+                upper_end_price: data[25].high,
+                lower_start_price: data[3].low,
+                lower_end_price: data[25].low,
+                color: (0, 200, 255),
+                fill_color: (0, 200, 255, 20),
+                width: 1.5,
+            });
+            render_full_chart_with_markers(renderer, data, &[], &[], &annotations, None, config);
+        },
+    );
+
     println!("All SVGs written to output/");
 }
 
@@ -265,6 +468,78 @@ fn sample_ohlcv() -> Vec<Ohlcv> {
     }
 
     data
+}
+
+/// Sample markers demonstrating all marker shapes and positions.
+fn sample_markers() -> Vec<Marker> {
+    vec![
+        // Green balls above bar (e.g., CUSUM event detected)
+        Marker {
+            bar_index: 6,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::AboveBar,
+            color: (0, 200, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 12,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::AboveBar,
+            color: (0, 200, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 19,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::AboveBar,
+            color: (0, 200, 0, 255),
+            label: "CUSUM".to_string(),
+        },
+        // Red balls below bar
+        Marker {
+            bar_index: 3,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::BelowBar,
+            color: (220, 0, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 9,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::BelowBar,
+            color: (220, 0, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 15,
+            shape: MarkerShape::Circle,
+            position: MarkerPosition::BelowBar,
+            color: (220, 0, 0, 255),
+            label: "Alert".to_string(),
+        },
+        // Other marker shapes for comparison
+        Marker {
+            bar_index: 22,
+            shape: MarkerShape::ArrowUp,
+            position: MarkerPosition::BelowBar,
+            color: (0, 200, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 25,
+            shape: MarkerShape::ArrowDown,
+            position: MarkerPosition::AboveBar,
+            color: (220, 0, 0, 255),
+            label: String::new(),
+        },
+        Marker {
+            bar_index: 28,
+            shape: MarkerShape::Diamond,
+            position: MarkerPosition::AboveBar,
+            color: (255, 200, 0, 255),
+            label: String::new(),
+        },
+    ]
 }
 
 /// OHLCV data with institutional activity for split-candle rendering.

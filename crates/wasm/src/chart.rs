@@ -8,14 +8,17 @@ use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
 use ferrochart_core::indicator::{
-    AnchoredVwap, BollingerBands, Cusum, Ema, Macd, Rsi, Sma, VolumeSma,
+    Adx, AnchoredVwap, Atr, BollingerBands, Cci, Cusum, Donchian, Ema, Ichimoku, Keltner, Macd,
+    Obv, ParabolicSar, Rsi, SessionVwap, Sma, Stochastic, Supertrend, VolumeSma, WilliamsR,
 };
 use ferrochart_core::interaction::{compute_pan, compute_zoom, is_in_chart_area};
 use ferrochart_core::{
-    Annotations, BarrierOutcome, ConfidenceBand, Corridor, FibonacciRetracement,
-    HorizontalHistogram, HorizontalLevel, Indicator, IndicatorOutput, IndicatorPlacement, Marker,
-    MarkerPosition, MarkerSet, MarkerShape, NewsEvent, Ohlcv, Point, PriceRange, Rect, SeriesStyle,
-    TimeRange, Transform, TrendLine, TripleBarrier, Viewport, WalkForwardZone, ZoomPanState,
+    AndrewsPitchfork, Annotations, BarrierOutcome, ChartType, ConfidenceBand, Corridor, Ellipse,
+    FibonacciRetracement, GannFan, HorizontalHistogram, HorizontalLevel, HorizontalRay, Indicator,
+    IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape,
+    MeasurementTool, NewsEvent, Ohlcv, Point, PriceChannel, PriceRange, Ray, Rect, RectangleZone,
+    SeriesStyle, TextLabel, TimeRange, Transform, TrendLine, TripleBarrier, VerticalLine, Viewport,
+    WalkForwardZone, ZoomPanState,
 };
 use ferrochart_render::Renderer;
 use ferrochart_render::chart::{
@@ -66,6 +69,22 @@ enum DrawMode {
     Fibonacci,
     /// Corridor: first two clicks = trendline, third click = parallel offset.
     Corridor,
+    /// Ray: two clicks define start point and direction.
+    Ray,
+    /// Measurement tool: two clicks define the measured region.
+    Measurement,
+    /// Ellipse: two clicks define bounding-box corners.
+    Ellipse,
+    /// Pitchfork: three clicks define the three anchor points.
+    Pitchfork,
+    /// Gann Fan: first click = anchor, second click = determines scale.
+    GannFan,
+    /// Price Channel: two clicks define start and end bars; highs/lows are computed.
+    PriceChannel,
+    /// Horizontal line: single click places a full-width price line.
+    HorizontalLine,
+    /// Vertical line: single click places a full-height bar line.
+    VerticalLine,
 }
 
 /// In-progress drawing.
@@ -77,6 +96,21 @@ struct DrawingInProgress {
     /// For corridor: second point (set after first two clicks).
     end_bar: Option<f64>,
     end_price: Option<f64>,
+}
+
+/// State for bar-by-bar historical replay mode.
+///
+/// When active, only the first `cursor` bars of the dataset are rendered,
+/// allowing the user to step through data one bar at a time.
+struct ReplayState {
+    /// Number of bars to show (1-based).
+    cursor: usize,
+    /// Whether auto-play is running.
+    playing: bool,
+    /// Interval between steps in milliseconds.
+    speed_ms: u32,
+    /// Handle to the JS `setInterval` timer (for cleanup).
+    interval_handle: Option<i32>,
 }
 
 /// State for an active panel splitter drag.
@@ -120,7 +154,13 @@ struct ChartState {
     pinch_start_visible: usize,
     /// Number of price buckets for volume profile (0 = disabled).
     volume_profile_buckets: usize,
+    /// Active chart type (candlestick, line, area, etc.).
+    chart_type: ChartType,
     dirty: DirtyFlags,
+    /// Bar-by-bar replay mode state.
+    replay_mode: Option<ReplayState>,
+    /// Shared tick flag set by the JS `setInterval` callback for auto-play.
+    replay_tick: Rc<RefCell<bool>>,
 }
 
 impl ChartState {
@@ -190,7 +230,10 @@ impl FerroChart {
             pinch_start_dist: 0.0,
             pinch_start_visible: 100,
             volume_profile_buckets: 0,
+            chart_type: ChartType::Candlestick,
             dirty: DirtyFlags(DirtyFlags::ALL),
+            replay_mode: None,
+            replay_tick: Rc::new(RefCell::new(false)),
         }));
 
         let mut closures: Vec<Closure<dyn FnMut(web_sys::MouseEvent)>> = Vec::new();
@@ -382,6 +425,42 @@ impl FerroChart {
             "cusum" => Box::new(Cusum {
                 threshold: period.map_or(0.03, |p| f64::from(p) / 1000.0),
             }),
+            "atr" => Box::new(Atr {
+                period: period.unwrap_or(14) as usize,
+            }),
+            "obv" => Box::new(Obv),
+            "session_vwap" => Box::new(SessionVwap),
+            "stochastic" => Box::new(Stochastic {
+                k_period: period.unwrap_or(14) as usize,
+                d_period: 3,
+            }),
+            "donchian" => Box::new(Donchian {
+                period: period.unwrap_or(20) as usize,
+            }),
+            "keltner" => Box::new(Keltner {
+                ema_period: period.unwrap_or(20) as usize,
+                atr_period: 10,
+                multiplier: 2.0,
+            }),
+            "williams_r" => Box::new(WilliamsR {
+                period: period.unwrap_or(14) as usize,
+            }),
+            "cci" => Box::new(Cci {
+                period: period.unwrap_or(20) as usize,
+            }),
+            "adx" => Box::new(Adx {
+                period: period.unwrap_or(14) as usize,
+            }),
+            "parabolic_sar" => Box::new(ParabolicSar::default()),
+            "supertrend" => Box::new(Supertrend {
+                period: period.unwrap_or(10) as usize,
+                multiplier: 3.0,
+            }),
+            "ichimoku" => Box::new(Ichimoku {
+                tenkan_period: period.unwrap_or(9) as usize,
+                kijun_period: 26,
+                senkou_b_period: 52,
+            }),
             _ => return Err(JsValue::from_str(&format!("unknown indicator: {name}"))),
         };
 
@@ -424,6 +503,53 @@ impl FerroChart {
         st.indicators.clear();
         st.cached_outputs.clear();
         st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
+    }
+
+    /// Set the chart type.
+    ///
+    /// Supported names: `"candlestick"`, `"heikin_ashi"`, `"line"`, `"area"`, `"ohlc"`,
+    /// `"renko"`, `"point_figure"`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the chart type name is unknown.
+    #[wasm_bindgen(js_name = setChartType)]
+    pub fn set_chart_type(&self, name: &str) -> Result<(), JsValue> {
+        let chart_type = match name {
+            "candlestick" => ChartType::Candlestick,
+            "heikin_ashi" => ChartType::HeikinAshi,
+            "line" => ChartType::Line,
+            "area" => ChartType::Area,
+            "ohlc" => ChartType::OhlcBars,
+            "renko" => ChartType::Renko { brick_size: 1.0 },
+            "point_figure" => ChartType::PointFigure {
+                box_size: 1.0,
+                reversal: 3,
+            },
+            _ => return Err(JsValue::from_str(&format!("unknown chart type: {name}"))),
+        };
+        let mut st = self.state.borrow_mut();
+        if st.chart_type != chart_type {
+            st.chart_type = chart_type;
+            st.dirty.mark_all();
+        }
+        Ok(())
+    }
+
+    /// Set chart type to Renko with a custom brick size.
+    #[wasm_bindgen(js_name = setRenkoConfig)]
+    pub fn set_renko_config(&self, brick_size: f64) {
+        let mut st = self.state.borrow_mut();
+        st.chart_type = ChartType::Renko { brick_size };
+        st.dirty.mark_all();
+    }
+
+    /// Set chart type to Point & Figure with a custom box size and reversal count.
+    #[wasm_bindgen(js_name = setPfConfig)]
+    pub fn set_pf_config(&self, box_size: f64, reversal: usize) {
+        let mut st = self.state.borrow_mut();
+        st.chart_type = ChartType::PointFigure { box_size, reversal };
+        st.dirty.mark_all();
     }
 
     /// Add a marker at a specific bar index.
@@ -669,6 +795,285 @@ impl FerroChart {
         st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
+    /// Add a horizontal ray (full-width price line) at the given price level.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addHorizontalRay)]
+    pub fn add_horizontal_ray(&self, price: f64, color_hex: &str, width: f64) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_horizontal_ray(HorizontalRay {
+            price,
+            color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a vertical line at the given bar index.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addVerticalLine)]
+    pub fn add_vertical_line(&self, bar_index: f64, color_hex: &str, width: f64) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_vertical_line(VerticalLine {
+            bar_index,
+            color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a price × time rectangle zone.
+    ///
+    /// `color_hex` is the border color; `fill_hex` is the fill color, both as `"#RRGGBB"`.
+    /// Fill alpha defaults to 30 (semi-transparent).
+    #[wasm_bindgen(js_name = addRectangle)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_rectangle(
+        &self,
+        start_bar: f64,
+        end_bar: f64,
+        top_price: f64,
+        bottom_price: f64,
+        color_hex: &str,
+        fill_hex: &str,
+    ) {
+        let border_color = parse_color(color_hex);
+        let fill_rgb = parse_color(fill_hex);
+        let fill_color = (fill_rgb.0, fill_rgb.1, fill_rgb.2, 30u8);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_rectangle_zone(RectangleZone {
+            start_bar,
+            end_bar,
+            top_price,
+            bottom_price,
+            border_color,
+            fill_color,
+            width: 1.0,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a text label at a specific bar and price position.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addTextLabel)]
+    pub fn add_text_label(&self, bar_index: f64, price: f64, text: &str, color_hex: &str) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_text_label(TextLabel {
+            bar_index,
+            price,
+            text: text.to_string(),
+            color,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a Ray annotation extending from start through end to the right chart boundary.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addRay)]
+    pub fn add_ray(
+        &self,
+        start_bar: f64,
+        start_price: f64,
+        end_bar: f64,
+        end_price: f64,
+        color_hex: &str,
+        width: f64,
+    ) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_ray(Ray {
+            start_bar,
+            start_price,
+            end_bar,
+            end_price,
+            color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a Measurement Tool annotation showing Δ price, Δ%, and Δ bars.
+    #[wasm_bindgen(js_name = addMeasurement)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_measurement(
+        &self,
+        start_bar: f64,
+        start_price: f64,
+        end_bar: f64,
+        end_price: f64,
+        r: u8,
+        g: u8,
+        b: u8,
+    ) {
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_measurement(MeasurementTool {
+            start_bar,
+            start_price,
+            end_bar,
+            end_price,
+            color: (r, g, b),
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add an Ellipse annotation defined by two bounding-box corner points.
+    ///
+    /// `border_hex` and `fill_hex` should be `"#RRGGBB"` hex strings.
+    #[wasm_bindgen(js_name = addEllipse)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_ellipse(
+        &self,
+        start_bar: f64,
+        start_price: f64,
+        end_bar: f64,
+        end_price: f64,
+        border_hex: &str,
+        fill_hex: &str,
+        width: f64,
+    ) {
+        let color = parse_color(border_hex);
+        let fill_rgb = parse_color(fill_hex);
+        let fill_color = (fill_rgb.0, fill_rgb.1, fill_rgb.2, 40u8);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_ellipse(Ellipse {
+            start_bar,
+            start_price,
+            end_bar,
+            end_price,
+            color,
+            fill_color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add an Andrews Pitchfork annotation from 3 anchor points.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    #[wasm_bindgen(js_name = addPitchfork)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_pitchfork(
+        &self,
+        bar1: f64,
+        price1: f64,
+        bar2: f64,
+        price2: f64,
+        bar3: f64,
+        price3: f64,
+        color_hex: &str,
+        width: f64,
+    ) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_pitchfork(AndrewsPitchfork {
+            bar1,
+            price1,
+            bar2,
+            price2,
+            bar3,
+            price3,
+            color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a Gann Fan annotation from a single anchor point.
+    ///
+    /// `color_hex` should be a `"#RRGGBB"` hex string.
+    /// `scale` is the price units per bar for the 1×1 (45°) line.
+    #[wasm_bindgen(js_name = addGannFan)]
+    pub fn add_gann_fan(&self, anchor_bar: f64, anchor_price: f64, scale: f64, color_hex: &str) {
+        let color = parse_color(color_hex);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_gann_fan(GannFan {
+            anchor_bar,
+            anchor_price,
+            scale,
+            color,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Add a price channel annotation (upper + lower trendlines with fill).
+    ///
+    /// `color_hex` is the line color (`"#RRGGBB"`), `fill_hex` is the fill color.
+    #[wasm_bindgen(js_name = addPriceChannel)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_price_channel(
+        &self,
+        start_bar: f64,
+        end_bar: f64,
+        upper_start: f64,
+        upper_end: f64,
+        lower_start: f64,
+        lower_end: f64,
+        color_hex: &str,
+        fill_hex: &str,
+        width: f64,
+    ) {
+        let color = parse_color(color_hex);
+        let fill_rgb = parse_color(fill_hex);
+        let fill_color = (fill_rgb.0, fill_rgb.1, fill_rgb.2, 20u8);
+        let mut st = self.state.borrow_mut();
+        st.annotations.add_price_channel(PriceChannel {
+            start_bar,
+            end_bar,
+            upper_start_price: upper_start,
+            upper_end_price: upper_end,
+            lower_start_price: lower_start,
+            lower_end_price: lower_end,
+            color,
+            fill_color,
+            width,
+        });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
+    /// Register a custom overlay indicator with precomputed values.
+    ///
+    /// `name` is the display name. `values` is a flat `Float64Array` of length
+    /// `n * series_count` (row-major: series0\[0..n\], series1\[0..n\], ...).
+    /// Each series is drawn as a line on the price panel.
+    #[wasm_bindgen(js_name = addCustomOverlay)]
+    pub fn add_custom_overlay(&self, name: &str, values: &[f64], series_count: u32) {
+        let sc = series_count.max(1) as usize;
+        let n = values.len() / sc;
+        let series = build_custom_series(values, sc, n);
+        let output = IndicatorOutput {
+            name: name.to_string(),
+            placement: IndicatorPlacement::Overlay,
+            series,
+        };
+        let mut st = self.state.borrow_mut();
+        st.cached_outputs.push(output);
+        st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
+    }
+
+    /// Register a custom sub-panel indicator with precomputed values.
+    ///
+    /// Like `addCustomOverlay` but rendered in its own sub-panel with auto-scaled Y axis.
+    #[wasm_bindgen(js_name = addCustomSubPanel)]
+    pub fn add_custom_sub_panel(&self, name: &str, values: &[f64], series_count: u32) {
+        let sc = series_count.max(1) as usize;
+        let n = values.len() / sc;
+        let series = build_custom_series(values, sc, n);
+        let output = IndicatorOutput {
+            name: name.to_string(),
+            placement: IndicatorPlacement::SubPanelAuto,
+            series,
+        };
+        let mut st = self.state.borrow_mut();
+        st.cached_outputs.push(output);
+        st.dirty.mark(DirtyFlags::INDICATORS | DirtyFlags::CANDLES);
+    }
+
     /// Add an equity curve sub-panel from pre-computed per-bar returns.
     #[wasm_bindgen(js_name = addEquityCurve)]
     pub fn add_equity_curve(&self, returns: &[f64]) {
@@ -698,6 +1103,14 @@ impl FerroChart {
             "trendline" => DrawMode::TrendLine,
             "fibonacci" => DrawMode::Fibonacci,
             "corridor" => DrawMode::Corridor,
+            "ray" => DrawMode::Ray,
+            "measurement" => DrawMode::Measurement,
+            "ellipse" => DrawMode::Ellipse,
+            "pitchfork" => DrawMode::Pitchfork,
+            "gann_fan" => DrawMode::GannFan,
+            "price_channel" => DrawMode::PriceChannel,
+            "horizontal_line" => DrawMode::HorizontalLine,
+            "vertical_line" => DrawMode::VerticalLine,
             _ => return Err(JsValue::from_str(&format!("unknown draw mode: {mode}"))),
         };
         st.drawing = None;
@@ -767,6 +1180,50 @@ impl FerroChart {
         st.config.visible_bar_slots = slots;
         st.dirty.mark_all();
         Ok(())
+    }
+
+    /// Return the price currently under the crosshair, or `NaN` if the cursor is outside the chart.
+    ///
+    /// Uses the chart's own transform so the value matches the crosshair tooltip exactly.
+    #[must_use]
+    #[wasm_bindgen(js_name = getCrosshairPrice)]
+    pub fn get_crosshair_price(&self) -> f64 {
+        let st = self.state.borrow();
+        let Some(mouse) = st.mouse_pos else {
+            return f64::NAN;
+        };
+        let Some(transform) = st.last_layout.price_transform else {
+            return f64::NAN;
+        };
+        let chart_top = st.config.margin.top;
+        let chart_bottom = st.config.height - st.config.margin.bottom;
+        if mouse.y < chart_top || mouse.y > chart_bottom {
+            return f64::NAN;
+        }
+        transform.pixel_y_to_price(mouse.y)
+    }
+
+    /// Return the bar index (in the full dataset) currently under the crosshair, or `-1`.
+    ///
+    /// Uses the chart's own transform so the value matches the crosshair tooltip exactly.
+    #[must_use]
+    #[wasm_bindgen(js_name = getCrosshairBar)]
+    pub fn get_crosshair_bar(&self) -> i32 {
+        let st = self.state.borrow();
+        let Some(mouse) = st.mouse_pos else {
+            return -1;
+        };
+        let Some(transform) = st.last_layout.price_transform else {
+            return -1;
+        };
+        let chart_left = st.config.margin.left;
+        let chart_right = st.config.width - st.config.margin.right;
+        if mouse.x < chart_left || mouse.x > chart_right {
+            return -1;
+        }
+        let rel = transform.pixel_x_to_bar(mouse.x);
+        let abs_bar = (rel as i32) + st.zoom_pan.visible_range().start as i32;
+        abs_bar.max(0).min(st.data.len() as i32 - 1)
     }
 
     /// Update the chart dimensions (call after canvas resize).
@@ -894,6 +1351,154 @@ impl FerroChart {
         st.zoom_pan = compute_pan(st.zoom_pan, dx, chart_width, drag_start);
         st.dirty.mark_all();
     }
+
+    // ── Replay Mode ────────────────────────────────────────────────
+
+    /// Start replay mode from a specific bar index (1-based, min 1).
+    ///
+    /// The chart will show only the first `start_bar` bars.
+    #[wasm_bindgen(js_name = replayStart)]
+    pub fn replay_start(&self, start_bar: u32) {
+        let mut st = self.state.borrow_mut();
+        let cursor = (start_bar as usize).max(1);
+        st.replay_mode = Some(ReplayState {
+            cursor,
+            playing: false,
+            speed_ms: 200,
+            interval_handle: None,
+        });
+        st.dirty.mark_all();
+    }
+
+    /// Advance replay by one bar. Returns the new cursor position, or 0 if not in replay mode.
+    #[must_use]
+    #[wasm_bindgen(js_name = replayStep)]
+    pub fn replay_step(&self) -> u32 {
+        let mut st = self.state.borrow_mut();
+        let data_len = st.data.len();
+        let cursor = if let Some(ref mut replay) = st.replay_mode {
+            if replay.cursor < data_len {
+                replay.cursor += 1;
+            }
+            replay.cursor as u32
+        } else {
+            return 0;
+        };
+        st.dirty.mark_all();
+        cursor
+    }
+
+    /// Start auto-playing at the given speed (milliseconds between bars).
+    ///
+    /// Uses `setInterval` internally; the render loop checks a shared tick flag.
+    #[wasm_bindgen(js_name = replayPlay)]
+    pub fn replay_play(&self, speed_ms: u32) {
+        let mut st = self.state.borrow_mut();
+        let tick_flag = Rc::clone(&st.replay_tick);
+        if let Some(ref mut replay) = st.replay_mode {
+            // Clear any existing interval
+            clear_replay_interval(replay);
+            replay.speed_ms = speed_ms;
+            replay.playing = true;
+
+            // Set up a JS interval that flips the shared tick flag
+            let cb = Closure::wrap(Box::new(move || {
+                *tick_flag.borrow_mut() = true;
+            }) as Box<dyn FnMut()>);
+
+            if let Some(window) = web_sys::window()
+                && let Ok(handle) = window.set_interval_with_callback_and_timeout_and_arguments_0(
+                    cb.as_ref().unchecked_ref(),
+                    speed_ms as i32,
+                )
+            {
+                replay.interval_handle = Some(handle);
+            }
+            // Leak the closure so it stays alive for the JS runtime
+            cb.forget();
+        }
+    }
+
+    /// Pause auto-play (keeps replay mode active at current position).
+    #[wasm_bindgen(js_name = replayPause)]
+    pub fn replay_pause(&self) {
+        let mut st = self.state.borrow_mut();
+        if let Some(ref mut replay) = st.replay_mode {
+            replay.playing = false;
+            clear_replay_interval(replay);
+        }
+    }
+
+    /// Exit replay mode entirely. Chart returns to showing all data.
+    #[wasm_bindgen(js_name = replayStop)]
+    pub fn replay_stop(&self) {
+        let mut st = self.state.borrow_mut();
+        if let Some(ref mut replay) = st.replay_mode {
+            clear_replay_interval(replay);
+        }
+        st.replay_mode = None;
+        st.recompute_indicators();
+        st.dirty.mark_all();
+    }
+
+    /// Returns the current replay cursor (1-based bar count shown), or 0 if not in replay mode.
+    #[must_use]
+    #[wasm_bindgen(js_name = replayPosition)]
+    pub fn replay_position(&self) -> u32 {
+        let st = self.state.borrow();
+        st.replay_mode.as_ref().map_or(0, |r| r.cursor as u32)
+    }
+}
+
+/// Clear the JS `setInterval` timer stored in a [`ReplayState`], if any.
+fn clear_replay_interval(replay: &mut ReplayState) {
+    if let Some(handle) = replay.interval_handle.take()
+        && let Some(window) = web_sys::window()
+    {
+        window.clear_interval_with_handle(handle);
+    }
+}
+
+/// Parse a `"#RRGGBB"` hex color string into `(r, g, b)`.
+///
+/// Falls back to `(128, 128, 128)` if the string is not in the expected format.
+/// Static series names for custom indicators (up to 8 series).
+const CUSTOM_SERIES_NAMES: [&str; 8] = [
+    "Series 0", "Series 1", "Series 2", "Series 3", "Series 4", "Series 5", "Series 6", "Series 7",
+];
+
+/// Build `IndicatorSeries` from a flat row-major values array.
+fn build_custom_series(
+    values: &[f64],
+    series_count: usize,
+    n: usize,
+) -> Vec<ferrochart_core::IndicatorSeries> {
+    (0..series_count)
+        .map(|s| {
+            let start = s * n;
+            let end = (start + n).min(values.len());
+            ferrochart_core::IndicatorSeries {
+                name: CUSTOM_SERIES_NAMES[s % CUSTOM_SERIES_NAMES.len()],
+                values: values[start..end].to_vec(),
+                style_hint: SeriesStyle::Line,
+            }
+        })
+        .collect()
+}
+
+fn parse_color(hex: &str) -> (u8, u8, u8) {
+    let s = hex.trim().trim_start_matches('#');
+    let parse = || -> Option<(u8, u8, u8)> {
+        if s.len() != 6 {
+            return None;
+        }
+        Some((
+            u8::from_str_radix(&s[0..2], 16).ok()?,
+            u8::from_str_radix(&s[2..4], 16).ok()?,
+            u8::from_str_radix(&s[4..6], 16).ok()?,
+        ))
+    };
+    parse().unwrap_or((128, 128, 128))
 }
 
 /// Helper: get mouse position relative to canvas in canvas-pixel coordinates.
@@ -965,6 +1570,31 @@ fn attach_mouse_events(
             && pos.x < y_axis_left
             && let Some(data_pos) = pixel_to_data(&st, pos)
         {
+            // Single-click drawing modes (no start point needed)
+            match st.draw_mode {
+                DrawMode::HorizontalLine => {
+                    st.annotations.add_horizontal_ray(HorizontalRay {
+                        price: data_pos.1,
+                        color: (255, 215, 0),
+                        width: 1.5,
+                    });
+                    st.drawing = None;
+                    st.dirty.mark(DirtyFlags::ANNOTATIONS);
+                    return;
+                }
+                DrawMode::VerticalLine => {
+                    st.annotations.add_vertical_line(VerticalLine {
+                        bar_index: data_pos.0,
+                        color: (100, 200, 255),
+                        width: 1.0,
+                    });
+                    st.drawing = None;
+                    st.dirty.mark(DirtyFlags::ANNOTATIONS);
+                    return;
+                }
+                _ => {}
+            }
+
             if let Some(start) = st.drawing {
                 match st.draw_mode {
                     DrawMode::TrendLine => {
@@ -1035,7 +1665,110 @@ fn attach_mouse_events(
                             });
                         }
                     }
-                    DrawMode::None => {}
+                    DrawMode::Ray => {
+                        st.annotations.add_ray(Ray {
+                            start_bar: start.start_bar,
+                            start_price: start.start_price,
+                            end_bar: data_pos.0,
+                            end_price: data_pos.1,
+                            color: (0, 200, 255),
+                            width: 1.5,
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::Measurement => {
+                        st.annotations.add_measurement(MeasurementTool {
+                            start_bar: start.start_bar,
+                            start_price: start.start_price,
+                            end_bar: data_pos.0,
+                            end_price: data_pos.1,
+                            color: (255, 200, 0),
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::Ellipse => {
+                        st.annotations.add_ellipse(Ellipse {
+                            start_bar: start.start_bar,
+                            start_price: start.start_price,
+                            end_bar: data_pos.0,
+                            end_price: data_pos.1,
+                            color: (100, 200, 100),
+                            fill_color: (100, 200, 100, 25),
+                            width: 1.5,
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::Pitchfork => {
+                        if let (Some(end_bar), Some(end_price)) = (start.end_bar, start.end_price) {
+                            // Third click → complete pitchfork
+                            st.annotations.add_pitchfork(AndrewsPitchfork {
+                                bar1: start.start_bar,
+                                price1: start.start_price,
+                                bar2: end_bar,
+                                price2: end_price,
+                                bar3: data_pos.0,
+                                price3: data_pos.1,
+                                color: (255, 165, 0),
+                                width: 1.5,
+                            });
+                            st.drawing = None;
+                            st.draw_mode = DrawMode::None;
+                        } else {
+                            // Second click → store end, wait for third
+                            st.drawing = Some(DrawingInProgress {
+                                start_bar: start.start_bar,
+                                start_price: start.start_price,
+                                end_bar: Some(data_pos.0),
+                                end_price: Some(data_pos.1),
+                            });
+                        }
+                    }
+                    DrawMode::GannFan => {
+                        let bar_range = (data_pos.0 - start.start_bar).abs().max(1.0);
+                        let price_range = (data_pos.1 - start.start_price).abs();
+                        let scale = price_range / bar_range;
+                        st.annotations.add_gann_fan(GannFan {
+                            anchor_bar: start.start_bar,
+                            anchor_price: start.start_price,
+                            scale: scale.max(0.01),
+                            color: (200, 100, 255),
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::PriceChannel => {
+                        // Compute highest high and lowest low between start and end bars
+                        let sb = start.start_bar.round() as usize;
+                        let eb = data_pos.0.round() as usize;
+                        let (lo, hi) = if sb <= eb { (sb, eb) } else { (eb, sb) };
+                        let lo = lo.min(st.data.len().saturating_sub(1));
+                        let hi = hi.min(st.data.len().saturating_sub(1));
+                        let upper_start = st.data[lo..=hi]
+                            .iter()
+                            .map(|b| b.high)
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        let lower_start = st.data[lo..=hi]
+                            .iter()
+                            .map(|b| b.low)
+                            .fold(f64::INFINITY, f64::min);
+                        st.annotations.add_price_channel(PriceChannel {
+                            start_bar: lo as f64,
+                            end_bar: hi as f64,
+                            upper_start_price: upper_start,
+                            upper_end_price: upper_start,
+                            lower_start_price: lower_start,
+                            lower_end_price: lower_start,
+                            color: (0, 200, 255),
+                            fill_color: (0, 200, 255, 20),
+                            width: 1.5,
+                        });
+                        st.drawing = None;
+                        st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::None | DrawMode::HorizontalLine | DrawMode::VerticalLine => {}
                 }
             } else {
                 // First click → start drawing
@@ -1356,6 +2089,28 @@ fn start_render_loop(state: &Rc<RefCell<ChartState>>) -> RafClosure {
     *raf_closure.borrow_mut() = Some(Closure::wrap(Box::new(move || {
         {
             let mut st = s.borrow_mut();
+
+            // Check replay auto-play tick flag
+            let tick = {
+                let mut flag = st.replay_tick.borrow_mut();
+                let v = *flag;
+                *flag = false;
+                v
+            };
+            if tick {
+                let data_len = st.data.len();
+                if let Some(ref mut replay) = st.replay_mode {
+                    if replay.cursor < data_len {
+                        replay.cursor += 1;
+                        st.dirty.mark_all();
+                    } else {
+                        // Reached end — stop auto-play
+                        replay.playing = false;
+                        clear_replay_interval(replay);
+                    }
+                }
+            }
+
             if st.dirty.any() {
                 st.dirty.clear();
                 render_frame(&mut st);
@@ -1434,15 +2189,40 @@ fn render_frame(st: &mut ChartState) {
         return;
     }
 
-    // Ensure zoom_pan is consistent with current data length
-    if st.zoom_pan.total_bars != st.data.len() {
-        st.zoom_pan = ZoomPanState::new(st.data.len(), st.zoom_pan.visible_bars);
+    // Replay mode: slice the dataset to show only the first N bars
+    let replay_cursor = st.replay_mode.as_ref().map(|r| r.cursor.min(st.data.len()));
+    let effective_data: &[Ohlcv] = if let Some(cursor) = replay_cursor {
+        &st.data[..cursor]
+    } else {
+        &st.data
+    };
+
+    if effective_data.is_empty() {
+        return;
+    }
+
+    // Recompute indicators on the replay slice when in replay mode
+    let replay_outputs: Vec<IndicatorOutput>;
+    let indicator_outputs: &[IndicatorOutput] = if replay_cursor.is_some() {
+        replay_outputs = st
+            .indicators
+            .iter()
+            .map(|ind| ind.compute(effective_data))
+            .collect();
+        &replay_outputs
+    } else {
+        &st.cached_outputs
+    };
+
+    // Ensure zoom_pan is consistent with current effective data length
+    if st.zoom_pan.total_bars != effective_data.len() {
+        st.zoom_pan = ZoomPanState::new(effective_data.len(), st.zoom_pan.visible_bars);
     }
 
     let range = st.zoom_pan.visible_range();
-    let end = range.end.min(st.data.len());
+    let end = range.end.min(effective_data.len());
     let start = range.start.min(end);
-    let visible_data = &st.data[start..end];
+    let visible_data = &effective_data[start..end];
     if visible_data.is_empty() {
         return;
     }
@@ -1458,8 +2238,7 @@ fn render_frame(st: &mut ChartState) {
 
     let (render_data, outputs) = if let Some(target) = decimation_target {
         let decimated = ferrochart_core::decimation::min_max_decimate(visible_data, target);
-        let outputs: Vec<IndicatorOutput> = st
-            .cached_outputs
+        let outputs: Vec<IndicatorOutput> = indicator_outputs
             .iter()
             .map(|out| {
                 let sliced = out.slice(start..end);
@@ -1484,8 +2263,7 @@ fn render_frame(st: &mut ChartState) {
             .collect();
         (decimated, outputs)
     } else {
-        let outputs: Vec<IndicatorOutput> = st
-            .cached_outputs
+        let outputs: Vec<IndicatorOutput> = indicator_outputs
             .iter()
             .map(|out| out.slice(start..end))
             .collect();
@@ -1506,10 +2284,11 @@ fn render_frame(st: &mut ChartState) {
         .collect();
     let marker_refs: Vec<&Marker> = adjusted_markers.iter().collect();
 
-    // Apply Y-axis scale factor, panel weights, and bar slot count
+    // Apply Y-axis scale factor, panel weights, bar slot count, and chart type
     st.config.price_scale = st.price_scale;
     st.config.panel_weights = st.panel_weights.clone();
     st.config.visible_offset = start;
+    st.config.chart_type = st.chart_type;
     // If scrolled into future space, there are fewer data bars than visible slots
     st.config.visible_bar_slots = if render_data.len() < st.zoom_pan.visible_bars {
         Some(st.zoom_pan.visible_bars)
@@ -1692,7 +2471,108 @@ fn draw_preview(
                 renderer.draw_line(start_pixel, mouse, &style);
             }
         }
-        DrawMode::None => {}
+        DrawMode::Ray => {
+            let style = LineStyle {
+                color: Color::rgba(0, 200, 255, 180),
+                width: 1.5,
+            };
+            renderer.draw_line(start_pixel, mouse, &style);
+        }
+        DrawMode::Measurement => {
+            let x_left = start_pixel.x.min(mouse.x);
+            let x_right = start_pixel.x.max(mouse.x);
+            let y_top = start_pixel.y.min(mouse.y);
+            let y_bottom = start_pixel.y.max(mouse.y);
+            renderer.draw_rect_outline(
+                Rect::new(x_left, y_top, x_right - x_left, y_bottom - y_top),
+                &LineStyle {
+                    color: Color::rgba(255, 200, 0, 150),
+                    width: 1.0,
+                },
+            );
+        }
+        DrawMode::Ellipse => {
+            let cx = f64::midpoint(start_pixel.x, mouse.x);
+            let cy = f64::midpoint(start_pixel.y, mouse.y);
+            let rx = (mouse.x - start_pixel.x).abs() / 2.0;
+            let ry = (mouse.y - start_pixel.y).abs() / 2.0;
+            if rx > f64::EPSILON && ry > f64::EPSILON {
+                renderer.draw_ellipse(
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    &LineStyle {
+                        color: Color::rgba(100, 200, 100, 180),
+                        width: 1.5,
+                    },
+                );
+            }
+        }
+        DrawMode::Pitchfork => {
+            let style = LineStyle {
+                color: Color::rgba(255, 165, 0, 180),
+                width: 1.0,
+            };
+            if let (Some(end_bar), Some(end_price)) = (drawing.end_bar, drawing.end_price) {
+                let rel_end = end_bar - visible_start as f64;
+                let end_pixel = transform.to_pixel(rel_end, end_price);
+                // Show first two anchor points and line to mouse (third anchor)
+                renderer.draw_line(start_pixel, end_pixel, &style);
+                renderer.draw_line(end_pixel, mouse, &style);
+            } else {
+                renderer.draw_line(start_pixel, mouse, &style);
+            }
+        }
+        DrawMode::GannFan => {
+            // Show a preview line from anchor to mouse
+            renderer.draw_line(
+                start_pixel,
+                mouse,
+                &LineStyle {
+                    color: Color::rgba(200, 100, 255, 180),
+                    width: 1.0,
+                },
+            );
+        }
+        DrawMode::PriceChannel => {
+            // Show a rectangle preview between start and mouse
+            let x_left = start_pixel.x.min(mouse.x);
+            let x_right = start_pixel.x.max(mouse.x);
+            let y_top = start_pixel.y.min(mouse.y);
+            let y_bottom = start_pixel.y.max(mouse.y);
+            renderer.fill_polygon(
+                &[
+                    Point {
+                        x: x_left,
+                        y: y_top,
+                    },
+                    Point {
+                        x: x_right,
+                        y: y_top,
+                    },
+                    Point {
+                        x: x_right,
+                        y: y_bottom,
+                    },
+                    Point {
+                        x: x_left,
+                        y: y_bottom,
+                    },
+                ],
+                &FillStyle {
+                    color: Color::rgba(0, 200, 255, 20),
+                },
+            );
+            renderer.draw_rect_outline(
+                Rect::new(x_left, y_top, x_right - x_left, y_bottom - y_top),
+                &LineStyle {
+                    color: Color::rgba(0, 200, 255, 150),
+                    width: 1.0,
+                },
+            );
+        }
+        DrawMode::None | DrawMode::HorizontalLine | DrawMode::VerticalLine => {}
     }
 }
 

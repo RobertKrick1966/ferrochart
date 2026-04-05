@@ -101,6 +101,24 @@ impl Renderer for CanvasRenderer {
         self.ctx.fill();
     }
 
+    fn draw_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, style: &LineStyle) {
+        self.set_stroke(style.color, style.width);
+        self.ctx.begin_path();
+        let _ = self
+            .ctx
+            .ellipse(cx, cy, rx, ry, 0.0, 0.0, std::f64::consts::TAU);
+        self.ctx.stroke();
+    }
+
+    fn fill_ellipse(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, fill: &FillStyle) {
+        self.set_fill(fill.color);
+        self.ctx.begin_path();
+        let _ = self
+            .ctx
+            .ellipse(cx, cy, rx, ry, 0.0, 0.0, std::f64::consts::TAU);
+        self.ctx.fill();
+    }
+
     fn fill_polygon(&mut self, points: &[Point], fill: &FillStyle) {
         if points.len() < 3 {
             return;

@@ -306,14 +306,14 @@ mod tests {
 
     #[test]
     fn lttb_reduces_to_target() {
-        let values: Vec<f64> = (0..1000).map(|i| (i as f64 * 0.1).sin()).collect();
+        let values: Vec<f64> = (0..1000).map(|i| (f64::from(i) * 0.1).sin()).collect();
         let result = lttb_decimate(&values, 50);
         assert_eq!(result.len(), 50);
     }
 
     #[test]
     fn lttb_preserves_endpoints() {
-        let values: Vec<f64> = (0..100).map(|i| i as f64).collect();
+        let values: Vec<f64> = (0..100).map(f64::from).collect();
         let result = lttb_decimate(&values, 10);
         assert!((result[0] - 0.0).abs() < 1e-9);
         assert!((result[9] - 99.0).abs() < 1e-9);
