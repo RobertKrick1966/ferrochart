@@ -18,8 +18,7 @@ use ferrochart_core::{
     IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape,
     MeasurementTool, NewsEvent, Ohlcv, Point, PriceChannel, PriceRange, Ray, Rect, RectangleZone,
     SeriesStyle, TextLabel, TimeRange, Transform, TrendLine, TripleBarrier, TripleBarrierZone,
-    VerticalLine, Viewport,
-    WalkForwardZone, ZoomPanState,
+    VerticalLine, Viewport, WalkForwardZone, ZoomPanState,
 };
 use ferrochart_render::Renderer;
 use ferrochart_render::chart::{
@@ -1056,16 +1055,15 @@ impl FerroChart {
         alpha: u8,
     ) {
         let mut st = self.state.borrow_mut();
-        st.annotations
-            .add_triple_barrier_zone(TripleBarrierZone {
-                start_bar,
-                end_bar,
-                upper,
-                lower,
-                zero_zone,
-                alpha,
-                border_width: 0.5,
-            });
+        st.annotations.add_triple_barrier_zone(TripleBarrierZone {
+            start_bar,
+            end_bar,
+            upper,
+            lower,
+            zero_zone,
+            alpha,
+            border_width: 0.5,
+        });
         st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
@@ -1803,20 +1801,18 @@ fn attach_mouse_events(
                         st.draw_mode = DrawMode::None;
                     }
                     DrawMode::TripleBarrierZone => {
-                        if let (Some(_end_bar), Some(end_price)) =
-                            (start.end_bar, start.end_price)
+                        if let (Some(_end_bar), Some(end_price)) = (start.end_bar, start.end_price)
                         {
                             // Third click → upper (TP) + end_bar (time barrier)
-                            st.annotations
-                                .add_triple_barrier_zone(TripleBarrierZone {
-                                    start_bar: start.start_bar,
-                                    end_bar: data_pos.0,
-                                    upper: data_pos.1,
-                                    lower: end_price,
-                                    zero_zone: start.start_price,
-                                    alpha: 35,
-                                    border_width: 0.5,
-                                });
+                            st.annotations.add_triple_barrier_zone(TripleBarrierZone {
+                                start_bar: start.start_bar,
+                                end_bar: data_pos.0,
+                                upper: data_pos.1,
+                                lower: end_price,
+                                zero_zone: start.start_price,
+                                alpha: 35,
+                                border_width: 0.5,
+                            });
                             st.drawing = None;
                             st.draw_mode = DrawMode::None;
                         } else {
@@ -2644,10 +2640,22 @@ fn draw_preview(
                 // Green upper zone (zero_zone → upper)
                 renderer.fill_polygon(
                     &[
-                        Point { x: x_left, y: upper_y },
-                        Point { x: x_right, y: upper_y },
-                        Point { x: x_right, y: zero_y },
-                        Point { x: x_left, y: zero_y },
+                        Point {
+                            x: x_left,
+                            y: upper_y,
+                        },
+                        Point {
+                            x: x_right,
+                            y: upper_y,
+                        },
+                        Point {
+                            x: x_right,
+                            y: zero_y,
+                        },
+                        Point {
+                            x: x_left,
+                            y: zero_y,
+                        },
                     ],
                     &FillStyle {
                         color: Color::rgba(0, 180, 0, 35),
@@ -2656,10 +2664,22 @@ fn draw_preview(
                 // Red lower zone (zero_zone → lower)
                 renderer.fill_polygon(
                     &[
-                        Point { x: x_left, y: zero_y },
-                        Point { x: x_right, y: zero_y },
-                        Point { x: x_right, y: lower_y },
-                        Point { x: x_left, y: lower_y },
+                        Point {
+                            x: x_left,
+                            y: zero_y,
+                        },
+                        Point {
+                            x: x_right,
+                            y: zero_y,
+                        },
+                        Point {
+                            x: x_right,
+                            y: lower_y,
+                        },
+                        Point {
+                            x: x_left,
+                            y: lower_y,
+                        },
                     ],
                     &FillStyle {
                         color: Color::rgba(220, 0, 0, 35),
@@ -2667,8 +2687,14 @@ fn draw_preview(
                 );
                 // Zero-zone line
                 renderer.draw_line(
-                    Point { x: x_left, y: zero_y },
-                    Point { x: x_right, y: zero_y },
+                    Point {
+                        x: x_left,
+                        y: zero_y,
+                    },
+                    Point {
+                        x: x_right,
+                        y: zero_y,
+                    },
                     &LineStyle {
                         color: Color::rgba(255, 255, 255, 180),
                         width: 1.0,
@@ -2680,10 +2706,22 @@ fn draw_preview(
                 let lower_y = mouse.y;
                 renderer.fill_polygon(
                     &[
-                        Point { x: start_pixel.x - 30.0, y: zero_y },
-                        Point { x: start_pixel.x + 30.0, y: zero_y },
-                        Point { x: start_pixel.x + 30.0, y: lower_y },
-                        Point { x: start_pixel.x - 30.0, y: lower_y },
+                        Point {
+                            x: start_pixel.x - 30.0,
+                            y: zero_y,
+                        },
+                        Point {
+                            x: start_pixel.x + 30.0,
+                            y: zero_y,
+                        },
+                        Point {
+                            x: start_pixel.x + 30.0,
+                            y: lower_y,
+                        },
+                        Point {
+                            x: start_pixel.x - 30.0,
+                            y: lower_y,
+                        },
                     ],
                     &FillStyle {
                         color: Color::rgba(220, 0, 0, 35),
@@ -2691,8 +2729,14 @@ fn draw_preview(
                 );
                 // Zero-zone line
                 renderer.draw_line(
-                    Point { x: start_pixel.x - 30.0, y: zero_y },
-                    Point { x: start_pixel.x + 30.0, y: zero_y },
+                    Point {
+                        x: start_pixel.x - 30.0,
+                        y: zero_y,
+                    },
+                    Point {
+                        x: start_pixel.x + 30.0,
+                        y: zero_y,
+                    },
                     &LineStyle {
                         color: Color::rgba(255, 255, 255, 180),
                         width: 1.0,

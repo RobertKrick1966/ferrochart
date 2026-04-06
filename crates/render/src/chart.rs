@@ -5,8 +5,9 @@ use ferrochart_core::{
     AndrewsPitchfork, Annotations, BarrierOutcome, CandleGeometry, ChartType, Ellipse, GannFan,
     HorizontalRay, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerShape,
     MeasurementTool, Ohlcv, PFDirection, PanelLayout, Point, PriceChannel, PriceRange, Ray, Rect,
-    RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, TripleBarrierZone, VerticalLine, Viewport,
-    YScaleMode, compute_heikin_ashi, compute_point_figure, compute_renko, indicator::VolumeProfile,
+    RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, TripleBarrierZone, VerticalLine,
+    Viewport, YScaleMode, compute_heikin_ashi, compute_point_figure, compute_renko,
+    indicator::VolumeProfile,
 };
 
 use crate::Renderer;

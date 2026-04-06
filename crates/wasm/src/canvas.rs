@@ -44,8 +44,7 @@ impl CanvasRenderer {
 
     #[allow(deprecated)]
     fn set_fill(&self, color: Color) {
-        self.ctx
-            .set_fill_style(&JsValue::from_str(&color.to_css()));
+        self.ctx.set_fill_style(&JsValue::from_str(&color.to_css()));
     }
 }
 
