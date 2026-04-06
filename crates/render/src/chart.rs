@@ -5,8 +5,9 @@ use ferrochart_core::{
     AndrewsPitchfork, Annotations, BarrierOutcome, CandleGeometry, ChartType, Ellipse, GannFan,
     HorizontalRay, IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerShape,
     MeasurementTool, Ohlcv, PFDirection, PanelLayout, Point, PriceChannel, PriceRange, Ray, Rect,
-    RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, VerticalLine, Viewport,
-    YScaleMode, compute_heikin_ashi, compute_point_figure, compute_renko, indicator::VolumeProfile,
+    RectangleZone, SeriesStyle, TextLabel, TimeRange, Transform, TripleBarrierZone, VerticalLine,
+    Viewport, YScaleMode, compute_heikin_ashi, compute_point_figure, compute_renko,
+    indicator::VolumeProfile,
 };
 
 use crate::Renderer;
@@ -2372,6 +2373,15 @@ fn draw_annotations(
         offset,
     );
 
+    // Triple barrier zones
+    draw_triple_barrier_zones(
+        renderer,
+        &annotations.triple_barrier_zones,
+        transform,
+        panel_rect,
+        offset,
+    );
+
     // Text labels
     draw_text_labels(
         renderer,
@@ -2527,6 +2537,129 @@ fn draw_rectangle_zones(
         renderer.draw_line(
             Point { x: x_left, y: y_b },
             Point { x: x_left, y: y_t },
+            &border_style,
+        );
+    }
+}
+
+/// Draw triple barrier zone drawings.
+///
+/// Each zone is split at the zero-zone price: the upper half is filled in
+/// transparent green (profit zone) and the lower half in transparent red
+/// (loss zone). A thin horizontal line marks the zero-zone (entry price)
+/// and dashed-style border lines outline the full rectangle.
+fn draw_triple_barrier_zones(
+    renderer: &mut dyn Renderer,
+    zones: &[TripleBarrierZone],
+    transform: &Transform,
+    panel_rect: &Rect,
+    offset: f64,
+) {
+    for zone in zones {
+        let rel_start = zone.start_bar - offset;
+        let rel_end = zone.end_bar - offset;
+        let x_left = transform
+            .bar_x(rel_start.round().max(0.0) as usize)
+            .max(panel_rect.x);
+        let x_right = transform
+            .bar_x(rel_end.round().max(0.0) as usize)
+            .min(panel_rect.right());
+        let y_upper = transform.price_y(zone.upper).max(panel_rect.y);
+        let y_lower = transform.price_y(zone.lower).min(panel_rect.bottom());
+        let y_zero = transform.price_y(zone.zero_zone);
+
+        let width = (x_right - x_left).max(0.0);
+        if width < f64::EPSILON {
+            continue;
+        }
+
+        let a = zone.alpha;
+
+        // Upper zone: zero-zone → upper (profit = green)
+        let upper_height = (y_zero - y_upper).max(0.0);
+        if upper_height > f64::EPSILON {
+            renderer.draw_rect(
+                Rect::new(x_left, y_upper, width, upper_height),
+                &FillStyle {
+                    color: Color::rgba(0, 180, 0, a),
+                },
+            );
+        }
+
+        // Lower zone: zero-zone → lower (loss = red)
+        let lower_height = (y_lower - y_zero).max(0.0);
+        if lower_height > f64::EPSILON {
+            renderer.draw_rect(
+                Rect::new(x_left, y_zero, width, lower_height),
+                &FillStyle {
+                    color: Color::rgba(220, 0, 0, a),
+                },
+            );
+        }
+
+        // Zero-zone line (entry price)
+        renderer.draw_line(
+            Point {
+                x: x_left,
+                y: y_zero,
+            },
+            Point {
+                x: x_right,
+                y: y_zero,
+            },
+            &LineStyle {
+                color: Color::rgba(255, 255, 255, 180),
+                width: 1.0,
+            },
+        );
+
+        // Border outline
+        let border_style = LineStyle {
+            color: Color::rgba(160, 160, 160, 120),
+            width: zone.border_width,
+        };
+        renderer.draw_line(
+            Point {
+                x: x_left,
+                y: y_upper,
+            },
+            Point {
+                x: x_right,
+                y: y_upper,
+            },
+            &border_style,
+        );
+        renderer.draw_line(
+            Point {
+                x: x_right,
+                y: y_upper,
+            },
+            Point {
+                x: x_right,
+                y: y_lower,
+            },
+            &border_style,
+        );
+        renderer.draw_line(
+            Point {
+                x: x_right,
+                y: y_lower,
+            },
+            Point {
+                x: x_left,
+                y: y_lower,
+            },
+            &border_style,
+        );
+        renderer.draw_line(
+            Point {
+                x: x_left,
+                y: y_lower,
+            },
+            Point {
+                x: x_left,
+                y: y_upper,
+            },
             &border_style,
         );
     }
