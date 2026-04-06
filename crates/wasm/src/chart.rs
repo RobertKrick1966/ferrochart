@@ -17,7 +17,8 @@ use ferrochart_core::{
     FibonacciRetracement, GannFan, HorizontalHistogram, HorizontalLevel, HorizontalRay, Indicator,
     IndicatorOutput, IndicatorPlacement, Marker, MarkerPosition, MarkerSet, MarkerShape,
     MeasurementTool, NewsEvent, Ohlcv, Point, PriceChannel, PriceRange, Ray, Rect, RectangleZone,
-    SeriesStyle, TextLabel, TimeRange, Transform, TrendLine, TripleBarrier, VerticalLine, Viewport,
+    SeriesStyle, TextLabel, TimeRange, Transform, TrendLine, TripleBarrier, TripleBarrierZone,
+    VerticalLine, Viewport,
     WalkForwardZone, ZoomPanState,
 };
 use ferrochart_render::Renderer;
@@ -85,6 +86,8 @@ enum DrawMode {
     HorizontalLine,
     /// Vertical line: single click places a full-height bar line.
     VerticalLine,
+    /// Triple Barrier Zone: two clicks define entry (start) and exit (end) bar/price region.
+    TripleBarrierZone,
 }
 
 /// In-progress drawing.
@@ -1036,6 +1039,36 @@ impl FerroChart {
         st.dirty.mark(DirtyFlags::ANNOTATIONS);
     }
 
+    /// Add a triple barrier zone drawing.
+    ///
+    /// Draws a rectangle from `start_bar` to `end_bar` spanning from `upper` to
+    /// `lower` price. The area above `zero_zone` is filled transparent green
+    /// (profit) and below transparent red (loss).
+    #[wasm_bindgen(js_name = addTripleBarrierZone)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_triple_barrier_zone(
+        &self,
+        start_bar: f64,
+        end_bar: f64,
+        upper: f64,
+        lower: f64,
+        zero_zone: f64,
+        alpha: u8,
+    ) {
+        let mut st = self.state.borrow_mut();
+        st.annotations
+            .add_triple_barrier_zone(TripleBarrierZone {
+                start_bar,
+                end_bar,
+                upper,
+                lower,
+                zero_zone,
+                alpha,
+                border_width: 0.5,
+            });
+        st.dirty.mark(DirtyFlags::ANNOTATIONS);
+    }
+
     /// Register a custom overlay indicator with precomputed values.
     ///
     /// `name` is the display name. `values` is a flat `Float64Array` of length
@@ -1111,6 +1144,7 @@ impl FerroChart {
             "price_channel" => DrawMode::PriceChannel,
             "horizontal_line" => DrawMode::HorizontalLine,
             "vertical_line" => DrawMode::VerticalLine,
+            "triple_barrier_zone" => DrawMode::TripleBarrierZone,
             _ => return Err(JsValue::from_str(&format!("unknown draw mode: {mode}"))),
         };
         st.drawing = None;
@@ -1767,6 +1801,33 @@ fn attach_mouse_events(
                         });
                         st.drawing = None;
                         st.draw_mode = DrawMode::None;
+                    }
+                    DrawMode::TripleBarrierZone => {
+                        if let (Some(_end_bar), Some(end_price)) =
+                            (start.end_bar, start.end_price)
+                        {
+                            // Third click → upper (TP) + end_bar (time barrier)
+                            st.annotations
+                                .add_triple_barrier_zone(TripleBarrierZone {
+                                    start_bar: start.start_bar,
+                                    end_bar: data_pos.0,
+                                    upper: data_pos.1,
+                                    lower: end_price,
+                                    zero_zone: start.start_price,
+                                    alpha: 35,
+                                    border_width: 0.5,
+                                });
+                            st.drawing = None;
+                            st.draw_mode = DrawMode::None;
+                        } else {
+                            // Second click → lower (SL), wait for third
+                            st.drawing = Some(DrawingInProgress {
+                                start_bar: start.start_bar,
+                                start_price: start.start_price,
+                                end_bar: Some(data_pos.0),
+                                end_price: Some(data_pos.1),
+                            });
+                        }
                     }
                     DrawMode::None | DrawMode::HorizontalLine | DrawMode::VerticalLine => {}
                 }
@@ -2571,6 +2632,73 @@ fn draw_preview(
                     width: 1.0,
                 },
             );
+        }
+        DrawMode::TripleBarrierZone => {
+            if let Some(end_price) = drawing.end_price {
+                // After 2nd click: have zero_zone + lower, mouse defines upper + end_bar
+                let zero_y = start_pixel.y;
+                let lower_y = transform.price_y(end_price);
+                let upper_y = mouse.y;
+                let x_left = start_pixel.x;
+                let x_right = mouse.x;
+                // Green upper zone (zero_zone → upper)
+                renderer.fill_polygon(
+                    &[
+                        Point { x: x_left, y: upper_y },
+                        Point { x: x_right, y: upper_y },
+                        Point { x: x_right, y: zero_y },
+                        Point { x: x_left, y: zero_y },
+                    ],
+                    &FillStyle {
+                        color: Color::rgba(0, 180, 0, 35),
+                    },
+                );
+                // Red lower zone (zero_zone → lower)
+                renderer.fill_polygon(
+                    &[
+                        Point { x: x_left, y: zero_y },
+                        Point { x: x_right, y: zero_y },
+                        Point { x: x_right, y: lower_y },
+                        Point { x: x_left, y: lower_y },
+                    ],
+                    &FillStyle {
+                        color: Color::rgba(220, 0, 0, 35),
+                    },
+                );
+                // Zero-zone line
+                renderer.draw_line(
+                    Point { x: x_left, y: zero_y },
+                    Point { x: x_right, y: zero_y },
+                    &LineStyle {
+                        color: Color::rgba(255, 255, 255, 180),
+                        width: 1.0,
+                    },
+                );
+            } else {
+                // After 1st click: mouse defines lower (SL) — show red preview
+                let zero_y = start_pixel.y;
+                let lower_y = mouse.y;
+                renderer.fill_polygon(
+                    &[
+                        Point { x: start_pixel.x - 30.0, y: zero_y },
+                        Point { x: start_pixel.x + 30.0, y: zero_y },
+                        Point { x: start_pixel.x + 30.0, y: lower_y },
+                        Point { x: start_pixel.x - 30.0, y: lower_y },
+                    ],
+                    &FillStyle {
+                        color: Color::rgba(220, 0, 0, 35),
+                    },
+                );
+                // Zero-zone line
+                renderer.draw_line(
+                    Point { x: start_pixel.x - 30.0, y: zero_y },
+                    Point { x: start_pixel.x + 30.0, y: zero_y },
+                    &LineStyle {
+                        color: Color::rgba(255, 255, 255, 180),
+                        width: 1.0,
+                    },
+                );
+            }
         }
         DrawMode::None | DrawMode::HorizontalLine | DrawMode::VerticalLine => {}
     }

@@ -36,12 +36,14 @@ impl CanvasRenderer {
     }
 
     fn set_stroke(&self, color: Color, width: f64) {
-        self.ctx.set_stroke_style_str(&color.to_css());
+        self.ctx
+            .set_stroke_style(&JsValue::from_str(&color.to_css()));
         self.ctx.set_line_width(width);
     }
 
     fn set_fill(&self, color: Color) {
-        self.ctx.set_fill_style_str(&color.to_css());
+        self.ctx
+            .set_fill_style(&JsValue::from_str(&color.to_css()));
     }
 }
 

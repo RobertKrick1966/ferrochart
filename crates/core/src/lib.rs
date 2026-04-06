@@ -29,7 +29,7 @@ pub use annotation::{
     AndrewsPitchfork, Annotations, BarrierOutcome, ConfidenceBand, Corridor, Ellipse,
     FibonacciRetracement, GannFan, HorizontalHistogram, HorizontalLevel, HorizontalRay,
     MeasurementTool, NewsEvent, PriceChannel, Ray, RectangleZone, TextLabel, TrendLine,
-    TripleBarrier, VerticalLine, WalkForwardZone,
+    TripleBarrier, TripleBarrierZone, VerticalLine, WalkForwardZone,
 };
 /// Re-exported candlestick geometry.
 pub use candle::CandleGeometry;

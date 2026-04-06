@@ -98,6 +98,30 @@ pub struct TripleBarrier {
     pub color: (u8, u8, u8),
 }
 
+/// Triple Barrier Zone drawing: a rectangle split at a zero-zone price level.
+///
+/// The area above the zero-zone is rendered in transparent green and the area
+/// below in transparent red, visualising the profit/loss zones of a triple
+/// barrier trade setup (López de Prado, *AFML* Ch. 3).
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TripleBarrierZone {
+    /// Bar index of the left edge (trade entry / start).
+    pub start_bar: f64,
+    /// Bar index of the right edge (time barrier / end).
+    pub end_bar: f64,
+    /// Upper price level (take-profit).
+    pub upper: f64,
+    /// Lower price level (stop-loss).
+    pub lower: f64,
+    /// Zero-zone price (entry price that separates profit from loss).
+    pub zero_zone: f64,
+    /// Alpha value for the zone fills (0–255).
+    pub alpha: u8,
+    /// Border line width in pixels.
+    pub border_width: f64,
+}
+
 /// ML confidence band overlay on the price panel.
 ///
 /// Renders a semi-transparent band between `upper` and `lower` values per bar,
@@ -392,6 +416,8 @@ pub struct Annotations {
     pub gann_fans: Vec<GannFan>,
     /// Price channel annotations.
     pub price_channels: Vec<PriceChannel>,
+    /// Triple barrier zone drawings (profit/loss zone rectangles).
+    pub triple_barrier_zones: Vec<TripleBarrierZone>,
 }
 
 impl Annotations {
@@ -496,6 +522,11 @@ impl Annotations {
         self.price_channels.push(channel);
     }
 
+    /// Adds a triple barrier zone drawing.
+    pub fn add_triple_barrier_zone(&mut self, zone: TripleBarrierZone) {
+        self.triple_barrier_zones.push(zone);
+    }
+
     /// Removes all annotations.
     pub fn clear(&mut self) {
         self.trend_lines.clear();
@@ -517,6 +548,7 @@ impl Annotations {
         self.pitchforks.clear();
         self.gann_fans.clear();
         self.price_channels.clear();
+        self.triple_barrier_zones.clear();
     }
 
     /// Returns `true` if there are no annotations of any kind.
@@ -541,6 +573,7 @@ impl Annotations {
             && self.pitchforks.is_empty()
             && self.gann_fans.is_empty()
             && self.price_channels.is_empty()
+            && self.triple_barrier_zones.is_empty()
     }
 }
 

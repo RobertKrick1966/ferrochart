@@ -98,6 +98,7 @@
                     <option value="pitchfork">Pitchfork (3pt)</option>
                     <option value="gann_fan">Gann Fan</option>
                     <option value="price_channel">Price Channel</option>
+                    <option value="triple_barrier_zone">Triple Barrier Zone</option>
                 </optgroup>
                 <optgroup label="Single Click">
                     <option value="horizontal_line">H-Line (click)</option>
@@ -236,6 +237,10 @@
             chart.addTrendLine(20, opens[20], 80, closes[80], 255, 255, 0, true);
             chart.addFibonacci(40, Math.max(...highs.slice(35, 50)), 60, Math.min(...lows.slice(55, 65)), 255, 165, 0);
             chart.addTripleBarrier(30, closes[30], closes[30]*1.04, closes[30]*0.97, 15, 38, 'tp', 100, 180, 255);
+
+            // Triple Barrier Zone drawing — profit/loss rectangle
+            const entryPrice = closes[50];
+            chart.addTripleBarrierZone(50, 70, entryPrice * 1.05, entryPrice * 0.96, entryPrice, 35);
 
             // ML overlays
             const upper = closes.map((c, i) => i < 40 ? NaN : c * 1.02);
